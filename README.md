@@ -1,4 +1,4 @@
-# 🏥 Agendamento Clínica
+# 🏥 Medflow
 
 Sistema de agendamento e gestão para clínicas, construído do zero como projeto de aprendizado prático — do backend em Java ao frontend em React.
 
