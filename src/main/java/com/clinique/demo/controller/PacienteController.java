@@ -3,9 +3,7 @@ package com.clinique.demo.controller;
 import com.clinique.demo.model.Paciente;
 import com.clinique.demo.repository.PacienteRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -23,5 +21,12 @@ public class PacienteController {
     public List<Paciente> listarTodos() {
         return pacienteRepository.findAll();
     }
+    @PostMapping
+    public Paciente cadastrar(@RequestBody Paciente paciente){
+        return pacienteRepository.save(paciente);
+    }
+
+
+
 
 }
