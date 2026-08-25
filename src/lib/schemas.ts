@@ -122,6 +122,11 @@ export const receitaSchema = z.object({
   adicaoOD: z.string().optional(),
   adicaoOE: z.string().optional(),
 
+  /// AV alcançada com o grau prescrito — o resultado da lente nova, não a
+  /// medida do estado atual (essa fica no prontuário).
+  avCorrigidaOD: z.string().optional(),
+  avCorrigidaOE: z.string().optional(),
+
   dpLongeOD: z.string().optional(),
   dpLongeOE: z.string().optional(),
   dpPerto: z.string().optional(),

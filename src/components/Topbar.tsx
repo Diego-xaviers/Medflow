@@ -26,7 +26,7 @@ export default function Topbar() {
   const { data: perfil } = useSWR('/api/perfil', fetcher)
 
   return (
-    <header className="h-[65px] flex items-center justify-between px-6 border-b border-neutro-200/70 dark:border-neutro-800 bg-white/80 dark:bg-neutro-900/60 backdrop-blur-xl sticky top-0 z-30">
+    <header className="topbar h-[65px] flex items-center justify-between px-6 border-b border-neutro-200/70 dark:border-neutro-800 bg-white/80 dark:bg-neutro-900/60 backdrop-blur-xl sticky top-0 z-30">
       {/* Busca */}
       <div className="group flex items-center gap-2.5 w-full max-w-sm px-3 py-2 rounded-lg border border-neutro-200 dark:border-neutro-700 bg-neutro-50/60 dark:bg-neutro-950/40 transition-all duration-200 focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-500/10 focus-within:bg-white dark:focus-within:bg-neutro-950">
         <Search size={15} className="text-neutro-400 shrink-0" strokeWidth={2} />

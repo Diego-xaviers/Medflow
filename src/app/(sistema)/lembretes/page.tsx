@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { fetcher } from '@/lib/fetcher'
 import { data, dataHora, hora, moeda } from '@/lib/formato'
+import { linkWhatsApp } from '@/lib/whatsapp'
 
 /**
  * Central de contatos pendentes.
@@ -18,15 +19,6 @@ import { data, dataHora, hora, moeda } from '@/lib/formato'
  * paciente voltou. Por isso não há botão de "marcar como feito": resolver o
  * lembrete é resolver o que ele aponta.
  */
-
-/** Monta o link do WhatsApp com a mensagem já escrita. */
-function linkWhats(telefone: string | null, mensagem: string) {
-  if (!telefone) return null
-  const digitos = telefone.replace(/\D/g, '')
-  if (digitos.length < 10) return null
-  const completo = digitos.length <= 11 ? `55${digitos}` : digitos
-  return `https://wa.me/${completo}?text=${encodeURIComponent(mensagem)}`
-}
 
 export default function LembretesPage() {
   const { data: lembretes, isLoading } = useSWR('/api/lembretes', fetcher, {
@@ -151,7 +143,7 @@ export default function LembretesPage() {
 
               <div className="divide-y divide-neutro-100 dark:divide-neutro-800">
                 {bloco.itens.map((item: any) => {
-                  const whats = linkWhats(item.telefone, bloco.mensagem(item))
+                  const whats = linkWhatsApp(item.telefone, bloco.mensagem(item))
                   const selo = bloco.selo(item)
 
                   return (

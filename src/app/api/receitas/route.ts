@@ -11,7 +11,9 @@ export async function GET(req: NextRequest) {
 
     return prisma.receita.findMany({
       where: { consultorioId, ...(pacienteId && { pacienteId }) },
-      include: { paciente: { select: { id: true, nome: true } } },
+      // O telefone vem junto porque a lista tem o botão de mandar a receita
+      // por WhatsApp — sem ele, cada clique exigiria uma segunda consulta.
+      include: { paciente: { select: { id: true, nome: true, telefone: true } } },
       orderBy: { dataEmissao: 'desc' },
     })
   })

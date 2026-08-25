@@ -23,7 +23,14 @@ const ROTAS: Record<PapelUsuario, string[] | '*'> = {
   // responde os chamados e cuida da própria conta.
   SUPER_ADMIN: ['/admin', '/suporte', '/perfil'],
 
-  DONO: '*',
+  // O dono manda no consultório dele — mas `/admin` é a área do SaaS, onde
+  // se cadastram OUTROS consultórios. Listar tudo com `'*'` colocava esse
+  // item no menu dele e o clique morria num 403 vindo da API.
+  DONO: [
+    '/', '/agenda', '/pacientes', '/prontuarios', '/receitas',
+    '/financeiro', '/lembretes', '/relatorios', '/suporte',
+    '/equipe', '/configuracoes', '/perfil',
+  ],
 
   // A atendente toca a operação inteira, menos a administração da equipe.
   ATENDENTE: [

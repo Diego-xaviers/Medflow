@@ -285,6 +285,15 @@ model Receita {
   adicaoOD String?
   adicaoOE String?
 
+  /// Acuidade visual ALCANÇADA com o grau que está sendo prescrito.
+  ///
+  /// Não é repetição do prontuário: lá ficam a AV sem correção e a AV com o
+  /// óculos que o paciente JÁ USA — duas medidas do estado atual. Esta aqui é
+  /// o resultado esperado da lente nova, e é o número que responde à pergunta
+  /// que todo paciente faz: "com esse óculos eu vou enxergar quanto?".
+  avCorrigidaOD String?
+  avCorrigidaOE String?
+
   // Distância pupilar e altura de montagem
   dpLongeOD  String?
   dpLongeOE  String?

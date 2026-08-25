@@ -1,14 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import useSWR from 'swr'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Receipt, Trash2, X, Loader2, Glasses, FileText, Wand2, Link2,
+  Printer, MessageCircle, PhoneOff,
 } from 'lucide-react'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { data } from '@/lib/formato'
-import { herdarDoProntuario, resumoRefracao } from '@/lib/prescricao'
+import { herdarDoProntuario, resumoRefracao, textoDaReceita } from '@/lib/prescricao'
+import { linkWhatsApp } from '@/lib/whatsapp'
 
 /** Validade padrão: 1 ano a partir de hoje, que é a prática usual. */
 function daquiUmAno() {
@@ -22,6 +25,7 @@ const vazio: any = {
   longeEsfericoOD: '', longeCilindricoOD: '', longeEixoOD: '',
   longeEsfericoOE: '', longeCilindricoOE: '', longeEixoOE: '',
   adicaoOD: '', adicaoOE: '',
+  avCorrigidaOD: '', avCorrigidaOE: '',
   dpLongeOD: '', dpLongeOE: '', dpPerto: '', alturaOD: '', alturaOE: '',
   prismaOD: '', baseprismaOD: '', prismaOE: '', baseprismaOE: '',
   tipoLente: 'MONOFOCAL', materialLente: '', tratamentos: '', orientacoesUso: '',
@@ -34,6 +38,49 @@ const tiposLente = [
   ['OCUPACIONAL', 'Ocupacional'],
   ['CONTATO', 'Lente de contato'],
 ]
+
+/**
+ * Os dois caminhos de entrega da receita ao paciente.
+ *
+ * WhatsApp manda o texto formatado (o `wa.me` não aceita anexo — PDF exigiria
+ * a API oficial do Business). Imprimir abre a via em papel, que o mesmo
+ * diálogo do navegador salva em PDF para quem preferir arquivo.
+ */
+function EntregaDaReceita({ receita, consultorio }: { receita: any; consultorio: any }) {
+  const whats = linkWhatsApp(
+    receita.paciente?.telefone,
+    textoDaReceita({ ...receita, consultorio })
+  )
+
+  return (
+    <div className="flex items-center gap-1 shrink-0">
+      {whats ? (
+        <a href={whats} target="_blank" rel="noreferrer"
+          title={`Enviar para ${receita.paciente?.telefone}`}
+          className="btn-icone !w-8 !h-8 hover:!text-brand-600 hover:!bg-brand-50 dark:hover:!bg-brand-900/30">
+          <MessageCircle size={16} strokeWidth={2} />
+        </a>
+      ) : (
+        <span title="Paciente sem telefone cadastrado"
+          className="btn-icone !w-8 !h-8 opacity-40 cursor-not-allowed">
+          <PhoneOff size={15} strokeWidth={2} />
+        </span>
+      )}
+
+      <Link href={`/receitas/${receita.id}/imprimir`} target="_blank"
+        title="Imprimir ou salvar em PDF"
+        className="btn-icone !w-8 !h-8 hover:!text-neutro-700 dark:hover:!text-neutro-200">
+        <Printer size={16} strokeWidth={2} />
+      </Link>
+    </div>
+  )
+}
+
+/** "OD 20/40 · OE 20/30", ou um traço quando o exame não registrou. */
+function referenciaAV(od?: string | null, oe?: string | null) {
+  const partes = [od && `OD ${od}`, oe && `OE ${oe}`].filter(Boolean)
+  return partes.length ? partes.join(' · ') : 'não registrada'
+}
 
 function Secao({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
@@ -77,6 +124,8 @@ export default function ReceitasPage() {
 
   const { data: receitas, isLoading, mutate } = useSWR('/api/receitas', fetcher)
   const { data: pacientes } = useSWR('/api/pacientes', fetcher)
+  // Nome, telefone e endereço da clínica entram no texto que vai ao paciente.
+  const { data: consultorio } = useSWR('/api/consultorio', fetcher)
 
   // Puxa os prontuários do paciente escolhido, pra amarrar a receita ao exame
   const { data: prontuarios } = useSWR(
@@ -189,8 +238,12 @@ export default function ReceitasPage() {
                   {vencida(r.validadeAte) ? 'Vencida' : `Válida até ${data(r.validadeAte)}`}
                 </p>
               </div>
-              <button onClick={() => excluir(r.id)}
-                className="btn-icone !w-8 !h-8 hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/40">
+              {/* Entregar a receita ao paciente: pelo WhatsApp na hora, ou
+                  impressa/PDF pelo diálogo do navegador. */}
+              <EntregaDaReceita receita={r} consultorio={consultorio} />
+
+              <button onClick={() => excluir(r.id)} title="Excluir receita"
+                className="btn-icone !w-8 !h-8 hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/40 shrink-0">
                 <Trash2 size={16} />
               </button>
             </div>
@@ -303,6 +356,27 @@ export default function ReceitasPage() {
               <Secao titulo="ADIÇÃO (PRESBIOPIA)">
                 <ParOlhos rotulo="Adição" campoOD="adicaoOD" campoOE="adicaoOE"
                   form={form} setForm={setForm} placeholder="+2.00" />
+              </Secao>
+
+              <Secao titulo="ACUIDADE VISUAL COM A CORREÇÃO PRESCRITA">
+                <p className="text-[11px] text-neutro-400 -mt-1">
+                  O quanto o paciente passa a enxergar com esta lente. É outra
+                  medida da que está no exame — lá ficam a visão sem correção e
+                  a com o óculos antigo.
+                </p>
+                {prontuarioAtual && (
+                  <div className="rounded-lg bg-neutro-50 dark:bg-neutro-950/40 border border-neutro-200/70 dark:border-neutro-800 px-3.5 py-2.5">
+                    <p className="text-[10.5px] font-medium tracking-wide text-neutro-400 uppercase mb-1.5">
+                      No exame de {data(prontuarioAtual.dataExame)}
+                    </p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11.5px] text-neutro-500">
+                      <span>Sem correção: {referenciaAV(prontuarioAtual.avSemCorrecaoOD, prontuarioAtual.avSemCorrecaoOE)}</span>
+                      <span>Com o óculos atual: {referenciaAV(prontuarioAtual.avComCorrecaoOD, prontuarioAtual.avComCorrecaoOE)}</span>
+                    </div>
+                  </div>
+                )}
+                <ParOlhos rotulo="Visão alcançada" campoOD="avCorrigidaOD" campoOE="avCorrigidaOE"
+                  form={form} setForm={setForm} placeholder="20/20" />
               </Secao>
 
               <Secao titulo="MEDIDAS DE MONTAGEM">

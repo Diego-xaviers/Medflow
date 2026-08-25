@@ -54,6 +54,91 @@ export function herdarDoProntuario(
   return { valores, herdados }
 }
 
+const TIPO_LENTE: Record<string, string> = {
+  MONOFOCAL: 'Monofocal', BIFOCAL: 'Bifocal', MULTIFOCAL: 'Multifocal',
+  OCUPACIONAL: 'Ocupacional', CONTATO: 'Lente de contato',
+}
+
+const dataBR = (v: string | Date) => new Date(v).toLocaleDateString('pt-BR')
+
+/** "OD -1.75 -0.50 x 180° · OE -1.50" — pula o olho que estiver em branco. */
+function linhaOlhos(
+  rotulo: string,
+  od: { esf?: any; cil?: any; eixo?: any },
+  oe: { esf?: any; cil?: any; eixo?: any }
+): string | null {
+  const montar = (o: typeof od) => {
+    if (vazio(o.esf) && vazio(o.cil)) return null
+    const partes = [] as string[]
+    if (!vazio(o.esf)) partes.push(String(o.esf))
+    if (!vazio(o.cil)) partes.push(`${o.cil}${vazio(o.eixo) ? '' : ` x ${o.eixo}°`}`)
+    return partes.join(' ')
+  }
+
+  const a = montar(od)
+  const b = montar(oe)
+  if (!a && !b) return null
+  return `${rotulo}: ${[a && `OD ${a}`, b && `OE ${b}`].filter(Boolean).join('  |  ')}`
+}
+
+/** Par simples de valores por olho, como adição ou acuidade. */
+function parSimples(rotulo: string, od: any, oe: any): string | null {
+  if (vazio(od) && vazio(oe)) return null
+  return `${rotulo}: ${[!vazio(od) && `OD ${od}`, !vazio(oe) && `OE ${oe}`].filter(Boolean).join('  |  ')}`
+}
+
+/**
+ * A receita em texto, para mandar ao paciente pelo WhatsApp.
+ *
+ * Escrita para ser lida no celular por quem não é da área: linhas curtas,
+ * sem sigla que o paciente não conheça, e sem nada do exame clínico — o que
+ * a ótica precisa para montar a lente, e só.
+ */
+export function textoDaReceita(r: any): string {
+  const clinica = r.consultorio?.nome ?? 'Consultório'
+
+  const linhas: (string | null)[] = [
+    `*RECEITA OFTÁLMICA*`,
+    clinica,
+    '',
+    `Paciente: ${r.paciente?.nome ?? '—'}`,
+    `Emitida em: ${dataBR(r.dataEmissao)}`,
+    `Válida até: ${dataBR(r.validadeAte)}`,
+    '',
+    '*Grau para longe*',
+    linhaOlhos(
+      'Longe',
+      { esf: r.longeEsfericoOD, cil: r.longeCilindricoOD, eixo: r.longeEixoOD },
+      { esf: r.longeEsfericoOE, cil: r.longeCilindricoOE, eixo: r.longeEixoOE }
+    ) ?? 'Não prescrito',
+    parSimples('Adição', r.adicaoOD, r.adicaoOE),
+    parSimples('Visão esperada com o óculos', r.avCorrigidaOD, r.avCorrigidaOE),
+    '',
+    '*Medidas de montagem*',
+    parSimples('DP para longe', r.dpLongeOD, r.dpLongeOE),
+    vazio(r.dpPerto) ? null : `DP para perto: ${r.dpPerto}`,
+    parSimples('Altura', r.alturaOD, r.alturaOE),
+    parSimples('Prisma', r.prismaOD, r.prismaOE),
+    parSimples('Base do prisma', r.baseprismaOD, r.baseprismaOE),
+    '',
+    '*Lente indicada*',
+    `Tipo: ${TIPO_LENTE[r.tipoLente] ?? r.tipoLente}`,
+    vazio(r.materialLente) ? null : `Material: ${r.materialLente}`,
+    vazio(r.tratamentos) ? null : `Tratamentos: ${r.tratamentos}`,
+    vazio(r.orientacoesUso) ? null : `Orientações: ${r.orientacoesUso}`,
+    '',
+    r.consultorio?.telefone ? `Dúvidas: ${r.consultorio.telefone}` : null,
+    r.consultorio?.endereco ?? null,
+  ]
+
+  // Junta e some com as linhas em branco que sobraram de bloco vazio.
+  return linhas
+    .filter((l) => l !== null)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 /** Resumo curto do grau encontrado, para identificar o exame numa lista. */
 export function resumoRefracao(p: any): string {
   const olho = (esf: string, cil: string, eixo: string) => {

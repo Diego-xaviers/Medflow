@@ -130,6 +130,35 @@
 ::view-transition-old(root) { z-index: 1; }
 ::view-transition-new(root) { z-index: 2; }
 
+/* ─── Impressão ─────────────────────────────────────────────
+   A receita impressa é um documento, não uma captura de tela: sai só o papel,
+   sem menu lateral, cabeçalho, botões ou fundo cinza. Marque com a classe
+   `nao-imprimir` qualquer coisa que só faça sentido no navegador. */
+@media print {
+  .nao-imprimir { display: none !important; }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* O sistema inteiro vira só o conteúdo da folha. */
+  aside, header.topbar { display: none !important; }
+
+  .documento {
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  /* Evita que uma seção quebre no meio entre duas páginas. */
+  .documento section,
+  .documento table { break-inside: avoid; }
+
+  @page { margin: 16mm; }
+}
+
 /* Respeita quem pediu menos animação no sistema operacional */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
