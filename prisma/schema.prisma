@@ -1,0 +1,392 @@
+// Schema do Medflow
+//
+// Regra de ouro do multi-tenant: TODA tabela de dados carrega consultorioId.
+// Nenhuma consulta pode rodar sem esse filtro — quem garante isso é o
+// helper em src/lib/tenant.ts, que monta o cliente Prisma já amarrado
+// ao consultório da sessão.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// O tenant. Cada optometrista tem o seu.
+model Consultorio {
+  id        String   @id @default(cuid())
+  nome      String
+  /// Usado na URL pública de agendamento: /agendar/{slug}
+  slug      String   @unique
+  telefone  String?
+  endereco  String?
+
+  /// Janela de atendimento — usada pela agenda interna e pelo link público.
+  /// Fica no banco (e não numa constante do código) porque cada consultório
+  /// tem o seu horário, e o dono precisa poder mudar sem depender de deploy.
+  horaAbertura       Int    @default(8)
+  horaFechamento     Int    @default(18)
+  duracaoConsultaMin Int    @default(30)
+  /// Dias atendidos no padrão do Date.getDay(): 0 = domingo … 6 = sábado.
+  diasAtendimento    String @default("1,2,3,4,5")
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now())
+
+  usuarios     Usuario[]
+  pacientes    Paciente[]
+  consultas    Consulta[]
+  lancamentos  Lancamento[]
+  prontuarios  Prontuario[]
+  receitas     Receita[]
+  notificacoes Notificacao[]
+  chamados     Chamado[]
+
+  @@map("consultorios")
+}
+
+enum Papel {
+  SUPER_ADMIN
+  DONO
+  ATENDENTE
+  VENDEDORA
+}
+
+model Usuario {
+  id        String   @id @default(cuid())
+  nome      String
+  email     String   @unique
+  senhaHash String
+  papel     Papel
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now())
+
+  /// Foto de perfil como data URI. Fica no banco porque o projeto não tem
+  /// storage de arquivos contratado — a imagem é reduzida no navegador antes
+  /// de subir, então cada uma ocupa poucas dezenas de KB.
+  fotoUrl String? @db.Text
+
+  /// Atende pacientes? Quem estiver marcado aparece como profissional
+  /// escolhível no link público de agendamento.
+  atendePacientes Boolean @default(false)
+
+  /// Nulo apenas para o SUPER_ADMIN, que está acima dos consultórios.
+  consultorioId String?
+  consultorio   Consultorio? @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+
+  consultasComoProfissional Consulta[]    @relation("ProfissionalDaConsulta")
+  notificacoes              Notificacao[]
+  chamados                  Chamado[]
+
+  @@index([consultorioId])
+  @@map("usuarios")
+}
+
+model Paciente {
+  id             String    @id @default(cuid())
+  nome           String
+  email          String?
+  telefone       String?
+  dataNascimento DateTime?
+  ativo          Boolean   @default(true)
+  criadoEm       DateTime  @default(now())
+
+  // Documento e endereço — necessários para emitir receita e para contato
+  cpf        String?
+  rg         String?
+  sexo       String?
+  profissao  String?
+
+  cep        String?
+  logradouro String?
+  numero     String?
+  complemento String?
+  bairro     String?
+  cidade     String?
+  estado     String?
+
+  // Contexto clínico rápido, que o optometrista quer ver antes do atendimento
+  convenio          String?
+  observacoesGerais String?
+
+  /// Como o paciente chegou até a clínica (indicação, Instagram, link online...)
+  origemContato String?
+
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+
+  consultas   Consulta[]
+  prontuarios Prontuario[]
+  receitas    Receita[]
+  lancamentos Lancamento[]
+
+  @@index([consultorioId])
+  @@map("pacientes")
+}
+
+enum StatusConsulta {
+  AGENDADA
+  CONCLUIDA
+  FALTA
+  CANCELADA
+}
+
+model Consulta {
+  id          String         @id @default(cuid())
+  dataHora    DateTime
+  status      StatusConsulta @default(AGENDADA)
+  valor       Decimal?       @db.Decimal(10, 2)
+  observacoes String?
+
+  /// Preenchidos quando a consulta nasce do link público de agendamento.
+  telefoneContato      String?
+  vendedoraResponsavel String?
+  origemPublica        Boolean @default(false)
+
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+
+  /// Quem vai atender. Sem isto, dois profissionais não poderiam receber
+  /// pacientes no mesmo horário — a agenda seria de uma pessoa só.
+  /// Obrigatório de propósito: com a coluna anulável, a trava única abaixo
+  /// não valeria para linhas sem profissional (no Postgres, NULL nunca colide
+  /// com NULL) e o mesmo horário poderia ser vendido duas vezes.
+  profissionalId String
+  profissional   Usuario @relation("ProfissionalDaConsulta", fields: [profissionalId], references: [id], onDelete: Cascade)
+
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+
+  prontuario Prontuario?
+
+  /// Impede dois agendamentos no mesmo horário COM O MESMO PROFISSIONAL —
+  /// a trava real é aqui no banco, não só na validação da aplicação.
+  @@unique([consultorioId, profissionalId, dataHora])
+  @@index([consultorioId, dataHora])
+  @@map("consultas")
+}
+
+enum TipoLancamento {
+  RECEITA
+  DESPESA
+}
+
+enum StatusPagamento {
+  PAGO
+  PENDENTE
+}
+
+model Lancamento {
+  id        String          @id @default(cuid())
+  descricao String
+  valor     Decimal         @db.Decimal(10, 2)
+  tipo      TipoLancamento
+  status    StatusPagamento @default(PENDENTE)
+  data      DateTime
+
+  pacienteId String?
+  paciente   Paciente? @relation(fields: [pacienteId], references: [id], onDelete: SetNull)
+
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+
+  @@index([consultorioId, data])
+  @@map("lancamentos")
+}
+
+/// PRONTUÁRIO — registro do EXAME.
+/// Tudo aqui é achado clínico: o que o paciente relata e o que o
+/// optometrista mede/observa. A prescrição final NÃO fica aqui.
+model Prontuario {
+  id       String   @id @default(cuid())
+  dataExame DateTime @default(now())
+
+  // Anamnese
+  queixaPrincipal      String?
+  historicoOcular      String?
+  historicoSistemico   String?
+  medicamentosEmUso    String?
+  usaCorrecaoAtual     Boolean @default(false)
+  tempoUltimoExame     String?
+
+  // Acuidade visual SEM correção
+  avSemCorrecaoOD String?
+  avSemCorrecaoOE String?
+
+  // Acuidade visual COM a correção que o paciente já usa
+  avComCorrecaoOD String?
+  avComCorrecaoOE String?
+
+  // Refração encontrada no exame (achado, não prescrição)
+  refracaoEsfericoOD  String?
+  refracaoCilindricoOD String?
+  refracaoEixoOD      String?
+  refracaoEsfericoOE  String?
+  refracaoCilindricoOE String?
+  refracaoEixoOE      String?
+
+  // Exames complementares
+  biomicroscopia   String?
+  tonometriaOD     String?
+  tonometriaOE     String?
+  fundoscopia      String?
+  motilidadeOcular String?
+  testeCobertura   String?
+  reflexosPupilares String?
+  visaoCores       String?
+
+  // Conclusão
+  diagnostico String?
+  conduta     String?
+  observacoes String?
+
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+
+  consultaId String?   @unique
+  consulta   Consulta? @relation(fields: [consultaId], references: [id], onDelete: SetNull)
+
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+
+  receitas Receita[]
+
+  @@index([consultorioId, pacienteId])
+  @@map("prontuarios")
+}
+
+enum TipoLente {
+  MONOFOCAL
+  BIFOCAL
+  MULTIFOCAL
+  OCUPACIONAL
+  CONTATO
+}
+
+/// RECEITA — a PRESCRIÇÃO final entregue ao paciente.
+/// Sem repetir campo de exame: aqui só entra o que vai para a ótica montar
+/// a lente. O grau abaixo é o prescrito, que pode diferir do achado no exame
+/// (o optometrista costuma ajustar por conforto/adaptação).
+model Receita {
+  id             String   @id @default(cuid())
+  dataEmissao    DateTime @default(now())
+  validadeAte    DateTime
+
+  // Longe
+  longeEsfericoOD   String?
+  longeCilindricoOD String?
+  longeEixoOD       String?
+  longeEsfericoOE   String?
+  longeCilindricoOE String?
+  longeEixoOE       String?
+
+  // Adição (presbiopia)
+  adicaoOD String?
+  adicaoOE String?
+
+  // Distância pupilar e altura de montagem
+  dpLongeOD  String?
+  dpLongeOE  String?
+  dpPerto    String?
+  alturaOD   String?
+  alturaOE   String?
+
+  // Prisma, quando indicado
+  prismaOD     String?
+  baseprismaOD String?
+  prismaOE     String?
+  baseprismaOE String?
+
+  // Indicação da lente
+  tipoLente        TipoLente @default(MONOFOCAL)
+  materialLente    String?
+  tratamentos      String?
+  orientacoesUso   String?
+
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+
+  prontuarioId String?
+  prontuario   Prontuario? @relation(fields: [prontuarioId], references: [id], onDelete: SetNull)
+
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+
+  @@index([consultorioId, pacienteId])
+  @@map("receitas")
+}
+
+/// Aviso na campainha do topo. Uma linha por destinatário: com equipe pequena
+/// isso custa quase nada e evita ter que guardar "quem já leu" numa tabela à
+/// parte, que é onde esse tipo de recurso costuma virar bagunça.
+model Notificacao {
+  id        String    @id @default(cuid())
+  tipo      String
+  titulo    String
+  descricao String?
+  /// Para onde o clique leva (ex: /agenda).
+  link      String?
+  lidaEm    DateTime?
+  criadoEm  DateTime  @default(now())
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  /// Nulo nas notificações do SUPER_ADMIN, que não pertence a consultório.
+  consultorioId String?
+  consultorio   Consultorio? @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, criadoEm])
+  @@map("notificacoes")
+}
+
+enum StatusChamado {
+  ABERTO
+  EM_ATENDIMENTO
+  RESOLVIDO
+}
+
+enum AutorMensagem {
+  USUARIO
+  AGENTE
+  SUPORTE
+}
+
+/// Conversa de suporte. Nasce sempre com o agente automático respondendo e
+/// só vira atendimento humano quando a pessoa pede — assim ninguém fica
+/// esperando resposta para uma dúvida que a base já responde.
+model Chamado {
+  id           String        @id @default(cuid())
+  assunto      String
+  status       StatusChamado @default(ABERTO)
+  /// Verdadeiro depois que a conversa foi passada para uma pessoa.
+  escalado     Boolean       @default(false)
+  criadoEm     DateTime      @default(now())
+  atualizadoEm DateTime      @updatedAt
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+
+  mensagens MensagemChamado[]
+
+  @@index([consultorioId, atualizadoEm])
+  @@index([escalado, status])
+  @@map("chamados")
+}
+
+model MensagemChamado {
+  id       String        @id @default(cuid())
+  autor    AutorMensagem
+  texto    String        @db.Text
+  criadoEm DateTime      @default(now())
+
+  chamadoId String
+  chamado   Chamado @relation(fields: [chamadoId], references: [id], onDelete: Cascade)
+
+  @@index([chamadoId, criadoEm])
+  @@map("mensagens_chamado")
+}

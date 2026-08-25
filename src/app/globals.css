@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-neutro-50 text-neutro-900 dark:bg-neutro-950 dark:text-neutro-100;
+    font-weight: 400;
+  }
+
+  /* Números tabulares: dinheiro e horários param de "dançar" ao atualizar */
+  .numerico {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  ::selection { @apply bg-brand-500/20; }
+
+  /* Scrollbar discreta, no espírito das referências */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-neutro-300 dark:bg-neutro-700 rounded-full border-[3px] border-solid border-transparent bg-clip-content;
+  }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-neutro-400 dark:bg-neutro-600; }
+}
+
+@layer components {
+  /* ─── Tipografia ─────────────────────────────────────────── */
+
+  /* Números grandes de KPI. O peso semibold é proposital e vale só para os
+     números: no meio de uma tela de texto leve, é o que faz o olho pousar
+     primeiro no dado que importa — o valor, a contagem, o percentual. */
+  .numero-destaque {
+    @apply text-[28px] font-semibold tracking-apertado numerico leading-none;
+  }
+
+  .titulo-pagina { @apply text-[22px] font-semibold tracking-apertado; }
+  .subtitulo { @apply text-sm font-normal text-neutro-500; }
+  .titulo-secao { @apply text-sm font-semibold; }
+
+  /* Labels em caixa alta: pequenas, espaçadas e nunca em negrito pesado */
+  .rotulo-kpi {
+    @apply text-[11px] font-medium tracking-wide text-neutro-400 uppercase;
+  }
+
+  .rotulo {
+    @apply text-[13px] font-medium text-neutro-600 dark:text-neutro-400;
+  }
+
+  /* ─── Superfícies ────────────────────────────────────────── */
+
+  .cartao {
+    @apply bg-white dark:bg-neutro-900 rounded-xl border border-neutro-200/70
+           dark:border-neutro-800 shadow-suave;
+  }
+
+  .cartao-interativo {
+    @apply cartao transition-all duration-200
+           hover:shadow-media hover:border-neutro-300 dark:hover:border-neutro-700;
+  }
+
+  /* ─── Formulários ────────────────────────────────────────── */
+
+  .campo {
+    @apply w-full mt-1.5 bg-white dark:bg-neutro-950/40 border border-neutro-200
+           dark:border-neutro-700 rounded-lg px-3 py-2.5 text-sm font-normal
+           placeholder:text-neutro-400 outline-none transition-all duration-200
+           focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10;
+  }
+
+  /* ─── Botões ─────────────────────────────────────────────── */
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 text-sm font-medium
+           rounded-lg px-4 py-2.5 transition-all duration-200
+           active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-primario {
+    @apply btn bg-neutro-900 dark:bg-white text-white dark:text-neutro-900
+           hover:bg-neutro-800 dark:hover:bg-neutro-100 shadow-suave;
+  }
+
+  .btn-marca { @apply btn bg-brand-600 text-white hover:bg-brand-700 shadow-suave; }
+
+  .btn-suave {
+    @apply btn border border-neutro-200 dark:border-neutro-700
+           hover:bg-neutro-100 dark:hover:bg-neutro-800;
+  }
+
+  .btn-icone {
+    @apply inline-flex items-center justify-center w-9 h-9 rounded-lg
+           text-neutro-400 transition-all duration-200 active:scale-95
+           hover:bg-neutro-100 dark:hover:bg-neutro-800 hover:text-neutro-600
+           dark:hover:text-neutro-300;
+  }
+
+  /* ─── Etiquetas de status ────────────────────────────────── */
+
+  .etiqueta {
+    @apply inline-flex items-center gap-1.5 text-[11px] font-medium
+           px-2.5 py-1 rounded-full;
+  }
+
+  /* ─── Carregamento ───────────────────────────────────────── */
+
+  /* Esqueleto com brilho passando: some a sensação de "travou" */
+  .esqueleto {
+    @apply relative overflow-hidden bg-neutro-100 dark:bg-neutro-800 rounded-lg;
+  }
+  .esqueleto::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full animate-brilho;
+    background-image: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.55), transparent);
+  }
+  .dark .esqueleto::after {
+    background-image: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.06), transparent);
+  }
+}
+
+/* ─── Transição de tema (círculo revelando do clique) ──────── */
+::view-transition-old(root),
+::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+
+/* Respeita quem pediu menos animação no sistema operacional */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
