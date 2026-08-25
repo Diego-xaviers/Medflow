@@ -362,3 +362,13 @@ storage de arquivos contratado. O navegador recorta no quadrado e reduz para
 Ela **não** entra no token de sessão de propósito: o cookie do NextAuth
 estouraria. O cabeçalho busca a foto numa chamada à parte, que o SWR mantém em
 cache entre as telas.
+
+### Região das funções
+
+O banco Neon deste projeto está em **sa-east-1 (São Paulo)**. Por padrão a
+Vercel executa as funções em Washington (`iad1`), então cada consulta ao banco
+atravessaria o continente e voltaria — em telas como o Dashboard, que fazem
+dezenas de consultas, isso aparece.
+
+O [`vercel.json`](vercel.json) fixa as funções em `gru1` (São Paulo), do lado do
+banco. Se um dia o banco mudar de região, mude aqui junto.
