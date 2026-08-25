@@ -26,6 +26,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         horaFechamento: true,
         duracaoConsultaMin: true,
         diasAtendimento: true,
+        fusoHorario: true,
       },
     })
     if (!consultorio) throw new ErroDeNegocio('Link de agendamento inválido')

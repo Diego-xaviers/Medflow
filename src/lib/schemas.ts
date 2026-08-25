@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { FUSOS_BR } from './agenda'
 
 export const pacienteSchema = z.object({
   nome: z.string().min(2, 'Informe o nome do paciente'),
@@ -161,6 +162,9 @@ export const configConsultorioSchema = z
       .max(240, 'A consulta não pode passar de 4 horas'),
     diasAtendimento: z.array(z.coerce.number().int().min(0).max(6))
       .min(1, 'Escolha ao menos um dia de atendimento'),
+    // Validado contra a lista de fusos brasileiros: o campo alimenta cálculo
+    // de horário, e um valor inválido faria o expediente inteiro escorregar.
+    fusoHorario: z.enum(FUSOS_BR.map((f) => f.valor) as [string, ...string[]]),
   })
   .refine((d) => d.horaFechamento > d.horaAbertura, {
     message: 'O horário de fechamento precisa ser depois da abertura',

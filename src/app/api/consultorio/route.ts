@@ -15,6 +15,7 @@ const campos = {
   horaFechamento: true,
   duracaoConsultaMin: true,
   diasAtendimento: true,
+  fusoHorario: true,
   criadoEm: true,
 } as const
 
@@ -54,6 +55,7 @@ export async function PATCH(req: NextRequest) {
         duracaoConsultaMin: dados.duracaoConsultaMin,
         // Ordenado e sem repetição: "3,1,1" viraria bagunça na leitura.
         diasAtendimento: Array.from(new Set(dados.diasAtendimento)).sort().join(','),
+        fusoHorario: dados.fusoHorario,
       },
       select: campos,
     })

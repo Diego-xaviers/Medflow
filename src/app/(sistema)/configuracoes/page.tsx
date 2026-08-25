@@ -5,9 +5,10 @@ import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import {
-  Building2, Clock, Link2, Check, Loader2, Lock, CalendarDays,
+  Building2, Clock, Link2, Check, Loader2, Lock, CalendarDays, Globe,
 } from 'lucide-react'
 import { fetcher, enviar } from '@/lib/fetcher'
+import { FUSOS_BR } from '@/lib/agenda'
 
 const DIAS = [
   { valor: 1, curto: 'Seg' }, { valor: 2, curto: 'Ter' }, { valor: 3, curto: 'Qua' },
@@ -17,7 +18,7 @@ const DIAS = [
 
 const vazio = {
   nome: '', telefone: '', endereco: '',
-  horaAbertura: 8, horaFechamento: 18, duracaoConsultaMin: 30,
+  horaAbertura: 8, horaFechamento: 18, duracaoConsultaMin: 30, fusoHorario: 'America/Sao_Paulo',
   diasAtendimento: [1, 2, 3, 4, 5] as number[],
 }
 
@@ -41,6 +42,7 @@ export default function ConfiguracoesPage() {
         horaAbertura: consultorio.horaAbertura,
         horaFechamento: consultorio.horaFechamento,
         duracaoConsultaMin: consultorio.duracaoConsultaMin,
+        fusoHorario: consultorio.fusoHorario ?? 'America/Sao_Paulo',
         diasAtendimento: consultorio.diasAtendimento ?? [],
       })
     }
@@ -164,6 +166,22 @@ export default function ConfiguracoesPage() {
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="rotulo flex items-center gap-1.5">
+                <Globe size={13} strokeWidth={2} /> Fuso horário da clínica
+              </label>
+              <select className="campo" disabled={!podeEditar} value={form.fusoHorario}
+                onChange={(e) => setForm({ ...form, fusoHorario: e.target.value })}>
+                {FUSOS_BR.map((f) => (
+                  <option key={f.valor} value={f.valor}>{f.rotulo}</option>
+                ))}
+              </select>
+              <p className="text-[11px] text-neutro-400 mt-1.5">
+                É o que faz &quot;abre às 8h&quot; significar 8h aqui. O servidor roda em
+                UTC, então sem isto o horário sairia deslocado no link público.
+              </p>
             </div>
 
             <div className="mt-5">

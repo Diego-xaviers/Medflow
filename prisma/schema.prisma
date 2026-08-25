@@ -31,6 +31,10 @@ model Consultorio {
   duracaoConsultaMin Int    @default(30)
   /// Dias atendidos no padrão do Date.getDay(): 0 = domingo … 6 = sábado.
   diasAtendimento    String @default("1,2,3,4,5")
+  /// Fuso da clínica, no padrão IANA. Precisa existir: o servidor roda em UTC
+  /// na Vercel, então "abre às 8h" sem fuso viraria 8h UTC — 5h da manhã aqui.
+  /// E o Brasil tem mais de um fuso: Cuiabá é UTC-4, São Paulo é UTC-3.
+  fusoHorario        String @default("America/Sao_Paulo")
   ativo     Boolean  @default(true)
   criadoEm  DateTime @default(now())
 
