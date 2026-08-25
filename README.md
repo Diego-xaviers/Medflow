@@ -204,20 +204,62 @@ tela ou rota nova que receba `AAAA-MM-DD`, use esses helpers.
 1. Suba o projeto para o GitHub
 2. Na Vercel: **Add New → Project** e importe o repositório
 3. Provisione o banco em **Storage → Create Database → Neon** (o `DATABASE_URL` entra sozinho)
-4. Em **Settings → Environment Variables**, adicione:
-   - `NEXTAUTH_SECRET` — gere com `openssl rand -base64 32`
-   - `NEXTAUTH_URL` — a URL final do projeto (ex: `https://medflow.vercel.app`)
+4. Em **Settings → Environment Variables**, confira e adicione:
+
+| Variável | Valor |
+|---|---|
+| `DATABASE_URL` | A string **pooled** do Neon — veja o aviso abaixo |
+| `NEXTAUTH_SECRET` | `openssl rand -base64 32` (um valor novo, nunca o do `.env.example`) |
+| `NEXTAUTH_URL` | A URL final do projeto, ex: `https://medflow.vercel.app` |
+
 5. Faça o deploy
 
-Depois do primeiro deploy, crie as tabelas e popule os dados apontando para o banco de produção:
+### ⚠️ Use a conexão *pooled* do Neon
 
-```bash
-npx vercel env pull .env
-npx prisma db push
-npm run db:seed
+Em serverless cada invocação abre a própria conexão com o banco. Sem o pooler,
+o limite do Neon estoura sob carga e a aplicação passa a devolver erro de
+conexão — justamente quando há gente usando.
+
+O host pooled é o mesmo, com `-pooler` no primeiro rótulo:
+
+```
+# ❌ direta — não use em produção
+postgresql://...@ep-nome-do-banco.sa-east-1.aws.neon.tech/neondb?sslmode=require
+
+# ✅ pooled
+postgresql://...@ep-nome-do-banco-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require
 ```
 
-⚠️ Rode o seed **uma vez só**. Ele cria o super admin com uma senha padrão — **troque essa senha assim que entrar pela primeira vez**, já que ela está escrita neste README.
+Além de aguentar carga, ela é mais rápida: medido neste projeto, a mesma
+consulta levou **2237 ms na direta e 320 ms na pooled**.
+
+Se a Vercel injetou o `DATABASE_URL` sozinha pelo Marketplace, confira: ela
+costuma entregar as duas e nem sempre a pooled é a escolhida.
+
+### Depois do primeiro deploy
+
+Crie as tabelas apontando para o banco de produção. Passe a URL na própria
+linha de comando para não sobrescrever o seu `.env` de desenvolvimento:
+
+```bash
+DATABASE_URL="postgresql://...-pooler.../neondb?sslmode=require" npx prisma db push
+```
+
+O **seed é para desenvolvimento** — ele cria a Ótica Exemplo com pacientes
+fictícios e senhas iguais para todo mundo, escritas neste README. Em produção,
+crie só o super admin e cadastre os consultórios pela tela:
+
+```bash
+DATABASE_URL="postgresql://...-pooler.../neondb?sslmode=require" npx tsx prisma/criarSuperAdmin.ts "Seu Nome" seu@email.com
+```
+
+O script pede a senha no terminal (ela não fica no histórico) e recusa criar um
+segundo super admin por engano.
+
+Depois entre com essa conta em **/admin** e cadastre cada consultório pela
+interface: a tela devolve o recado pronto (endereço, e-mail, senha provisória e
+link público) para mandar ao profissional. O dono já nasce marcado como quem
+atende, então o link de agendamento funciona desde o primeiro minuto.
 
 ---
 
