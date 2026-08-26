@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import {
   Check, Loader2, Lock, UserRound, Building2, ShieldCheck,
-  Camera, Trash2, Stethoscope,
+  Camera, Trash2, Stethoscope, BadgeCheck,
 } from 'lucide-react'
 import Avatar from '@/components/Avatar'
 import { fetcher, enviar } from '@/lib/fetcher'
@@ -61,7 +61,7 @@ export default function PerfilPage() {
   const { data: perfil, isLoading, mutate } = useSWR('/api/perfil', fetcher)
 
   return (
-    <div className="p-7 max-w-[900px]">
+    <div className="p-4 sm:p-7 max-w-[900px]">
       <div className="mb-7">
         <h1 className="titulo-pagina">Perfil</h1>
         <p className="subtitulo mt-1">Seus dados de acesso ao Medflow</p>
@@ -178,14 +178,19 @@ function Cabecalho({ perfil, aoTrocarFoto }: any) {
  * a barra lateral seguiriam mostrando o nome antigo até o próximo login.
  */
 function FormDados({ perfil, aoSalvar }: any) {
-  const [form, setForm] = useState({ nome: '', email: '' })
+  const [form, setForm] = useState({ nome: '', email: '', conselhoProfissional: '', registroProfissional: '' })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [pronto, setPronto] = useState(false)
   const campoNome = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (perfil) setForm({ nome: perfil.nome ?? '', email: perfil.email ?? '' })
+    if (perfil) setForm({
+      nome: perfil.nome ?? '',
+      email: perfil.email ?? '',
+      conselhoProfissional: perfil.conselhoProfissional ?? '',
+      registroProfissional: perfil.registroProfissional ?? '',
+    })
   }, [perfil])
 
   // "Editar perfil" no menu do topo chega com ?editar=1: rolamos até o
@@ -232,6 +237,30 @@ function FormDados({ perfil, aoSalvar }: any) {
       <p className="text-[11px] text-neutro-400 mt-3">
         O e-mail é o seu login. Trocando aqui, o próximo acesso já usa o novo.
       </p>
+
+      {/* Registro profissional: sai impresso na receita, abaixo da assinatura. */}
+      <div className="mt-5 pt-5 border-t border-neutro-100 dark:border-neutro-800">
+        <label className="rotulo flex items-center gap-1.5">
+          <BadgeCheck size={13} strokeWidth={2} /> Registro profissional
+        </label>
+        <div className="grid sm:grid-cols-[140px_1fr] gap-3 mt-1">
+          <input className="campo !mt-0" list="conselhos" placeholder="CBOO"
+            value={form.conselhoProfissional}
+            onChange={(e) => setForm({ ...form, conselhoProfissional: e.target.value })} />
+          <datalist id="conselhos">
+            <option value="CBOO" />
+            <option value="CRM" />
+            <option value="CRO" />
+          </datalist>
+          <input className="campo !mt-0" placeholder="Número do registro"
+            value={form.registroProfissional}
+            onChange={(e) => setForm({ ...form, registroProfissional: e.target.value })} />
+        </div>
+        <p className="text-[11px] text-neutro-400 mt-2">
+          Aparece na receita impressa, junto da assinatura. Deixe em branco se
+          você não emite prescrição.
+        </p>
+      </div>
 
       {erro && <p className="text-[12px] text-red-600 mt-3">{erro}</p>}
 

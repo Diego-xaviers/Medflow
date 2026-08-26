@@ -58,7 +58,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="p-7 max-w-[1100px]">
+    <div className="p-4 sm:p-7 max-w-[1100px]">
       <div className="flex items-end justify-between mb-7">
         <div>
           <h1 className="titulo-pagina">Consultórios</h1>
@@ -94,7 +94,7 @@ export default function AdminPage() {
             <motion.div
               initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.98 }} transition={{ duration: 0.2 }}
-              className="cartao w-full max-w-lg p-6 my-auto">
+              className="cartao w-full max-w-lg p-5 sm:p-6 my-auto">
 
               {criado ? (
                 <AcessoCriado dados={criado} aoFechar={() => { setModal(false); setCriado(null) }} />

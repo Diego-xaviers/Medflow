@@ -5,6 +5,7 @@ import useSWR from 'swr'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, X, Loader2, ShieldCheck, Stethoscope, CalendarDays, Eye, Ban,
+  UserMinus, RotateCcw, Trash2,
 } from 'lucide-react'
 import Avatar from '@/components/Avatar'
 import { fetcher, enviar } from '@/lib/fetcher'
@@ -48,8 +49,47 @@ export default function EquipePage() {
     } catch (e: any) { setErro(e.message) } finally { setAjustando(null) }
   }
 
+  /** Tira o acesso sem apagar o histórico — é o "retirar licença". */
+  async function desativar(u: any) {
+    if (!confirm(
+      `Desativar o acesso de ${u.nome}?\n\n` +
+      'A pessoa deixa de entrar no sistema na hora. Os atendimentos, prontuários ' +
+      'e receitas que ela registrou continuam guardados, e o acesso pode ser ' +
+      'reativado quando você quiser.'
+    )) return
+
+    setAjustando(u.id)
+    try {
+      await enviar(`/api/usuarios/${u.id}`, 'DELETE')
+      mutate()
+    } catch (e: any) { setErro(e.message) } finally { setAjustando(null) }
+  }
+
+  async function reativar(u: any) {
+    setAjustando(u.id)
+    try {
+      await enviar(`/api/usuarios/${u.id}`, 'PATCH', { ativo: true })
+      mutate()
+    } catch (e: any) { setErro(e.message) } finally { setAjustando(null) }
+  }
+
+  /** Apaga de vez. Só passa para quem nunca atendeu — o servidor confere. */
+  async function apagar(u: any) {
+    if (!confirm(
+      `Apagar ${u.nome} definitivamente?\n\n` +
+      'Some do sistema sem deixar rastro. Só funciona para quem nunca registrou ' +
+      'atendimento — nesse caso, use "Desativar" para preservar o histórico.'
+    )) return
+
+    setAjustando(u.id)
+    try {
+      await enviar(`/api/usuarios/${u.id}?definitivo=1`, 'DELETE')
+      mutate()
+    } catch (e: any) { setErro(e.message) } finally { setAjustando(null) }
+  }
+
   return (
-    <div className="p-7 max-w-[1000px]">
+    <div className="p-4 sm:p-7 max-w-[1000px]">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="titulo-pagina">Equipe</h1>
@@ -112,6 +152,31 @@ export default function EquipePage() {
                     : <Stethoscope size={11} strokeWidth={2} />}
                   {u.atendePacientes ? 'Atende' : 'Não atende'}
                 </button>
+
+                {/* Retirar a licença: desativa e preserva o histórico. Apagar
+                    de vez só aparece para quem nunca atendeu. */}
+                {u.papel !== 'DONO' && (
+                  u.ativo ? (
+                    <button onClick={() => desativar(u)} disabled={ajustando === u.id}
+                      title="Tirar o acesso, mantendo o histórico"
+                      className="btn-icone !w-8 !h-8 hover:!text-amber-600 hover:!bg-amber-50 dark:hover:!bg-amber-950/40">
+                      <UserMinus size={15} strokeWidth={2} />
+                    </button>
+                  ) : (
+                    <>
+                      <button onClick={() => reativar(u)} disabled={ajustando === u.id}
+                        title="Devolver o acesso"
+                        className="btn-icone !w-8 !h-8 hover:!text-brand-600 hover:!bg-brand-50 dark:hover:!bg-brand-900/30">
+                        <RotateCcw size={15} strokeWidth={2} />
+                      </button>
+                      <button onClick={() => apagar(u)} disabled={ajustando === u.id}
+                        title="Apagar definitivamente"
+                        className="btn-icone !w-8 !h-8 hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/40">
+                        <Trash2 size={15} strokeWidth={2} />
+                      </button>
+                    </>
+                  )
+                )}
               </div>
             </div>
           ))}
@@ -131,7 +196,7 @@ export default function EquipePage() {
             <motion.form onSubmit={salvar}
               initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.98 }} transition={{ duration: 0.2 }}
-              className="cartao w-full max-w-md p-6 space-y-4">
+              className="cartao w-full max-w-md p-5 sm:p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-[16px] font-semibold">Novo usuário</h2>
                 <button type="button" onClick={() => setModal(false)} className="btn-icone !w-8 !h-8">

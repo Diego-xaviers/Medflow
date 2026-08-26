@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { exigirSessao, exigirPapel } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { consultaSchema } from '@/lib/schemas'
-import { startOfDay, endOfDay, startOfMonth, endOfMonth } from 'date-fns'
+import { startOfDay, endOfDay, startOfMonth, endOfMonth, addDays } from 'date-fns'
 import { diaLocal } from '@/lib/agenda'
 import { notificar, equipeDoConsultorio } from '@/lib/notificacoes'
 import { dataHora as fmtDataHora } from '@/lib/formato'
@@ -22,8 +22,14 @@ export async function GET(req: NextRequest) {
 
     // O calendário mensal pede o mês inteiro de uma vez para pintar os dias;
     // a lista do dia pede só aquele dia.
+    // A vendedora não navega por mês: ela quer "quem vem daqui pra frente".
+    const proximos = req.nextUrl.searchParams.get('proximos')
+
     let intervalo: { gte: Date; lte: Date } | undefined
-    if (dia) {
+    if (proximos) {
+      const dias = Math.min(Math.max(Number(proximos) || 14, 1), 60)
+      intervalo = { gte: startOfDay(new Date()), lte: endOfDay(addDays(new Date(), dias)) }
+    } else if (dia) {
       intervalo = { gte: startOfDay(diaLocal(dia)), lte: endOfDay(diaLocal(dia)) }
     } else if (mes) {
       const ref = new Date(`${mes}-01T12:00:00`)

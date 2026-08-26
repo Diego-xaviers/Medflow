@@ -17,6 +17,8 @@ export async function GET() {
         email: true,
         papel: true,
         fotoUrl: true,
+        conselhoProfissional: true,
+        registroProfissional: true,
         atendePacientes: true,
         criadoEm: true,
         consultorio: { select: { nome: true, slug: true } },
@@ -38,7 +40,12 @@ export async function PATCH(req: NextRequest) {
 
     return prisma.usuario.update({
       where: { id: usuarioId },
-      data: { nome: dados.nome.trim(), email },
+      data: {
+        nome: dados.nome.trim(),
+        email,
+        conselhoProfissional: dados.conselhoProfissional?.trim() || null,
+        registroProfissional: dados.registroProfissional?.trim() || null,
+      },
       select: { id: true, nome: true, email: true, papel: true },
     })
   })

@@ -1,4 +1,4 @@
-import { addMinutes, isBefore } from 'date-fns'
+import { addMinutes } from 'date-fns'
 
 /**
  * Regras de horário do consultório.
@@ -7,8 +7,11 @@ import { addMinutes, isBefore } from 'date-fns'
  * podem exportar os métodos HTTP (GET, POST...). Exportar constantes de lá
  * quebra o build.
  *
- * Os valores reais vêm do banco (cada consultório tem o seu, editável em
- * Configurações). As constantes abaixo são só o padrão de quem nunca mexeu.
+ * ─── Expediente em blocos ─────────────────────────────────────────────────
+ * O expediente é uma lista de intervalos por dia da semana, não um par único
+ * de horas. Foi assim que "sábado só até meio-dia" passou a caber: sábado é
+ * um bloco 8h–12h enquanto os outros dias são 8h–18h. E como um mesmo dia
+ * pode ter dois blocos, quem fecha para almoço também cabe, sem campo novo.
  *
  * ─── Sobre fuso ───────────────────────────────────────────────────────────
  * Este arquivo NUNCA usa a hora local do servidor. Em desenvolvimento isso
@@ -18,10 +21,8 @@ import { addMinutes, isBefore } from 'date-fns'
  * UTC-4, São Paulo é UTC-3). Por isso todo cálculo passa pelo fuso que o
  * consultório declara.
  */
-export const ABERTURA_HORA = 8
-export const FECHAMENTO_HORA = 18
+
 export const DURACAO_MIN = 30
-export const DIAS_PADRAO = '1,2,3,4,5'
 export const FUSO_PADRAO = 'America/Sao_Paulo'
 
 /** Fusos brasileiros, para o seletor de Configurações. */
@@ -35,23 +36,53 @@ export const FUSOS_BR = [
   { valor: 'America/Noronha', rotulo: 'Fernando de Noronha (UTC-2)' },
 ]
 
-export interface ConfigAgenda {
-  horaAbertura: number
-  horaFechamento: number
-  duracaoConsultaMin: number
-  diasAtendimento: string
-  fusoHorario?: string | null
+export const NOMES_DIAS = [
+  'Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado',
+]
+
+/** Um intervalo contínuo de atendimento num dia da semana. */
+export interface Bloco {
+  diaSemana: number
+  /** Minutos desde a meia-noite: 8h = 480, 12h30 = 750. */
+  inicioMin: number
+  fimMin: number
 }
 
-export const CONFIG_PADRAO: ConfigAgenda = {
-  horaAbertura: ABERTURA_HORA,
-  horaFechamento: FECHAMENTO_HORA,
-  duracaoConsultaMin: DURACAO_MIN,
-  diasAtendimento: DIAS_PADRAO,
-  fusoHorario: FUSO_PADRAO,
+export interface ConfigAgenda {
+  duracaoConsultaMin: number
+  fusoHorario?: string | null
+  blocosExpediente: Bloco[]
 }
+
+/** Expediente de quem acabou de entrar: seg a sex, 8h às 18h. */
+export const BLOCOS_PADRAO: Bloco[] = [1, 2, 3, 4, 5].map((diaSemana) => ({
+  diaSemana,
+  inicioMin: 8 * 60,
+  fimMin: 18 * 60,
+}))
 
 const fusoDe = (config: { fusoHorario?: string | null }) => config.fusoHorario || FUSO_PADRAO
+
+/* ─────────────────────── Minutos e rótulos ─────────────────────── */
+
+/** 480 → "08:00". */
+export function minutosParaHora(minutos: number): string {
+  const h = Math.floor(minutos / 60)
+  const m = minutos % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+/** "08:30" → 510. Devolve null se não for hora válida. */
+export function horaParaMinutos(valor: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(valor.trim())
+  if (!m) return null
+  const h = Number(m[1])
+  const min = Number(m[2])
+  if (h > 23 || min > 59) return null
+  return h * 60 + min
+}
+
+/* ─────────────────────── Fuso horário ─────────────────────── */
 
 /**
  * Quanto o fuso está adiantado/atrasado em relação ao UTC, em minutos, no
@@ -88,7 +119,7 @@ export function instanteNoFuso(
   return new Date(palpite - deslocamento * 60000)
 }
 
-/** Ano, mês, dia e dia-da-semana de um instante, vistos daquele fuso. */
+/** Ano, mês, dia, hora e dia-da-semana de um instante, vistos daquele fuso. */
 export function partesNoFuso(fuso: string, quando: Date) {
   const partes = new Intl.DateTimeFormat('en-US', {
     timeZone: fuso, hour12: false, weekday: 'short',
@@ -131,55 +162,108 @@ export function diaLocal(valor: string): Date {
     : new Date(valor)
 }
 
-/** "1,2,3,4,5" → [1,2,3,4,5], no padrão do Date.getDay() (0 = domingo). */
-export function diasAtendidos(config: Pick<ConfigAgenda, 'diasAtendimento'>): number[] {
-  return config.diasAtendimento
-    .split(',')
-    .map((d) => Number(d.trim()))
-    .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)
+/* ─────────────────────── Expediente ─────────────────────── */
+
+/** Dia da semana de uma data AAAA-MM-DD, sem depender de fuso. */
+export function diaDaSemanaDaData(dia: string): number | null {
+  const p = partesDaData(dia)
+  if (!p) return null
+  // Meio-dia UTC: longe o bastante das bordas para nenhum fuso virar o dia.
+  return new Date(Date.UTC(p.ano, p.mes - 1, p.dia, 12)).getUTCDay()
 }
 
-/** O consultório abre neste dia da semana? `dia` é AAAA-MM-DD. */
-export function atendeNaData(config: ConfigAgenda, dia: string): boolean {
-  const partes = partesDaData(dia)
-  if (!partes) return false
+/** Os blocos daquele dia da semana, em ordem. */
+export function blocosDoDia(config: ConfigAgenda, diaSemana: number): Bloco[] {
+  return (config.blocosExpediente ?? [])
+    .filter((b) => b.diaSemana === diaSemana && b.fimMin > b.inicioMin)
+    .sort((a, b) => a.inicioMin - b.inicioMin)
+}
 
-  // O dia da semana sai do calendário, não de um Date: a data é uma data,
-  // e não depende de fuso nenhum para saber que 22/08/2026 é sábado.
-  const meioDia = Date.UTC(partes.ano, partes.mes - 1, partes.dia, 12)
-  return diasAtendidos(config).includes(new Date(meioDia).getUTCDay())
+/** Dias da semana em que a clínica abre — derivado dos blocos. */
+export function diasAtendidos(config: ConfigAgenda): number[] {
+  const dias = new Set((config.blocosExpediente ?? []).map((b) => b.diaSemana))
+  return Array.from(dias).sort()
+}
+
+/** O consultório abre nesta data? `dia` é AAAA-MM-DD. */
+export function atendeNaData(config: ConfigAgenda, dia: string): boolean {
+  const diaSemana = diaDaSemanaDaData(dia)
+  if (diaSemana === null) return false
+  return blocosDoDia(config, diaSemana).length > 0
 }
 
 /**
- * Todos os horários do dia, do abrir ao fechar, no fuso do consultório.
+ * Todos os horários do dia, percorrendo cada bloco no fuso do consultório.
  * Devolve lista vazia em dia fechado — assim quem consome não precisa
  * repetir a checagem de dia da semana.
  */
 export function gerarHorariosDoDia(config: ConfigAgenda, dia: string): Date[] {
   const partes = partesDaData(dia)
-  if (!partes || !atendeNaData(config, dia)) return []
+  const diaSemana = diaDaSemanaDaData(dia)
+  if (!partes || diaSemana === null) return []
 
   const fuso = fusoDe(config)
-  const inicio = instanteNoFuso(fuso, partes.ano, partes.mes, partes.dia, config.horaAbertura)
-  const fim = instanteNoFuso(fuso, partes.ano, partes.mes, partes.dia, config.horaFechamento)
-
   // Duração inválida (0 ou negativa) travaria o laço para sempre.
   const passo = config.duracaoConsultaMin > 0 ? config.duracaoConsultaMin : DURACAO_MIN
 
   const horarios: Date[] = []
-  let momento = inicio
-  while (isBefore(momento, fim)) {
-    horarios.push(momento)
-    momento = addMinutes(momento, passo)
+
+  for (const bloco of blocosDoDia(config, diaSemana)) {
+    const inicio = instanteNoFuso(
+      fuso, partes.ano, partes.mes, partes.dia,
+      Math.floor(bloco.inicioMin / 60), bloco.inicioMin % 60
+    )
+    const fim = instanteNoFuso(
+      fuso, partes.ano, partes.mes, partes.dia,
+      Math.floor(bloco.fimMin / 60), bloco.fimMin % 60
+    )
+
+    // Só entra o horário que cabe inteiro no bloco: uma consulta de 30 min
+    // num bloco que fecha às 12h não pode começar 11h50.
+    let momento = inicio
+    while (addMinutes(momento, passo).getTime() <= fim.getTime()) {
+      horarios.push(momento)
+      momento = addMinutes(momento, passo)
+    }
   }
+
   return horarios
 }
 
-/** O horário cai dentro da janela de atendimento, no fuso do consultório? */
+/** O horário cai dentro de algum bloco de atendimento, no fuso da clínica? */
 export function dentroDoExpediente(config: ConfigAgenda, quando: Date): boolean {
-  const fuso = fusoDe(config)
-  const { hora, diaDaSemana } = partesNoFuso(fuso, quando)
+  const { hora, minuto, diaDaSemana } = partesNoFuso(fusoDe(config), quando)
+  const minutosDoDia = hora * 60 + minuto
 
-  if (!diasAtendidos(config).includes(diaDaSemana)) return false
-  return hora >= config.horaAbertura && hora < config.horaFechamento
+  return blocosDoDia(config, diaDaSemana).some(
+    (b) => minutosDoDia >= b.inicioMin && minutosDoDia < b.fimMin
+  )
+}
+
+/** Resumo legível do expediente, agrupando dias com o mesmo horário. */
+export function resumoExpediente(config: ConfigAgenda): string[] {
+  const porDia = new Map<number, string>()
+
+  for (let d = 0; d <= 6; d++) {
+    const blocos = blocosDoDia(config, d)
+    if (blocos.length === 0) continue
+    porDia.set(d, blocos.map((b) => `${minutosParaHora(b.inicioMin)}–${minutosParaHora(b.fimMin)}`).join(' e '))
+  }
+
+  // Dias seguidos com o mesmo horário viram uma linha só: "Seg a Sex, 8h–18h".
+  const linhas: string[] = []
+  const dias = Array.from(porDia.keys()).sort()
+  let i = 0
+  while (i < dias.length) {
+    const horario = porDia.get(dias[i])!
+    let j = i
+    while (j + 1 < dias.length && dias[j + 1] === dias[j] + 1 && porDia.get(dias[j + 1]) === horario) j++
+
+    const nome = (d: number) => NOMES_DIAS[d]
+    const rotulo = i === j ? nome(dias[i]) : `${nome(dias[i])} a ${nome(dias[j])}`
+    linhas.push(`${rotulo}: ${horario}`)
+    i = j + 1
+  }
+
+  return linhas
 }

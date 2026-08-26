@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { FUSOS_BR } from './agenda'
+import { FUSOS_BR, NOMES_DIAS } from './agenda'
 
 export const pacienteSchema = z.object({
   nome: z.string().min(2, 'Informe o nome do paciente'),
@@ -110,6 +110,8 @@ export const prontuarioSchema = z.object({
 
 export const receitaSchema = z.object({
   pacienteId: z.string().min(1, 'Selecione o paciente'),
+  /// Quem assina. Se não vier, a rota usa quem está logado.
+  profissionalId: z.string().optional().nullable(),
   prontuarioId: z.string().optional().nullable(),
   validadeAte: z.coerce.date(),
 
@@ -146,34 +148,65 @@ export const receitaSchema = z.object({
 })
 
 /**
- * Configurações do consultório. `diasAtendimento` chega como array de dias
- * (0 = domingo) e é guardado no banco como "1,2,3,4,5" — formato simples de
- * ler e que não exige uma tabela só para isso.
+ * Configurações do consultório. O expediente vai como lista de blocos —
+ * um intervalo contínuo num dia da semana — porque é isso que permite
+ * "sábado só até meio-dia" e o fecha-para-almoço no mesmo modelo.
  */
+const blocoSchema = z
+  .object({
+    diaSemana: z.coerce.number().int().min(0).max(6),
+    inicioMin: z.coerce.number().int().min(0).max(1439),
+    fimMin: z.coerce.number().int().min(1).max(1440),
+  })
+  .refine((b) => b.fimMin > b.inicioMin, {
+    message: 'O fim do horário precisa ser depois do início',
+    path: ['fimMin'],
+  })
+
 export const configConsultorioSchema = z
   .object({
     nome: z.string().min(2, 'Informe o nome do consultório'),
     telefone: z.string().optional(),
     endereco: z.string().optional(),
-    horaAbertura: z.coerce.number().int().min(0).max(23),
-    horaFechamento: z.coerce.number().int().min(1).max(24),
     duracaoConsultaMin: z.coerce.number().int()
       .min(5, 'A consulta deve durar ao menos 5 minutos')
       .max(240, 'A consulta não pode passar de 4 horas'),
-    diasAtendimento: z.array(z.coerce.number().int().min(0).max(6))
-      .min(1, 'Escolha ao menos um dia de atendimento'),
     // Validado contra a lista de fusos brasileiros: o campo alimenta cálculo
     // de horário, e um valor inválido faria o expediente inteiro escorregar.
     fusoHorario: z.enum(FUSOS_BR.map((f) => f.valor) as [string, ...string[]]),
+    blocos: z.array(blocoSchema).min(1, 'Defina ao menos um horário de atendimento'),
   })
-  .refine((d) => d.horaFechamento > d.horaAbertura, {
-    message: 'O horário de fechamento precisa ser depois da abertura',
-    path: ['horaFechamento'],
+  .superRefine((dados, ctx) => {
+    // Dois blocos que se cruzam no mesmo dia gerariam horários repetidos na
+    // tela pública — e o paciente veria a mesma hora duas vezes.
+    const porDia = new Map<number, typeof dados.blocos>()
+    for (const b of dados.blocos) {
+      porDia.set(b.diaSemana, [...(porDia.get(b.diaSemana) ?? []), b])
+    }
+
+    for (const [dia, blocos] of Array.from(porDia.entries())) {
+      const ordenados = [...blocos].sort((a, b) => a.inicioMin - b.inicioMin)
+      for (let i = 1; i < ordenados.length; i++) {
+        if (ordenados[i].inicioMin < ordenados[i - 1].fimMin) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${NOMES_DIAS[dia]}: há dois horários que se sobrepõem`,
+            path: ['blocos'],
+          })
+          break
+        }
+      }
+    }
   })
 
 export const perfilSchema = z.object({
   nome: z.string().min(2, 'Informe seu nome'),
   email: z.string().email('E-mail inválido'),
+  /// Conselho e registro saem impressos na receita. Ficam livres porque a
+  /// sigla varia com a formação — CBOO, CRM, CRO — e travar numa lista
+  /// deixaria de fora quem tem outra.
+  conselhoProfissional: z.string().max(20).optional(),
+  registroProfissional: z.string().max(40).optional(),
 })
 
 export const trocaSenhaSchema = z.object({

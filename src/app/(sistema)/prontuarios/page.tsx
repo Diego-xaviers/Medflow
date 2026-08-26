@@ -107,7 +107,7 @@ export default function ProntuariosPage() {
   )
 
   return (
-    <div className="p-7 max-w-[1500px]">
+    <div className="p-4 sm:p-7 max-w-[1500px]">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="titulo-pagina">Prontuários</h1>
@@ -171,7 +171,7 @@ export default function ProntuariosPage() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.98 }}
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="cartao w-full max-w-2xl p-6 space-y-4 my-auto">
+              className="cartao w-full max-w-2xl p-5 sm:p-6 space-y-4 my-auto">
 
               <div className="flex items-center justify-between sticky top-0 bg-white dark:bg-neutro-900 pb-2">
                 <div className="flex items-center gap-2">
@@ -290,7 +290,7 @@ function PainelExame({ id, aoFechar }: { id: string | null; aoFechar: () => void
             className="w-full max-w-lg h-full bg-white dark:bg-neutro-900 border-l border-neutro-200 dark:border-neutro-800 overflow-y-auto">
 
             {isLoading || !p ? (
-              <div className="p-7 space-y-4">
+              <div className="p-4 sm:p-7 space-y-4">
                 <div className="esqueleto h-6 w-48" />
                 <div className="esqueleto h-24" />
                 <div className="esqueleto h-40" />

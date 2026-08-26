@@ -81,7 +81,7 @@ export default function PacientesPage() {
   }
 
   return (
-    <div className="p-7 max-w-[1500px]">
+    <div className="p-4 sm:p-7 max-w-[1500px]">
       <div className="flex items-end justify-between mb-7">
         <div>
           <h1 className="titulo-pagina">Pacientes</h1>
@@ -353,7 +353,7 @@ function ModalPaciente({ aberto, form, setForm, erro, salvando, aoFechar, aoSalv
             initial={{ opacity: 0, y: 14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="cartao shadow-alta w-full max-w-xl p-6 space-y-5 my-auto">
+            className="cartao shadow-alta w-full max-w-xl p-5 sm:p-6 space-y-5 my-auto">
 
             <div className="flex items-center justify-between">
               <h2 className="text-[16px] font-semibold">

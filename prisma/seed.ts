@@ -28,6 +28,14 @@ async function main() {
       nome: 'Ótica Exemplo',
       slug: 'otica-exemplo-demo',
       telefone: '(66) 99999-0000',
+      fusoHorario: 'America/Cuiaba',
+      // Seg a sex 8h-18h e sábado até meio-dia — o caso que motivou os blocos.
+      blocosExpediente: {
+        create: [
+          ...[1, 2, 3, 4, 5].map((diaSemana) => ({ diaSemana, inicioMin: 480, fimMin: 1080 })),
+          { diaSemana: 6, inicioMin: 480, fimMin: 720 },
+        ],
+      },
       usuarios: {
         create: [
           { nome: 'Optometrista Demo', email: 'optometrista@exemplo.com', senhaHash: senhaPadrao, papel: 'DONO', atendePacientes: true },

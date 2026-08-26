@@ -22,11 +22,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       select: {
         id: true,
         nome: true,
-        horaAbertura: true,
-        horaFechamento: true,
         duracaoConsultaMin: true,
-        diasAtendimento: true,
         fusoHorario: true,
+        blocosExpediente: { select: { diaSemana: true, inicioMin: true, fimMin: true } },
       },
     })
     if (!consultorio) throw new ErroDeNegocio('Link de agendamento inválido')

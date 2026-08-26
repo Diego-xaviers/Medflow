@@ -11,6 +11,7 @@ import {
 import { format, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import CalendarioMes from '@/components/CalendarioMes'
+import AgendaDaVendedora from '@/components/AgendaDaVendedora'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { hora, moeda } from '@/lib/formato'
 
@@ -34,6 +35,16 @@ const estiloStatus: Record<string, { etiqueta: string; barra: string; texto: str
 }
 
 export default function AgendaPage() {
+  const { data: sessao } = useSession()
+
+  // A vendedora acompanha a agenda, mas não a opera: para ela, calendário e
+  // botões de status seriam ruído. Ver AgendaDaVendedora.
+  if (sessao?.user?.papel === 'VENDEDORA') return <AgendaDaVendedora />
+
+  return <AgendaCompleta />
+}
+
+function AgendaCompleta() {
   const { data: sessao } = useSession()
   const [mesRef, setMesRef] = useState(() => new Date())
   const [dia, setDia] = useState(() => new Date())
@@ -83,7 +94,7 @@ export default function AgendaPage() {
   }
 
   return (
-    <div className="p-7 max-w-[1500px]">
+    <div className="p-4 sm:p-7 max-w-[1500px]">
       <div className="flex items-end justify-between mb-7">
         <div>
           <h1 className="titulo-pagina">Agenda</h1>
@@ -304,7 +315,7 @@ function ModalNovoAgendamento({ aberto, aoFechar, diaPadrao, duracao, horaAbertu
             initial={{ opacity: 0, y: 14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="cartao shadow-alta w-full max-w-md p-6 space-y-4">
+            className="cartao shadow-alta w-full max-w-md p-5 sm:p-6 space-y-4">
 
             <div className="flex items-center justify-between">
               <div>

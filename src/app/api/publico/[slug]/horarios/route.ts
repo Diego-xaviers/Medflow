@@ -27,11 +27,9 @@ export async function GET(req: NextRequest, { params }: Params) {
       where: { slug: params.slug, ativo: true },
       select: {
         id: true,
-        horaAbertura: true,
-        horaFechamento: true,
         duracaoConsultaMin: true,
-        diasAtendimento: true,
         fusoHorario: true,
+        blocosExpediente: { select: { diaSemana: true, inicioMin: true, fimMin: true } },
       },
     })
     if (!consultorio) throw new ErroDeNegocio('Link de agendamento inválido')

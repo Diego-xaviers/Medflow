@@ -23,14 +23,9 @@ model Consultorio {
   telefone  String?
   endereco  String?
 
-  /// Janela de atendimento — usada pela agenda interna e pelo link público.
-  /// Fica no banco (e não numa constante do código) porque cada consultório
-  /// tem o seu horário, e o dono precisa poder mudar sem depender de deploy.
-  horaAbertura       Int    @default(8)
-  horaFechamento     Int    @default(18)
+  /// Quanto dura cada atendimento. Junto com os blocos de expediente, é o que
+  /// define os horários que o link público oferece.
   duracaoConsultaMin Int    @default(30)
-  /// Dias atendidos no padrão do Date.getDay(): 0 = domingo … 6 = sábado.
-  diasAtendimento    String @default("1,2,3,4,5")
   /// Fuso da clínica, no padrão IANA. Precisa existir: o servidor roda em UTC
   /// na Vercel, então "abre às 8h" sem fuso viraria 8h UTC — 5h da manhã aqui.
   /// E o Brasil tem mais de um fuso: Cuiabá é UTC-4, São Paulo é UTC-3.
@@ -45,6 +40,7 @@ model Consultorio {
   prontuarios  Prontuario[]
   receitas     Receita[]
   notificacoes Notificacao[]
+  blocosExpediente BlocoExpediente[]
   chamados     Chamado[]
 
   @@map("consultorios")
@@ -75,11 +71,18 @@ model Usuario {
   /// escolhível no link público de agendamento.
   atendePacientes Boolean @default(false)
 
+  /// Registro no conselho de classe, impresso na receita. São dois campos
+  /// porque o conselho varia com a formação: optometrista usa CBOO, médico
+  /// usa CRM, e a via impressa precisa dizer qual é qual.
+  conselhoProfissional String?
+  registroProfissional String?
+
   /// Nulo apenas para o SUPER_ADMIN, que está acima dos consultórios.
   consultorioId String?
   consultorio   Consultorio? @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
 
   consultasComoProfissional Consulta[]    @relation("ProfissionalDaConsulta")
+  receitasComoProfissional  Receita[]     @relation("ProfissionalDaReceita")
   notificacoes              Notificacao[]
   chamados                  Chamado[]
 
@@ -320,6 +323,12 @@ model Receita {
   pacienteId String
   paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
 
+  /// Quem prescreveu. Anulável de propósito: as receitas emitidas antes deste
+  /// campo existir não têm como saber quem as assinou, e inventar um autor
+  /// seria pior que admitir a lacuna. Toda receita nova nasce preenchida.
+  profissionalId String?
+  profissional   Usuario? @relation("ProfissionalDaReceita", fields: [profissionalId], references: [id], onDelete: SetNull)
+
   prontuarioId String?
   prontuario   Prontuario? @relation(fields: [prontuarioId], references: [id], onDelete: SetNull)
 
@@ -402,4 +411,30 @@ model MensagemChamado {
 
   @@index([chamadoId, criadoEm])
   @@map("mensagens_chamado")
+}
+
+/// Um pedaço de expediente num dia da semana.
+///
+/// Existe como tabela, e não como duas colunas no consultório, porque a vida
+/// real não cabe num par único: seg a sex das 8 às 18, sábado só até meio-dia,
+/// e quem fecha para almoço tem dois blocos no mesmo dia. Cada linha é um
+/// intervalo contínuo em que a clínica atende.
+///
+/// As colunas horaAbertura/horaFechamento do consultório continuam existindo
+/// como padrão de quem ainda não montou os blocos — e foi assim que os
+/// consultórios já cadastrados ganharam a grade inicial sem intervenção.
+model BlocoExpediente {
+  id         String @id @default(cuid())
+  /// 0 = domingo … 6 = sábado, no padrão do Date.getDay().
+  diaSemana  Int
+  /// Minutos desde a meia-noite: 8h = 480, 12h30 = 750. Guardar em minuto
+  /// evita a dupla hora+minuto e permite meia hora sem campo extra.
+  inicioMin  Int
+  fimMin     Int
+
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+
+  @@index([consultorioId, diaSemana])
+  @@map("blocos_expediente")
 }

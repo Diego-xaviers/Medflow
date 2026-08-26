@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   return rota(async () => {
-    const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE')
+    const { consultorioId, usuarioId } = await exigirPapel('DONO', 'ATENDENTE')
     const dados = receitaSchema.parse(await req.json())
 
     const paciente = await prisma.paciente.findFirst({
@@ -31,7 +31,13 @@ export async function POST(req: NextRequest) {
     if (!paciente) throw new ErroDeNegocio('Paciente não encontrado')
 
     return prisma.receita.create({
-      data: { ...dados, prontuarioId: dados.prontuarioId || null, consultorioId },
+      data: {
+        ...dados,
+        prontuarioId: dados.prontuarioId || null,
+        // Sem escolha explícita, quem assina é quem está emitindo.
+        profissionalId: dados.profissionalId || usuarioId,
+        consultorioId,
+      },
       include: { paciente: { select: { id: true, nome: true } } },
     })
   })

@@ -43,7 +43,7 @@ function SuporteDoCliente() {
   const ativo = lista.find((c: any) => c.id === ativoId) ?? lista[0] ?? null
 
   return (
-    <div className="p-7 max-w-[1200px]">
+    <div className="p-4 sm:p-7 max-w-[1200px]">
       <div className="mb-7">
         <h1 className="titulo-pagina">Suporte</h1>
         <p className="subtitulo mt-1">Fale com a gente aqui mesmo, sem sair do sistema</p>
@@ -286,7 +286,7 @@ function CaixaDeEntrada() {
   const pendentes = lista.filter((c: any) => c.status !== 'RESOLVIDO').length
 
   return (
-    <div className="p-7 max-w-[1400px]">
+    <div className="p-4 sm:p-7 max-w-[1400px]">
       <div className="flex items-end justify-between mb-7">
         <div>
           <h1 className="titulo-pagina">Chamados</h1>

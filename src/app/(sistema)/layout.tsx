@@ -1,18 +1,10 @@
-import Sidebar from '@/components/Sidebar'
-import Topbar from '@/components/Topbar'
+import Moldura from '@/components/Moldura'
 
 /**
  * Layout de tudo que exige login. O middleware já barra quem não tem sessão,
- * então aqui só montamos a moldura.
+ * então aqui só montamos a moldura — que é cliente porque a gaveta do menu
+ * no celular precisa de estado.
  */
 export default function LayoutSistema({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <div className="flex-1 min-w-0">
-        <Topbar />
-        {children}
-      </div>
-    </div>
-  )
+  return <Moldura>{children}</Moldura>
 }

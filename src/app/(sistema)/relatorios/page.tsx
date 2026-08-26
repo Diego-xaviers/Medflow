@@ -41,7 +41,7 @@ export default function RelatoriosPage() {
   const periodoTexto = `${fmtData(de)} a ${fmtData(ate)}`
 
   return (
-    <div className="p-7 max-w-[1500px]">
+    <div className="p-4 sm:p-7 max-w-[1500px]">
       <div className="flex flex-wrap items-end justify-between gap-4 mb-7">
         <div>
           <h1 className="titulo-pagina">Relatórios</h1>

@@ -8,18 +8,13 @@ import {
   Building2, Clock, Link2, Check, Loader2, Lock, CalendarDays, Globe,
 } from 'lucide-react'
 import { fetcher, enviar } from '@/lib/fetcher'
-import { FUSOS_BR } from '@/lib/agenda'
-
-const DIAS = [
-  { valor: 1, curto: 'Seg' }, { valor: 2, curto: 'Ter' }, { valor: 3, curto: 'Qua' },
-  { valor: 4, curto: 'Qui' }, { valor: 5, curto: 'Sex' }, { valor: 6, curto: 'Sáb' },
-  { valor: 0, curto: 'Dom' },
-]
+import { FUSOS_BR, type Bloco } from '@/lib/agenda'
+import EditorExpediente from '@/components/EditorExpediente'
 
 const vazio = {
   nome: '', telefone: '', endereco: '',
-  horaAbertura: 8, horaFechamento: 18, duracaoConsultaMin: 30, fusoHorario: 'America/Sao_Paulo',
-  diasAtendimento: [1, 2, 3, 4, 5] as number[],
+  duracaoConsultaMin: 30, fusoHorario: 'America/Sao_Paulo',
+  blocos: [] as Bloco[],
 }
 
 export default function ConfiguracoesPage() {
@@ -39,24 +34,14 @@ export default function ConfiguracoesPage() {
         nome: consultorio.nome ?? '',
         telefone: consultorio.telefone ?? '',
         endereco: consultorio.endereco ?? '',
-        horaAbertura: consultorio.horaAbertura,
-        horaFechamento: consultorio.horaFechamento,
         duracaoConsultaMin: consultorio.duracaoConsultaMin,
         fusoHorario: consultorio.fusoHorario ?? 'America/Sao_Paulo',
-        diasAtendimento: consultorio.diasAtendimento ?? [],
+        blocos: (consultorio.blocosExpediente ?? []).map((b: any) => ({
+          diaSemana: b.diaSemana, inicioMin: b.inicioMin, fimMin: b.fimMin,
+        })),
       })
     }
   }, [consultorio])
-
-  function alternarDia(valor: number) {
-    if (!podeEditar) return
-    setForm((f) => ({
-      ...f,
-      diasAtendimento: f.diasAtendimento.includes(valor)
-        ? f.diasAtendimento.filter((d) => d !== valor)
-        : [...f.diasAtendimento, valor],
-    }))
-  }
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
@@ -71,14 +56,14 @@ export default function ConfiguracoesPage() {
     } catch (e: any) { setErro(e.message) } finally { setSalvando(false) }
   }
 
-  // Quantos atendimentos cabem num dia, com a janela e a duração escolhidas.
-  const vagasPorDia = Math.max(
-    0,
-    Math.floor(((form.horaFechamento - form.horaAbertura) * 60) / (form.duracaoConsultaMin || 1))
+  // Quantas vagas a semana inteira oferece, com a duração escolhida.
+  const vagasPorSemana = form.blocos.reduce(
+    (total, b) => total + Math.max(0, Math.floor((b.fimMin - b.inicioMin) / (form.duracaoConsultaMin || 1))),
+    0
   )
 
   return (
-    <div className="p-7 max-w-[900px]">
+    <div className="p-4 sm:p-7 max-w-[900px]">
       <div className="mb-7">
         <h1 className="titulo-pagina">Configurações</h1>
         <p className="subtitulo mt-1">Dados do consultório e regras da agenda</p>
@@ -129,34 +114,17 @@ export default function ConfiguracoesPage() {
             </p>
           </section>
 
-          <section className="cartao p-6">
+          <section className="cartao p-5 sm:p-6">
             <div className="flex items-center gap-2 mb-1">
               <Clock size={16} className="text-neutro-400" strokeWidth={2} />
               <h2 className="titulo-secao">Expediente</h2>
             </div>
             <p className="text-[12px] text-neutro-400 mb-5">
-              Define os horários que o link público oferece ao paciente.
+              Cada dia tem os seus horários. É aqui que o sábado até meio-dia, ou
+              a parada para o almoço, entram — e é isso que o link público oferece.
             </p>
 
-            <div className="grid sm:grid-cols-3 gap-4">
-              <div>
-                <label className="rotulo">Abre às</label>
-                <select className="campo" disabled={!podeEditar} value={form.horaAbertura}
-                  onChange={(e) => setForm({ ...form, horaAbertura: Number(e.target.value) })}>
-                  {Array.from({ length: 24 }, (_, h) => (
-                    <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="rotulo">Fecha às</label>
-                <select className="campo" disabled={!podeEditar} value={form.horaFechamento}
-                  onChange={(e) => setForm({ ...form, horaFechamento: Number(e.target.value) })}>
-                  {Array.from({ length: 24 }, (_, i) => i + 1).map((h) => (
-                    <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
-                  ))}
-                </select>
-              </div>
+            <div className="grid sm:grid-cols-2 gap-4 mb-5">
               <div>
                 <label className="rotulo">Duração da consulta</label>
                 <select className="campo" disabled={!podeEditar} value={form.duracaoConsultaMin}
@@ -166,54 +134,35 @@ export default function ConfiguracoesPage() {
                   ))}
                 </select>
               </div>
-            </div>
-
-            <div className="mt-4">
-              <label className="rotulo flex items-center gap-1.5">
-                <Globe size={13} strokeWidth={2} /> Fuso horário da clínica
-              </label>
-              <select className="campo" disabled={!podeEditar} value={form.fusoHorario}
-                onChange={(e) => setForm({ ...form, fusoHorario: e.target.value })}>
-                {FUSOS_BR.map((f) => (
-                  <option key={f.valor} value={f.valor}>{f.rotulo}</option>
-                ))}
-              </select>
-              <p className="text-[11px] text-neutro-400 mt-1.5">
-                É o que faz &quot;abre às 8h&quot; significar 8h aqui. O servidor roda em
-                UTC, então sem isto o horário sairia deslocado no link público.
-              </p>
-            </div>
-
-            <div className="mt-5">
-              <label className="rotulo flex items-center gap-1.5">
-                <CalendarDays size={13} strokeWidth={2} /> Dias de atendimento
-              </label>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {DIAS.map((d) => {
-                  const ativo = form.diasAtendimento.includes(d.valor)
-                  return (
-                    <button key={d.valor} type="button" onClick={() => alternarDia(d.valor)}
-                      disabled={!podeEditar}
-                      className={`px-3.5 py-2 rounded-lg text-[12px] font-medium border transition-all duration-200 active:scale-[0.97] disabled:opacity-60 disabled:pointer-events-none ${
-                        ativo
-                          ? 'bg-neutro-900 dark:bg-white text-white dark:text-neutro-900 border-neutro-900 dark:border-white'
-                          : 'border-neutro-200 dark:border-neutro-700 text-neutro-500 hover:border-neutro-300 dark:hover:border-neutro-600'
-                      }`}>
-                      {d.curto}
-                    </button>
-                  )
-                })}
+              <div>
+                <label className="rotulo flex items-center gap-1.5">
+                  <Globe size={13} strokeWidth={2} /> Fuso horário
+                </label>
+                <select className="campo" disabled={!podeEditar} value={form.fusoHorario}
+                  onChange={(e) => setForm({ ...form, fusoHorario: e.target.value })}>
+                  {FUSOS_BR.map((f) => (
+                    <option key={f.valor} value={f.valor}>{f.rotulo}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            <div className="mt-5 rounded-lg bg-neutro-50 dark:bg-neutro-950/40 border border-neutro-200/70 dark:border-neutro-800 px-4 py-3">
+            <label className="rotulo flex items-center gap-1.5 mb-2">
+              <CalendarDays size={13} strokeWidth={2} /> Horários por dia
+            </label>
+            <EditorExpediente
+              blocos={form.blocos}
+              somenteLeitura={!podeEditar}
+              aoMudar={(blocos) => setForm({ ...form, blocos })}
+            />
+
+            <div className="mt-4 rounded-lg bg-neutro-50 dark:bg-neutro-950/40 border border-neutro-200/70 dark:border-neutro-800 px-4 py-3">
               <p className="text-[12px] text-neutro-500">
-                Nessa configuração, cada dia aberto oferece{' '}
-                <span className="font-medium numerico text-neutro-900 dark:text-neutro-100">
-                  {vagasPorDia}
+                Com esta grade, a semana oferece{' '}
+                <span className="font-semibold numerico text-neutro-900 dark:text-neutro-100">
+                  {vagasPorSemana}
                 </span>{' '}
-                horários — {form.diasAtendimento.length} dia
-                {form.diasAtendimento.length === 1 ? '' : 's'} por semana.
+                horários por profissional.
               </p>
             </div>
           </section>

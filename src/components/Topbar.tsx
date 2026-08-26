@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
 import Link from 'next/link'
 import useSWR from 'swr'
-import { Search, Moon, Sun, LogOut, ChevronDown, UserRound, Pencil } from 'lucide-react'
+import { Search, Moon, Sun, LogOut, ChevronDown, UserRound, Pencil, Menu, Eye } from 'lucide-react'
 import { useTema } from './TemaProvider'
 import Avatar from './Avatar'
 import Notificacoes from './Notificacoes'
@@ -16,7 +16,7 @@ const rotuloPapel: Record<string, string> = {
   ATENDENTE: 'Atendente', VENDEDORA: 'Vendedora',
 }
 
-export default function Topbar() {
+export default function Topbar({ aoAbrirMenu }: { aoAbrirMenu?: () => void } = {}) {
   const { data: sessao } = useSession()
   const { tema, alternarTema } = useTema()
   const [menuAberto, setMenuAberto] = useState(false)
@@ -26,9 +26,21 @@ export default function Topbar() {
   const { data: perfil } = useSWR('/api/perfil', fetcher)
 
   return (
-    <header className="topbar h-[65px] flex items-center justify-between px-6 border-b border-neutro-200/70 dark:border-neutro-800 bg-white/80 dark:bg-neutro-900/60 backdrop-blur-xl sticky top-0 z-30">
+    <header className="topbar h-[60px] sm:h-[65px] flex items-center justify-between px-3 sm:px-6 border-b border-neutro-200/70 dark:border-neutro-800 bg-white/80 dark:bg-neutro-900/60 backdrop-blur-xl sticky top-0 z-30">
+      {/* No celular: botão da gaveta e a marca. A busca só entra a partir do
+          tablet — num telefone ela tomaria a largura toda do cabeçalho. */}
+      <div className="flex items-center gap-2 md:hidden">
+        <button onClick={aoAbrirMenu} aria-label="Abrir menu" className="btn-icone shrink-0">
+          <Menu size={20} strokeWidth={2} />
+        </button>
+        <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center text-white shrink-0">
+          <Eye size={15} strokeWidth={2.2} />
+        </div>
+        <p className="text-[14px] font-semibold tracking-apertado">Medflow</p>
+      </div>
+
       {/* Busca */}
-      <div className="group flex items-center gap-2.5 w-full max-w-sm px-3 py-2 rounded-lg border border-neutro-200 dark:border-neutro-700 bg-neutro-50/60 dark:bg-neutro-950/40 transition-all duration-200 focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-500/10 focus-within:bg-white dark:focus-within:bg-neutro-950">
+      <div className="hidden md:flex group items-center gap-2.5 w-full max-w-sm px-3 py-2 rounded-lg border border-neutro-200 dark:border-neutro-700 bg-neutro-50/60 dark:bg-neutro-950/40 transition-all duration-200 focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-500/10 focus-within:bg-white dark:focus-within:bg-neutro-950">
         <Search size={15} className="text-neutro-400 shrink-0" strokeWidth={2} />
         <input
           className="w-full bg-transparent outline-none text-[13px] placeholder:text-neutro-400"
@@ -39,7 +51,7 @@ export default function Topbar() {
         </kbd>
       </div>
 
-      <div className="flex items-center gap-1.5 ml-6">
+      <div className="flex items-center gap-0.5 sm:gap-1.5 md:ml-6">
         {/* Tema */}
         <button onClick={alternarTema} className="btn-icone overflow-hidden"
           title={tema === 'claro' ? 'Modo escuro' : 'Modo claro'}>

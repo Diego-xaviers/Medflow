@@ -47,7 +47,7 @@ export default function DashboardPage() {
   const saudacao = agora < 12 ? 'Bom dia' : agora < 18 ? 'Boa tarde' : 'Boa noite'
 
   return (
-    <div className="p-7 max-w-[1500px]">
+    <div className="p-4 sm:p-7 max-w-[1500px]">
       <motion.div
         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}

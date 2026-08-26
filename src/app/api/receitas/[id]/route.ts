@@ -10,7 +10,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE')
     const r = await prisma.receita.findFirst({
       where: { id: params.id, consultorioId },
-      include: { paciente: true, prontuario: true, consultorio: { select: { nome: true, telefone: true, endereco: true } } },
+      include: {
+        paciente: true,
+        prontuario: true,
+        profissional: {
+          select: { nome: true, conselhoProfissional: true, registroProfissional: true },
+        },
+        consultorio: { select: { nome: true, telefone: true, endereco: true } },
+      },
     })
     if (!r) throw new ErroDeNegocio('Receita não encontrada')
     return r

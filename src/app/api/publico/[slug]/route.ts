@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { rota, ErroDeNegocio } from '@/lib/api'
-import { diasAtendidos } from '@/lib/agenda'
+import { diasAtendidos, resumoExpediente } from '@/lib/agenda'
 
 type Params = { params: { slug: string } }
 
@@ -23,7 +23,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
         telefone: true,
         endereco: true,
         duracaoConsultaMin: true,
-        diasAtendimento: true,
+        fusoHorario: true,
+        blocosExpediente: { select: { diaSemana: true, inicioMin: true, fimMin: true } },
         usuarios: {
           where: { ativo: true, OR: [{ papel: 'VENDEDORA' }, { atendePacientes: true }] },
           select: {
@@ -45,6 +46,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       endereco: consultorio.endereco,
       duracaoConsultaMin: consultorio.duracaoConsultaMin,
       diasAtendimento: diasAtendidos(consultorio),
+      resumoExpediente: resumoExpediente(consultorio),
       profissionais: consultorio.usuarios
         .filter((u) => u.atendePacientes)
         .map((u) => ({ id: u.id, nome: u.nome, fotoUrl: u.fotoUrl })),

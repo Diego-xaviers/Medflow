@@ -5,6 +5,7 @@ import { exigirSuperAdmin } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { novoConsultorioSchema } from '@/lib/schemas'
 import { gerarSlugUnico } from '@/lib/slug'
+import { BLOCOS_PADRAO } from '@/lib/agenda'
 
 /** Área do dono do SaaS: é aqui que cada consultório novo entra no sistema. */
 export async function GET() {
@@ -37,6 +38,8 @@ export async function POST(req: NextRequest) {
         slug,
         telefone: dados.telefone || null,
         endereco: dados.endereco || null,
+        // Sem expediente, o link público nasce sem horário para oferecer.
+        blocosExpediente: { create: BLOCOS_PADRAO },
         usuarios: {
           create: {
             nome: dados.nomeDono,

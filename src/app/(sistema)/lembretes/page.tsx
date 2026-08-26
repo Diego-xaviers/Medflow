@@ -93,7 +93,7 @@ export default function LembretesPage() {
   const total = lembretes?.total ?? 0
 
   return (
-    <div className="p-7 max-w-[1100px]">
+    <div className="p-4 sm:p-7 max-w-[1100px]">
       <div className="flex items-end justify-between mb-7">
         <div>
           <h1 className="titulo-pagina">Lembretes</h1>

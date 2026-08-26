@@ -32,17 +32,17 @@ const admin = [
   { label: 'Perfil', icon: UserCircle, href: '/perfil' },
 ]
 
-function Item({ label, icon: Icon, href }: { label: string; icon: any; href: string }) {
+function Item({ label, icon: Icon, href, aoNavegar, variante }: { label: string; icon: any; href: string; aoNavegar?: () => void; variante: string }) {
   const caminho = usePathname()
   const ativo = href === '/' ? caminho === '/' : caminho.startsWith(href)
 
   return (
-    <Link href={href} className="relative block group">
+    <Link href={href} onClick={aoNavegar} className="relative block group">
       {/* O fundo do item ativo desliza de um item para o outro em vez de
           piscar — é o detalhe que dá sensação de produto polido. */}
       {ativo && (
         <motion.span
-          layoutId="fundoNav"
+          layoutId={`fundoNav-${variante}`}
           className="absolute inset-0 bg-white dark:bg-neutro-800 rounded-lg shadow-suave"
           transition={{ type: 'spring', stiffness: 380, damping: 34 }}
         />
@@ -50,7 +50,7 @@ function Item({ label, icon: Icon, href }: { label: string; icon: any; href: str
 
       {ativo && (
         <motion.span
-          layoutId="barraNav"
+          layoutId={`barraNav-${variante}`}
           className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-brand-500 rounded-full"
           transition={{ type: 'spring', stiffness: 380, damping: 34 }}
         />
@@ -76,7 +76,7 @@ function Item({ label, icon: Icon, href }: { label: string; icon: any; href: str
   )
 }
 
-function Grupo({ titulo, itens }: { titulo?: string; itens: any[] }) {
+function Grupo({ titulo, itens, aoNavegar, variante }: { titulo?: string; itens: any[]; aoNavegar?: () => void; variante: string }) {
   return (
     <div>
       {titulo && (
@@ -85,13 +85,19 @@ function Grupo({ titulo, itens }: { titulo?: string; itens: any[] }) {
         </p>
       )}
       <div className="space-y-0.5">
-        {itens.map((i) => <Item key={i.href} {...i} />)}
+        {itens.map((i) => <Item key={i.href} {...i} aoNavegar={aoNavegar} variante={variante} />)}
       </div>
     </div>
   )
 }
 
-export default function Sidebar() {
+/**
+ *  separa as duas instâncias que existem ao mesmo tempo: a fixa do
+ * desktop e a da gaveta no celular. Sem isso os dois compartilhavam o mesmo
+ * , o framer-motion tratava as duas como o MESMO elemento, e a
+ * gaveta ficava travada fora da tela ao abrir.
+ */
+export default function Sidebar({ aoNavegar, variante = 'fixa' }: { aoNavegar?: () => void; variante?: string } = {}) {
   const { data: sessao } = useSession()
   const papel = sessao?.user?.papel as PapelUsuario | undefined
 
@@ -118,9 +124,9 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 py-5 space-y-6 overflow-y-auto">
-        {principaisVisiveis.length > 0 && <Grupo itens={principaisVisiveis} />}
-        {operacaoVisiveis.length > 0 && <Grupo titulo="Operação" itens={operacaoVisiveis} />}
-        {adminVisiveis.length > 0 && <Grupo titulo="Admin" itens={adminVisiveis} />}
+        {principaisVisiveis.length > 0 && <Grupo itens={principaisVisiveis} aoNavegar={aoNavegar} variante={variante} />}
+        {operacaoVisiveis.length > 0 && <Grupo titulo="Operação" itens={operacaoVisiveis} aoNavegar={aoNavegar} variante={variante} />}
+        {adminVisiveis.length > 0 && <Grupo titulo="Admin" itens={adminVisiveis} aoNavegar={aoNavegar} variante={variante} />}
       </nav>
 
       <div className="px-3 pb-4">

@@ -70,7 +70,7 @@ export default function ImprimirReceitaPage() {
   const anos = idade(r.paciente?.dataNascimento)
 
   return (
-    <div className="p-7 max-w-[820px] mx-auto">
+    <div className="p-4 sm:p-7 max-w-[820px] mx-auto">
       <div className="flex items-center justify-between mb-5 nao-imprimir">
         <p className="text-[12px] text-neutro-400">
           Confira antes de imprimir. O diálogo do navegador também salva em PDF.
@@ -192,12 +192,26 @@ export default function ImprimirReceitaPage() {
           )}
         </section>
 
-        {/* Assinatura */}
+        {/* Assinatura — com o registro no conselho, que é o que dá validade
+            à prescrição na hora de a ótica montar a lente. */}
         <footer className="pt-12 flex justify-end">
           <div className="text-center w-72">
             <div className="border-t border-neutro-400 pt-2">
-              <p className="text-[12px] font-medium">Optometrista responsável</p>
-              <p className="text-[11px] text-neutro-500">{r.consultorio?.nome}</p>
+              <p className="text-[12.5px] font-semibold">
+                {r.profissional?.nome ?? 'Profissional responsável'}
+              </p>
+              {r.profissional?.registroProfissional ? (
+                <p className="text-[11.5px] text-neutro-600 numerico">
+                  {[r.profissional.conselhoProfissional, r.profissional.registroProfissional]
+                    .filter(Boolean)
+                    .join(' ')}
+                </p>
+              ) : (
+                <p className="text-[11px] text-neutro-400 nao-imprimir">
+                  Registro não preenchido — informe em Perfil
+                </p>
+              )}
+              <p className="text-[11px] text-neutro-500 mt-0.5">{r.consultorio?.nome}</p>
             </div>
           </div>
         </footer>

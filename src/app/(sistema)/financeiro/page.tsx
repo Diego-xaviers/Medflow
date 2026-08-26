@@ -46,7 +46,7 @@ export default function FinanceiroPage() {
   }
 
   return (
-    <div className="p-7 max-w-[1500px]">
+    <div className="p-4 sm:p-7 max-w-[1500px]">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="titulo-pagina">Financeiro</h1>
@@ -120,7 +120,7 @@ export default function FinanceiroPage() {
             <motion.form onSubmit={salvar}
               initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.98 }} transition={{ duration: 0.2 }}
-              className="cartao w-full max-w-md p-6 space-y-4">
+              className="cartao w-full max-w-md p-5 sm:p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-[16px] font-semibold">Novo lançamento</h2>
                 <button type="button" onClick={() => setModal(false)} className="text-neutro-400"><X size={20} /></button>
