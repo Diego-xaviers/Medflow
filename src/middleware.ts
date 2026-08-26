@@ -37,6 +37,10 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    '/((?!login|agendar|api|_next/static|_next/image|favicon.ico).*)',
+    // O manifesto e o ícone precisam ficar de fora: o celular os busca ANTES
+    // de existir sessão, na hora de instalar o app na tela inicial. Exigindo
+    // login, o navegador recebia um 307 para /login no lugar do arquivo e a
+    // instalação simplesmente não acontecia.
+    '/((?!login|agendar|api|manifest.webmanifest|icone.svg|_next/static|_next/image|favicon.ico).*)',
   ],
 }
