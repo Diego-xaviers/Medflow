@@ -23,6 +23,12 @@ model Consultorio {
   telefone  String?
   endereco  String?
 
+  /// Logo da clínica, como data URI. Sai no cabeçalho da receita impressa.
+  /// Mesma escolha da foto de perfil: sem storage de arquivos contratado, e
+  /// a imagem é recortada e reduzida no navegador antes de subir. Guardada em
+  /// PNG para preservar transparência — logo sobre fundo branco é o caso.
+  logoUrl   String?  @db.Text
+
   /// Quanto dura cada atendimento. Junto com os blocos de expediente, é o que
   /// define os horários que o link público oferece.
   duracaoConsultaMin Int    @default(30)

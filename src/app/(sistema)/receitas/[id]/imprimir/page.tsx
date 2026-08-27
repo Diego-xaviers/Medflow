@@ -84,9 +84,21 @@ export default function ImprimirReceitaPage() {
         {/* Cabeçalho da clínica */}
         <header className="flex items-start justify-between pb-5 border-b border-neutro-300">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-brand-600 flex items-center justify-center text-white">
-              <Eye size={20} strokeWidth={2.2} />
-            </div>
+            {/* Com logo, ela manda no cabeçalho; sem logo, cai no símbolo do
+                Medflow para o papel não sair com um buraco. A altura é fixa e
+                a largura livre, então logo horizontal e brasão quadrado saem
+                com o mesmo peso visual sem deformar nenhum dos dois. */}
+            {r.consultorio?.logoUrl ? (
+              <img
+                src={r.consultorio.logoUrl}
+                alt={r.consultorio.nome}
+                className="h-12 w-auto max-w-[220px] object-contain"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-lg bg-brand-600 flex items-center justify-center text-white">
+                <Eye size={20} strokeWidth={2.2} />
+              </div>
+            )}
             <div>
               <p className="text-[16px] font-semibold tracking-apertado">
                 {r.consultorio?.nome}

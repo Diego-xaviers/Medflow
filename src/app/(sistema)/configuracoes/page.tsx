@@ -1,15 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import {
   Building2, Clock, Link2, Check, Loader2, Lock, CalendarDays, Globe,
+  Upload, Image as ImageIcon,
 } from 'lucide-react'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { FUSOS_BR, type Bloco } from '@/lib/agenda'
 import EditorExpediente from '@/components/EditorExpediente'
+import RecortadorDeImagem from '@/components/RecortadorDeImagem'
 
 const vazio = {
   nome: '', telefone: '', endereco: '',
@@ -112,6 +114,12 @@ export default function ConfiguracoesPage() {
             <p className="text-[11px] text-neutro-400 mt-3">
               Nome, telefone e endereço aparecem na página pública de agendamento.
             </p>
+
+            <LogoDaClinica
+              logoUrl={consultorio?.logoUrl}
+              podeEditar={podeEditar}
+              aoTrocar={() => mutate()}
+            />
           </section>
 
           <section className="cartao p-5 sm:p-6">
@@ -226,5 +234,102 @@ function LinkPublico({ slug }: { slug?: string }) {
         </a>
       </div>
     </section>
+  )
+}
+
+/**
+ * A logo da clínica, que sai no cabeçalho da receita impressa.
+ *
+ * Fica aqui e não no Perfil de propósito: a logo é do consultório, não da
+ * pessoa. No Perfil, cada membro da equipe teria a sua, e a receita mudaria
+ * de cara conforme quem apertasse imprimir.
+ */
+function LogoDaClinica({ logoUrl, podeEditar, aoTrocar }: {
+  logoUrl?: string | null
+  podeEditar: boolean
+  aoTrocar: () => Promise<any> | void
+}) {
+  const entrada = useRef<HTMLInputElement>(null)
+  const [arquivo, setArquivo] = useState<File | null>(null)
+  const [ocupado, setOcupado] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  function escolher(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    // Limpa já: sem isto, escolher o mesmo arquivo duas vezes seguidas não
+    // dispara o evento de novo e a tela parece travada.
+    e.target.value = ''
+    if (f) { setErro(null); setArquivo(f) }
+  }
+
+  async function salvar(dataUri: string) {
+    setOcupado(true); setErro(null)
+    try {
+      await enviar('/api/consultorio/logo', 'PATCH', { logo: dataUri })
+      await aoTrocar()
+      setArquivo(null)
+    } catch (e: any) { setErro(e.message); throw e } finally { setOcupado(false) }
+  }
+
+  async function remover() {
+    if (!confirm('Remover a logo? A receita volta a sair com o símbolo padrão.')) return
+    setOcupado(true); setErro(null)
+    try {
+      await enviar('/api/consultorio/logo', 'DELETE')
+      await aoTrocar()
+    } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
+  }
+
+  return (
+    <div className="mt-5 pt-5 border-t border-neutro-100 dark:border-neutro-800">
+      <label className="rotulo flex items-center gap-1.5">
+        <ImageIcon size={13} strokeWidth={2} /> Logo da clínica
+      </label>
+
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mt-2">
+        {/* Fundo branco na prévia porque é sobre branco que ela vai ser
+            impressa — mostrar sobre o tema escuro enganaria. */}
+        <div className="w-full sm:w-56 h-20 rounded-lg border border-neutro-200 dark:border-neutro-700 bg-white flex items-center justify-center overflow-hidden shrink-0">
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo da clínica" className="max-h-16 max-w-[200px] object-contain" />
+          ) : (
+            <span className="text-[11.5px] text-neutro-400">Sem logo</span>
+          )}
+        </div>
+
+        <div className="min-w-0">
+          {podeEditar && (
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => entrada.current?.click()} disabled={ocupado}
+                className="btn-suave !py-2 !text-[12px]">
+                {ocupado ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} strokeWidth={2} />}
+                {logoUrl ? 'Trocar logo' : 'Enviar logo'}
+              </button>
+              {logoUrl && (
+                <button type="button" onClick={remover} disabled={ocupado}
+                  className="text-[12px] font-medium text-neutro-400 hover:text-red-500 transition-colors disabled:opacity-50">
+                  Remover
+                </button>
+              )}
+            </div>
+          )}
+
+          <p className="text-[11px] text-neutro-400 mt-2 max-w-sm">
+            Sai no cabeçalho da receita impressa. Você enquadra a imagem antes
+            de salvar — PNG com fundo transparente fica melhor no papel.
+          </p>
+          {erro && <p className="text-[12px] text-red-600 mt-1.5">{erro}</p>}
+        </div>
+      </div>
+
+      <input ref={entrada} type="file" accept="image/png,image/jpeg,image/webp"
+        className="hidden" onChange={escolher} />
+
+      <RecortadorDeImagem
+        arquivo={arquivo}
+        aoConfirmar={salvar}
+        aoCancelar={() => setArquivo(null)}
+      />
+    </div>
   )
 }

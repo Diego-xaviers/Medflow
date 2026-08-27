@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         profissional: {
           select: { nome: true, conselhoProfissional: true, registroProfissional: true },
         },
-        consultorio: { select: { nome: true, telefone: true, endereco: true } },
+        consultorio: { select: { nome: true, telefone: true, endereco: true, logoUrl: true } },
       },
     })
     if (!r) throw new ErroDeNegocio('Receita não encontrada')

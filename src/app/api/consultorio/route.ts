@@ -12,6 +12,7 @@ const campos = {
   slug: true,
   telefone: true,
   endereco: true,
+  logoUrl: true,
   duracaoConsultaMin: true,
   fusoHorario: true,
   criadoEm: true,

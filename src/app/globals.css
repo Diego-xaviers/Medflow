@@ -156,6 +156,13 @@
   .documento section,
   .documento table { break-inside: avoid; }
 
+  /* A logo do consultório precisa sair com as cores dela. Sem isto, alguns
+     navegadores "economizam tinta" e a marca do cliente imprime lavada. */
+  .documento img {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   @page { margin: 16mm; }
 }
 
