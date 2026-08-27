@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
-import { ErroNaoAutorizado, ErroSemPermissao } from './tenant'
+import { ErroNaoAutorizado, ErroSemPermissao, ErroPagamentoPendente } from './tenant'
 
 /** Erro de regra de negócio — vira 400 com mensagem legível pro usuário. */
 export class ErroDeNegocio extends Error {
@@ -25,6 +25,11 @@ export async function rota<T>(fn: () => Promise<T>) {
     }
     if (erro instanceof ErroSemPermissao) {
       return NextResponse.json({ erro: erro.message }, { status: 403 })
+    }
+    // 402 é lido pelo cliente como "conta bloqueada" e leva para Cobrança,
+    // sem depender de interpretar a mensagem.
+    if (erro instanceof ErroPagamentoPendente) {
+      return NextResponse.json({ erro: erro.message, bloqueado: true }, { status: 402 })
     }
     if (erro instanceof ErroDeNegocio) {
       return NextResponse.json({ erro: erro.message }, { status: 400 })

@@ -23,6 +23,7 @@ export type TipoNotificacao =
   | 'EQUIPE'
   | 'SUPORTE'
   | 'CHAMADO'
+  | 'COBRANCA'
 
 interface Aviso {
   usuarioIds: string[]

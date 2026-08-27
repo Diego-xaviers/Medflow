@@ -12,7 +12,7 @@ const novaConversaSchema = z.object({
 /** Conversas de suporte de quem está logado. */
 export async function GET() {
   return rota(async () => {
-    const { usuarioId, consultorioId } = await exigirSessao()
+    const { usuarioId, consultorioId } = await exigirSessao({ permitirEmAtraso: true })
 
     return prisma.chamado.findMany({
       where: { usuarioId, consultorioId },
@@ -31,7 +31,7 @@ export async function GET() {
  */
 export async function POST(req: NextRequest) {
   return rota(async () => {
-    const { usuarioId, consultorioId } = await exigirSessao()
+    const { usuarioId, consultorioId } = await exigirSessao({ permitirEmAtraso: true })
     const { texto } = novaConversaSchema.parse(await req.json())
 
     const doAgente = responder(texto)

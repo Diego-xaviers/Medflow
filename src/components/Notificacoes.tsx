@@ -6,7 +6,7 @@ import useSWR from 'swr'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bell, CalendarPlus, CalendarX2, CheckCircle2, UsersRound,
-  LifeBuoy, MessageSquare, CheckCheck,
+  LifeBuoy, MessageSquare, CheckCheck, Wallet,
 } from 'lucide-react'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { tempoRelativo } from '@/lib/formato'
@@ -28,6 +28,7 @@ const visual: Record<string, { icone: any; cor: string }> = {
   EQUIPE: { icone: UsersRound, cor: 'text-neutro-600 bg-neutro-100 dark:bg-neutro-800 dark:text-neutro-300' },
   SUPORTE: { icone: LifeBuoy, cor: 'text-amber-600 bg-amber-50 dark:bg-amber-950/40' },
   CHAMADO: { icone: MessageSquare, cor: 'text-amber-600 bg-amber-50 dark:bg-amber-950/40' },
+  COBRANCA: { icone: Wallet, cor: 'text-brand-600 bg-brand-50 dark:bg-brand-900/30' },
 }
 
 export default function Notificacoes() {

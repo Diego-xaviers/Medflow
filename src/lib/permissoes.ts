@@ -29,19 +29,19 @@ const ROTAS: Record<PapelUsuario, string[] | '*'> = {
   DONO: [
     '/', '/agenda', '/pacientes', '/prontuarios', '/receitas',
     '/financeiro', '/lembretes', '/relatorios', '/suporte',
-    '/equipe', '/configuracoes', '/perfil',
+    '/equipe', '/configuracoes', '/perfil', '/cobranca',
   ],
 
   // A atendente toca a operação inteira, menos a administração da equipe.
   ATENDENTE: [
     '/', '/agenda', '/pacientes', '/prontuarios', '/receitas',
     '/financeiro', '/lembretes', '/relatorios', '/suporte',
-    '/configuracoes', '/perfil',
+    '/configuracoes', '/perfil', '/cobranca',
   ],
 
   // A vendedora acompanha a agenda para saber quem vem e quando — e nada
   // além disso. Prontuário, receita e financeiro não são da função dela.
-  VENDEDORA: ['/agenda', '/suporte', '/perfil'],
+  VENDEDORA: ['/agenda', '/suporte', '/perfil', '/cobranca'],
 }
 
 /** Para onde mandar cada papel quando ele cai numa tela que não pode abrir. */

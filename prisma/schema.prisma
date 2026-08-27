@@ -41,6 +41,7 @@ model Consultorio {
   receitas     Receita[]
   notificacoes Notificacao[]
   blocosExpediente BlocoExpediente[]
+  faturas      Fatura[]
   chamados     Chamado[]
 
   @@map("consultorios")
@@ -437,4 +438,54 @@ model BlocoExpediente {
 
   @@index([consultorioId, diaSemana])
   @@map("blocos_expediente")
+}
+
+enum StatusFatura {
+  ABERTA
+  PAGA
+  CANCELADA
+}
+
+/// Mensalidade de um consultório.
+///
+/// O sistema NÃO processa pagamento: não há cartão, adquirente nem meio de
+/// pagamento guardado em lugar nenhum. A fatura só registra quanto, quando
+/// vence e se foi quitada — a transferência acontece por PIX, fora daqui, e
+/// quem confirma o recebimento é o administrador. Assim não existe dado
+/// sensível de pagamento neste banco para proteger.
+model Fatura {
+  id          String       @id @default(cuid())
+  /// Mês de referência no formato AAAA-MM.
+  competencia String
+  descricao   String?
+  valor       Decimal      @db.Decimal(10, 2)
+  vencimento  DateTime
+  status      StatusFatura @default(ABERTA)
+  pagoEm      DateTime?
+  /// Anotação livre de quem confirmou: "PIX recebido dia 03", por exemplo.
+  observacao  String?
+  criadoEm    DateTime     @default(now())
+
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+
+  @@index([consultorioId, vencimento])
+  @@index([status, vencimento])
+  @@map("faturas")
+}
+
+/// Parâmetros do SaaS — uma linha só, editada pelo administrador.
+///
+/// Fica no banco em vez de variável de ambiente para o dono do sistema poder
+/// trocar a chave PIX sem depender de um deploy.
+model ParametrosSaas {
+  id              String   @id @default("unico")
+  pixChave        String?
+  pixBeneficiario String?
+  pixCidade       String?
+  /// Quantos dias depois do vencimento o acesso continua liberado.
+  diasCarencia    Int      @default(5)
+  atualizadoEm    DateTime @updatedAt
+
+  @@map("parametros_saas")
 }

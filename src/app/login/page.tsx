@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
+import { CHAVE_BOAS_VINDAS } from '@/components/BoasVindas'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Eye, Loader2, LogIn } from 'lucide-react'
@@ -25,6 +26,10 @@ export default function LoginPage() {
       setEnviando(false)
       return
     }
+    // Marca a entrada para a tela de boas-vindas aparecer uma vez só. Fica na
+    // sessão do navegador: recarregar a página depois não repete a animação.
+    sessionStorage.setItem(CHAVE_BOAS_VINDAS, '1')
+
     router.push('/')
     router.refresh()
   }

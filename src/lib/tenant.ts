@@ -1,4 +1,5 @@
 import { getSessao } from './auth'
+import { situacaoDaConta } from './cobranca'
 import { prisma } from './prisma'
 import type { Papel } from '@prisma/client'
 
@@ -32,6 +33,19 @@ export class ErroSemPermissao extends Error {
   }
 }
 
+/**
+ * Mensalidade vencida além da carência.
+ *
+ * Usa 402 (Payment Required), que é literalmente o código para este caso — e
+ * deixa o cliente distinguir "não pode" de "não pagou" sem ler a mensagem.
+ */
+export class ErroPagamentoPendente extends Error {
+  status = 402
+  constructor(msg = 'Mensalidade em aberto. Regularize em Cobrança para voltar a usar o sistema.') {
+    super(msg)
+  }
+}
+
 export interface Contexto {
   usuarioId: string
   nome: string
@@ -39,8 +53,21 @@ export interface Contexto {
   consultorioId: string
 }
 
-/** Exige usuário logado e vinculado a um consultório. */
-export async function exigirSessao(): Promise<Contexto> {
+/**
+ * Exige usuário logado e vinculado a um consultório.
+ *
+ * É também onde o bloqueio por mensalidade em aberto acontece. Fica aqui, e
+ * não no middleware, por dois motivos: o middleware roda no runtime edge e
+ * não alcança o banco, e este helper já é o caminho obrigatório de TODA rota
+ * do consultório — 50 e poucas. Uma checagem num lugar só cobre o sistema
+ * inteiro e não tem como alguém esquecer de colocar numa rota nova.
+ *
+ * As rotas que precisam funcionar justamente com a conta bloqueada (cobrança,
+ * perfil, suporte) passam `permitirEmAtraso`.
+ */
+export async function exigirSessao(
+  opcoes: { permitirEmAtraso?: boolean } = {}
+): Promise<Contexto> {
   const sessao = await getSessao()
 
   if (!sessao?.user) throw new ErroNaoAutorizado()
@@ -51,6 +78,11 @@ export async function exigirSessao(): Promise<Contexto> {
   // rotas normais do sistema — só a área /api/admin.
   if (!consultorioId) {
     throw new ErroSemPermissao('Esta conta não está vinculada a um consultório')
+  }
+
+  if (!opcoes.permitirEmAtraso) {
+    const { bloqueado } = await situacaoDaConta(consultorioId)
+    if (bloqueado) throw new ErroPagamentoPendente()
   }
 
   return {

@@ -38,7 +38,7 @@ function comDerivados<T extends { blocosExpediente: any[]; duracaoConsultaMin: n
  */
 export async function GET() {
   return rota(async () => {
-    const { consultorioId } = await exigirSessao()
+    const { consultorioId } = await exigirSessao({ permitirEmAtraso: true })
 
     const consultorio = await prisma.consultorio.findUniqueOrThrow({
       where: { id: consultorioId },

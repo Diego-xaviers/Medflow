@@ -26,6 +26,7 @@ const operacao = [
 ]
 
 const admin = [
+  { label: 'Cobrança', icon: Wallet, href: '/cobranca' },
   { label: 'Consultórios', icon: Building2, href: '/admin' },
   { label: 'Equipe', icon: UsersRound, href: '/equipe' },
   { label: 'Configurações', icon: Settings, href: '/configuracoes' },
@@ -92,10 +93,10 @@ function Grupo({ titulo, itens, aoNavegar, variante }: { titulo?: string; itens:
 }
 
 /**
- *  separa as duas instâncias que existem ao mesmo tempo: a fixa do
- * desktop e a da gaveta no celular. Sem isso os dois compartilhavam o mesmo
- * , o framer-motion tratava as duas como o MESMO elemento, e a
- * gaveta ficava travada fora da tela ao abrir.
+ * `variante` separa as duas instâncias que existem ao mesmo tempo: a fixa do
+ * desktop e a da gaveta no celular. Sem isso as duas compartilhavam o mesmo
+ * `layoutId` e o framer-motion as tratava como o MESMO elemento, o que faz a
+ * animação do item ativo saltar de uma para a outra.
  */
 export default function Sidebar({ aoNavegar, variante = 'fixa' }: { aoNavegar?: () => void; variante?: string } = {}) {
   const { data: sessao } = useSession()

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
+import PortaoDeAcesso from './PortaoDeAcesso'
+import BoasVindas from './BoasVindas'
 
 /**
  * A moldura do sistema: menu lateral, cabeçalho e conteúdo.
@@ -43,7 +45,9 @@ export default function Moldura({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <div className="flex min-h-screen">
+    <>
+      <BoasVindas />
+      <div className="flex min-h-screen">
       {/* Desktop: menu no fluxo, sempre visível. */}
       <div className="hidden lg:block">
         <Sidebar variante="fixa" />
@@ -70,8 +74,9 @@ export default function Moldura({ children }: { children: React.ReactNode }) {
 
       <div className="flex-1 min-w-0">
         <Topbar aoAbrirMenu={() => setGavetaAberta(true)} />
-        {children}
+        <PortaoDeAcesso>{children}</PortaoDeAcesso>
       </div>
-    </div>
+      </div>
+    </>
   )
 }
