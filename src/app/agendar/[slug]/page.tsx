@@ -9,6 +9,11 @@ import {
 } from 'lucide-react'
 import Avatar from '@/components/Avatar'
 import { hora, data as fmtData } from '@/lib/formato'
+import {
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
+  isSameMonth, isSameDay, isToday, format, addMonths,
+} from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 /**
  * Página pública de agendamento — a única tela que o paciente vê.
@@ -24,9 +29,6 @@ import { hora, data as fmtData } from '@/lib/formato'
 const paramDia = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-const DIAS_VISIVEIS = 21
-const semana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
-
 export default function AgendamentoPublicoPage() {
   const { slug } = useParams<{ slug: string }>()
 
@@ -34,6 +36,7 @@ export default function AgendamentoPublicoPage() {
   const [erroCarga, setErroCarga] = useState<string | null>(null)
 
   const [profissional, setProfissional] = useState<any>(null)
+  const [mes, setMes] = useState(new Date())
   const [dia, setDia] = useState<Date | null>(null)
   const [horarios, setHorarios] = useState<any[]>([])
   const [carregandoHorarios, setCarregandoHorarios] = useState(false)
@@ -60,17 +63,19 @@ export default function AgendamentoPublicoPage() {
       .catch(() => setErroCarga('Não foi possível carregar a página.'))
   }, [slug])
 
-  /** Próximos dias, marcando quais o consultório abre. */
-  const dias = useMemo(() => {
+  /** Dias do mês visível no calendário, com flag de abertura. */
+  const diasDoMes = useMemo(() => {
     if (!consultorio) return []
     const hoje = new Date()
     hoje.setHours(0, 0, 0, 0)
-    return Array.from({ length: DIAS_VISIVEIS }, (_, i) => {
-      const d = new Date(hoje)
-      d.setDate(d.getDate() + i)
-      return { data: d, aberto: consultorio.diasAtendimento.includes(d.getDay()) }
-    })
-  }, [consultorio])
+    const inicio = startOfWeek(startOfMonth(mes), { weekStartsOn: 0 })
+    const fim = endOfWeek(endOfMonth(mes), { weekStartsOn: 0 })
+    return eachDayOfInterval({ start: inicio, end: fim }).map((d) => ({
+      data: d,
+      doMes: isSameMonth(d, mes),
+      aberto: d >= hoje && consultorio.diasAtendimento.includes(d.getDay()),
+    }))
+  }, [consultorio, mes])
 
   // Assim que houver profissional e dia, busca os horários daquele profissional.
   useEffect(() => {
@@ -214,7 +219,11 @@ export default function AgendamentoPublicoPage() {
               {profissional && (
                 <Passo numero={consultorio.profissionais.length > 1 ? 2 : 1}
                   titulo="Escolha o dia" icone={CalendarDays}>
-                  <TirasDeDias dias={dias} selecionado={dia} aoEscolher={setDia} />
+                  <CalendarioPublico
+                    mes={mes} aoMudarMes={setMes}
+                    dias={diasDoMes} selecionado={dia}
+                    aoEscolher={(d) => { setDia(d); setEscolhido(null) }}
+                  />
                 </Passo>
               )}
             </AnimatePresence>
@@ -354,56 +363,81 @@ function Passo({
   )
 }
 
-/** Fita horizontal de dias — rola com o dedo, sem abrir calendário. */
-function TirasDeDias({
-  dias, selecionado, aoEscolher,
+/** Calendário mensal público — feito para o polegar, sem informações de outros pacientes. */
+function CalendarioPublico({
+  mes, aoMudarMes, dias, selecionado, aoEscolher,
 }: {
-  dias: { data: Date; aberto: boolean }[]
+  mes: Date
+  aoMudarMes: (d: Date) => void
+  dias: { data: Date; doMes: boolean; aberto: boolean }[]
   selecionado: Date | null
   aoEscolher: (d: Date) => void
 }) {
-  const [pagina, setPagina] = useState(0)
-  const porPagina = 7
-  const total = Math.ceil(dias.length / porPagina)
-  const visiveis = dias.slice(pagina * porPagina, (pagina + 1) * porPagina)
+  const cabecalho = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-2.5">
-        <button onClick={() => setPagina((p) => Math.max(0, p - 1))} disabled={pagina === 0}
-          className="btn-icone !w-7 !h-7 disabled:opacity-30 disabled:pointer-events-none">
-          <ChevronLeft size={15} />
+    <div className="space-y-3">
+      {/* Navegação de mês */}
+      <div className="flex items-center justify-between">
+        <button onClick={() => aoMudarMes(addMonths(mes, -1))}
+          className="btn-icone !w-8 !h-8">
+          <ChevronLeft size={16} />
         </button>
-        <span className="text-[11.5px] text-neutro-400">
-          {pagina === 0 ? 'Próximos dias' : `Semana ${pagina + 1}`}
-        </span>
-        <button onClick={() => setPagina((p) => Math.min(total - 1, p + 1))} disabled={pagina >= total - 1}
-          className="btn-icone !w-7 !h-7 disabled:opacity-30 disabled:pointer-events-none">
-          <ChevronRight size={15} />
+        <p className="text-[13px] font-semibold capitalize">
+          {format(mes, 'MMMM yyyy', { locale: ptBR })}
+        </p>
+        <button onClick={() => aoMudarMes(addMonths(mes, 1))}
+          className="btn-icone !w-8 !h-8">
+          <ChevronRight size={16} />
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1.5">
-        {visiveis.map(({ data: d, aberto }) => {
-          const ativo = selecionado && d.toDateString() === selecionado.toDateString()
+      {/* Cabeçalho dos dias da semana */}
+      <div className="grid grid-cols-7">
+        {cabecalho.map((d, i) => (
+          <div key={i} className="text-center text-[10px] font-medium text-neutro-400 py-1.5">
+            {d}
+          </div>
+        ))}
+      </div>
+
+      {/* Grade de dias */}
+      <div className="grid grid-cols-7 gap-1">
+        {dias.map(({ data: d, doMes, aberto }) => {
+          const ativo = selecionado && isSameDay(d, selecionado)
+          const hoje = isToday(d)
           return (
             <button key={d.toISOString()} disabled={!aberto} onClick={() => aoEscolher(d)}
               title={aberto ? undefined : 'Fechado neste dia'}
-              className={`flex flex-col items-center py-2 rounded-lg border transition-all duration-150 active:scale-[0.97] ${
+              className={`relative aspect-square flex flex-col items-center justify-center rounded-xl text-[13px] transition-all duration-150 active:scale-[0.95] ${
                 ativo
-                  ? 'bg-neutro-900 dark:bg-white text-white dark:text-neutro-900 border-neutro-900 dark:border-white'
+                  ? 'bg-brand-600 text-white font-semibold shadow-suave'
                   : aberto
-                  ? 'border-neutro-200 dark:border-neutro-700 hover:border-brand-400'
-                  : 'border-transparent text-neutro-300 dark:text-neutro-700 cursor-not-allowed'
-              }`}>
-              <span className="text-[10px] uppercase tracking-wide">{semana[d.getDay()]}</span>
-              <span className="text-[15px] font-semibold numerico leading-tight mt-0.5">
-                {d.getDate()}
-              </span>
+                  ? doMes
+                    ? 'hover:bg-neutro-100 dark:hover:bg-neutro-800 font-medium'
+                    : 'text-neutro-400 hover:bg-neutro-100 dark:hover:bg-neutro-800'
+                  : doMes
+                  ? 'text-neutro-300 dark:text-neutro-700 cursor-not-allowed'
+                  : 'text-neutro-200 dark:text-neutro-800 cursor-not-allowed'
+              } ${hoje && !ativo ? 'text-brand-600 dark:text-brand-400 font-semibold' : ''}`}>
+              <span className="numerico leading-none">{format(d, 'd')}</span>
+              {/* Pontinho verde nos dias com atendimento possível */}
+              {aberto && doMes && !ativo && (
+                <span className="absolute bottom-[5px] w-1 h-1 rounded-full bg-brand-400/60" />
+              )}
+              {hoje && !ativo && (
+                <span className="absolute inset-0 rounded-xl ring-1 ring-brand-400/40" />
+              )}
             </button>
           )
         })}
       </div>
+
+      {selecionado && (
+        <p className="text-[11.5px] text-neutro-400 text-center pt-1">
+          {format(selecionado, "EEEE, d 'de' MMMM", { locale: ptBR })} selecionado
+        </p>
+      )}
     </div>
   )
 }

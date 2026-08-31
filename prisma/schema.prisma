@@ -270,6 +270,14 @@ model Prontuario {
   @@map("prontuarios")
 }
 
+/// Quem assina define o nome do documento: optometrista emite receita
+/// optométrica, médico emite oftálmica. Muda o título impresso e é o que a
+/// ótica confere na hora de montar a lente.
+enum TipoReceita {
+  OFTALMOLOGICA
+  OPTOMETRICA
+}
+
 enum TipoLente {
   MONOFOCAL
   BIFOCAL
@@ -329,6 +337,8 @@ model Receita {
 
   pacienteId String
   paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+
+  tipoReceita TipoReceita @default(OPTOMETRICA)
 
   /// Quem prescreveu. Anulável de propósito: as receitas emitidas antes deste
   /// campo existir não têm como saber quem as assinou, e inventar um autor

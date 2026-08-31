@@ -109,7 +109,9 @@ export default function ImprimirReceitaPage() {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-[13px] font-semibold tracking-wide">RECEITA OFTÁLMICA</p>
+            <p className="text-[13px] font-semibold tracking-wide">
+              {r.tipoReceita === 'OFTALMOLOGICA' ? 'RECEITA OFTALMOLÓGICA' : 'RECEITA OPTOMÉTRICA'}
+            </p>
             <p className="text-[11px] text-neutro-500 numerico">
               Emitida em {data(r.dataEmissao)}
             </p>

@@ -142,6 +142,7 @@ export const receitaSchema = z.object({
   baseprismaOE: z.string().optional(),
 
   tipoLente: z.enum(['MONOFOCAL', 'BIFOCAL', 'MULTIFOCAL', 'OCUPACIONAL', 'CONTATO']).default('MONOFOCAL'),
+  tipoReceita: z.enum(['OFTALMOLOGICA', 'OPTOMETRICA']).default('OPTOMETRICA'),
   materialLente: z.string().optional(),
   tratamentos: z.string().optional(),
   orientacoesUso: z.string().optional(),

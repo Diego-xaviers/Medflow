@@ -22,6 +22,7 @@ function daquiUmAno() {
 
 const vazio: any = {
   pacienteId: '', prontuarioId: '', validadeAte: daquiUmAno(),
+  tipoReceita: 'OPTOMETRICA',
   longeEsfericoOD: '', longeCilindricoOD: '', longeEixoOD: '',
   longeEsfericoOE: '', longeCilindricoOE: '', longeEixoOE: '',
   adicaoOD: '', adicaoOE: '',
@@ -268,6 +269,28 @@ export default function ReceitasPage() {
                   <h2 className="text-[16px] font-semibold">Nova receita</h2>
                 </div>
                 <button type="button" onClick={() => setModal(false)} className="text-neutro-400 hover:text-neutro-600"><X size={20} /></button>
+              </div>
+
+              {/* Tipo de receita — define o título impresso e o profissional que pode assinar */}
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  ['OPTOMETRICA', 'Optométrica', 'Emitida por optometrista (CBOO)'],
+                  ['OFTALMOLOGICA', 'Oftalmológica', 'Emitida por médico oftalmologista (CRM)'],
+                ] as const).map(([valor, rotulo, dica]) => (
+                  <button key={valor} type="button"
+                    onClick={() => setForm({ ...form, tipoReceita: valor })}
+                    title={dica}
+                    className={`py-2.5 px-3 rounded-xl border text-[13px] font-medium text-left transition-all duration-150 active:scale-[0.98] ${
+                      form.tipoReceita === valor
+                        ? 'bg-brand-600 text-white border-brand-600 shadow-suave'
+                        : 'border-neutro-200 dark:border-neutro-700 text-neutro-600 dark:text-neutro-400 hover:border-brand-400'
+                    }`}>
+                    {rotulo}
+                    <span className={`block text-[11px] mt-0.5 ${form.tipoReceita === valor ? 'text-white/70' : 'text-neutro-400'}`}>
+                      {dica}
+                    </span>
+                  </button>
+                ))}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

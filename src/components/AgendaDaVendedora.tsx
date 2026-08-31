@@ -10,18 +10,16 @@ import {
 import { fetcher } from '@/lib/fetcher'
 import { hora, data as fmtData } from '@/lib/formato'
 import { linkWhatsApp } from '@/lib/whatsapp'
+import CalendarioMes from '@/components/CalendarioMes'
+import { isSameDay, addMonths } from 'date-fns'
 
 /**
  * A agenda como a vendedora precisa dela.
  *
  * Ela trabalha no salão, com o celular na mão, e a pergunta é sempre a mesma:
- * quem entra pela porta hoje, a que horas e com quem. Por isso aqui não há
- * calendário — calendário serve para navegar meses, e mês nenhum interessa a
- * quem está esperando o próximo cliente. É uma lista contínua, com hoje no
- * topo, e o telefone a um toque de distância.
- *
- * O filtro "Meus" existe porque quem agendou pelo link público pode ter
- * escolhido uma vendedora responsável — e essa é a pessoa que vai atender.
+ * quem entra pela porta hoje, a que horas e com quem. O calendário no topo
+ * dá uma visão do mês inteiro (todos os profissionais juntos, para não marcar
+ * em cima de alguém) e clicar num dia filtra a lista abaixo.
  */
 
 const rotuloStatus: Record<string, { texto: string; classe: string }> = {
@@ -35,101 +33,110 @@ export default function AgendaDaVendedora() {
   const { data: sessao } = useSession()
   const meuNome = sessao?.user?.name ?? ''
   const [somenteMeus, setSomenteMeus] = useState(false)
+  const [mes, setMes] = useState(new Date())
+  const [diaSelecionado, setDiaSelecionado] = useState<Date>(new Date())
 
-  const { data: consultas, isLoading } = useSWR('/api/consultas?proximos=21', fetcher, {
+  // 90 dias: cobre o mês atual e os dois seguintes no calendário.
+  const { data: consultas, isLoading } = useSWR('/api/consultas?proximos=90', fetcher, {
     refreshInterval: 30_000,
   })
 
-  /** Agrupa por dia, já filtrado e sem o que foi cancelado. */
-  const grupos = useMemo(() => {
-    const lista = (consultas ?? [])
+  /** Todas as consultas não canceladas, para o calendário mostrar os pontinhos de todos. */
+  const todasParaCalendario = useMemo(
+    () => (consultas ?? []).filter((c: any) => c.status !== 'CANCELADA'),
+    [consultas]
+  )
+
+  /** Lista filtrada por dia selecionado, filtro "meus" e status. */
+  const itensNoDia = useMemo(() => {
+    return (consultas ?? [])
       .filter((c: any) => c.status !== 'CANCELADA')
+      .filter((c: any) => isSameDay(new Date(c.dataHora), diaSelecionado))
       .filter((c: any) => !somenteMeus || c.vendedoraResponsavel === meuNome)
       .sort((a: any, b: any) => a.dataHora.localeCompare(b.dataHora))
-
-    const porDia = new Map<string, any[]>()
-    for (const c of lista) {
-      const chave = new Date(c.dataHora).toDateString()
-      porDia.set(chave, [...(porDia.get(chave) ?? []), c])
-    }
-    return Array.from(porDia.entries())
-  }, [consultas, somenteMeus, meuNome])
+  }, [consultas, diaSelecionado, somenteMeus, meuNome])
 
   const hojeChave = new Date().toDateString()
-  const amanhaChave = new Date(Date.now() + 864e5).toDateString()
+  const chaveSelec = diaSelecionado.toDateString()
 
-  const rotuloDoDia = (chave: string) => {
-    if (chave === hojeChave) return 'Hoje'
-    if (chave === amanhaChave) return 'Amanhã'
-    const d = new Date(chave)
+  const rotuloDodia = () => {
+    if (chaveSelec === hojeChave) return 'Hoje'
+    if (chaveSelec === new Date(Date.now() + 864e5).toDateString()) return 'Amanhã'
+    const d = diaSelecionado
     const semana = d.toLocaleDateString('pt-BR', { weekday: 'long' })
     return `${semana.charAt(0).toUpperCase()}${semana.slice(1)}, ${fmtData(d)}`
   }
 
-  const total = grupos.reduce((s, [, itens]) => s + itens.length, 0)
-
   return (
-    <div className="p-4 sm:p-7 max-w-[760px]">
-      <div className="mb-5">
-        <h1 className="titulo-pagina">Agendados</h1>
-        <p className="subtitulo mt-1">Quem vem, quando e com quem</p>
+    <div className="p-4 sm:p-7 max-w-[760px] space-y-5">
+      <div>
+        <h1 className="titulo-pagina">Agenda</h1>
+        <p className="subtitulo mt-1">Todos os profissionais · clique num dia para ver os horários</p>
       </div>
 
-      {/* Filtro. Dois botões grandes, feitos para o polegar. */}
-      <div className="flex items-center gap-2 mb-5">
-        {[
-          { rotulo: 'Todos', valor: false },
-          { rotulo: 'Meus clientes', valor: true },
-        ].map((op) => (
-          <button key={op.rotulo} onClick={() => setSomenteMeus(op.valor)}
-            className={`flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-[13px] font-medium border transition-all duration-200 active:scale-[0.98] ${
-              somenteMeus === op.valor
-                ? 'bg-neutro-900 dark:bg-white text-white dark:text-neutro-900 border-neutro-900 dark:border-white'
-                : 'border-neutro-200 dark:border-neutro-700 text-neutro-500'
-            }`}>
-            {op.rotulo}
-          </button>
-        ))}
+      {/* Calendário mensal: mostra todos os profissionais juntos para evitar conflitos */}
+      <CalendarioMes
+        mesRef={mes}
+        aoMudarMes={setMes}
+        diaSelecionado={diaSelecionado}
+        aoSelecionarDia={setDiaSelecionado}
+        consultas={todasParaCalendario}
+      />
+
+      {/* Filtro + título do dia */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className={`text-[15px] font-semibold ${chaveSelec === hojeChave ? 'text-brand-600' : ''}`}>
+          {rotuloDodia()}
+          {itensNoDia.length > 0 && (
+            <span className="ml-2 text-[12px] font-normal text-neutro-400">
+              {itensNoDia.length} atendimento{itensNoDia.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </h2>
+
+        <div className="flex items-center gap-2">
+          {[
+            { rotulo: 'Todos', valor: false },
+            { rotulo: 'Meus clientes', valor: true },
+          ].map((op) => (
+            <button key={op.rotulo} onClick={() => setSomenteMeus(op.valor)}
+              className={`px-3.5 py-1.5 rounded-lg text-[12.5px] font-medium border transition-all duration-200 active:scale-[0.98] ${
+                somenteMeus === op.valor
+                  ? 'bg-neutro-900 dark:bg-white text-white dark:text-neutro-900 border-neutro-900 dark:border-white'
+                  : 'border-neutro-200 dark:border-neutro-700 text-neutro-500'
+              }`}>
+              {op.rotulo}
+            </button>
+          ))}
+        </div>
       </div>
 
       {isLoading ? (
         <div className="space-y-3">
-          {[0, 1, 2].map((i) => <div key={i} className="esqueleto h-[88px]" />)}
+          {[0, 1, 2].map((i) => <div key={i} className="esqueleto h-[80px]" />)}
         </div>
-      ) : total === 0 ? (
-        <div className="cartao py-16 flex flex-col items-center text-center px-6">
-          <div className="w-12 h-12 rounded-full bg-neutro-100 dark:bg-neutro-800 flex items-center justify-center mb-3">
-            <CalendarDays size={22} className="text-neutro-400" strokeWidth={1.8} />
+      ) : itensNoDia.length === 0 ? (
+        <div className="cartao py-14 flex flex-col items-center text-center px-6">
+          <div className="w-11 h-11 rounded-full bg-neutro-100 dark:bg-neutro-800 flex items-center justify-center mb-3">
+            <CalendarDays size={20} className="text-neutro-400" strokeWidth={1.8} />
           </div>
-          <p className="text-[14px] font-medium">
-            {somenteMeus ? 'Nenhum cliente seu agendado' : 'Nenhum atendimento marcado'}
+          <p className="text-[13.5px] font-medium">
+            {somenteMeus ? 'Nenhum cliente seu neste dia' : 'Nenhum atendimento neste dia'}
           </p>
           <p className="text-[12px] text-neutro-400 mt-1">
             {somenteMeus
-              ? 'Aparecem aqui os agendamentos em que você foi indicada como responsável.'
-              : 'Assim que alguém marcar, aparece nesta lista.'}
+              ? 'Aparecem aqui agendamentos em que você foi indicada como responsável.'
+              : 'Escolha outro dia no calendário ou aguarde novos agendamentos.'}
           </p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {grupos.map(([chave, itens], indice) => (
-            <motion.section key={chave}
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.22, delay: Math.min(indice, 4) * 0.04 }}>
-
-              <div className="flex items-baseline gap-2 mb-2.5 px-1">
-                <h2 className={`text-[14px] font-semibold ${chave === hojeChave ? 'text-brand-600' : ''}`}>
-                  {rotuloDoDia(chave)}
-                </h2>
-                <span className="text-[11.5px] text-neutro-400">
-                  {itens.length} atendimento{itens.length === 1 ? '' : 's'}
-                </span>
-              </div>
-
-              <div className="space-y-2">
-                {itens.map((c: any) => <Linha key={c.id} consulta={c} meuNome={meuNome} />)}
-              </div>
-            </motion.section>
+        <div className="space-y-2">
+          {itensNoDia.map((c: any, i: number) => (
+            <motion.div key={c.id}
+              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, delay: Math.min(i * 0.04, 0.24) }}>
+              <Linha consulta={c} meuNome={meuNome} />
+            </motion.div>
           ))}
         </div>
       )}

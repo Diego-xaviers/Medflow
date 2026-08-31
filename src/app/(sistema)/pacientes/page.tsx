@@ -6,9 +6,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Search, Pencil, Trash2, X, Loader2, Phone, Mail, MapPin,
   Cake, IdCard, Briefcase, FileText, Receipt, CalendarDays, ChevronRight,
+  ChevronDown, AlertCircle, Zap,
 } from 'lucide-react'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { data, hora } from '@/lib/formato'
+
+/** Campos mínimos que consideramos um cadastro completo. */
+function cadastroIncompleto(p: any) {
+  return !p.dataNascimento && !p.cpf && !p.email
+}
 
 const vazio: any = {
   nome: '', email: '', telefone: '', dataNascimento: '', ativo: true,
@@ -58,8 +64,14 @@ export default function PacientesPage() {
     setSalvando(true); setErro(null)
     try {
       const corpo = { ...form, dataNascimento: form.dataNascimento || null }
-      if (form.id) await enviar(`/api/pacientes/${form.id}`, 'PUT', corpo)
-      else await enviar('/api/pacientes', 'POST', corpo)
+      if (form.id) {
+        await enviar(`/api/pacientes/${form.id}`, 'PUT', corpo)
+      } else {
+        // Sinaliza ao servidor se é cadastro rápido (incompleto), para ele
+        // criar a notificação de "faltam dados" automaticamente.
+        const incompleto = !form.dataNascimento && !form.cpf && !form.email
+        await enviar('/api/pacientes', 'POST', { ...corpo, cadastroRapido: incompleto })
+      }
       setModal(false); mutate()
     } catch (e: any) { setErro(e.message) } finally { setSalvando(false) }
   }
@@ -90,7 +102,7 @@ export default function PacientesPage() {
           </p>
         </div>
         <button onClick={() => { setForm(vazio); setErro(null); setModal(true) }} className="btn-primario">
-          <Plus size={16} strokeWidth={2.2} /> Novo paciente
+          <Zap size={15} strokeWidth={2.2} /> Novo paciente
         </button>
       </div>
 
@@ -125,7 +137,13 @@ export default function PacientesPage() {
                   {iniciais(p.nome)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[14px] font-medium truncate">{p.nome}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[14px] font-medium truncate">{p.nome}</p>
+                    {cadastroIncompleto(p) && (
+                      <span title="Cadastro incompleto — clique para preencher"
+                        className="shrink-0 w-2 h-2 rounded-full bg-amber-400" />
+                    )}
+                  </div>
                   <p className="text-[11px] text-neutro-400 mt-0.5">
                     {idade(p.dataNascimento) !== null ? `${idade(p.dataNascimento)} anos` : 'Idade não informada'}
                     {p.convenio && ` · ${p.convenio}`}
@@ -336,6 +354,13 @@ function Vazio({ texto }: { texto: string }) {
 
 /* ─── Modal de cadastro/edição ────────────────────────────── */
 function ModalPaciente({ aberto, form, setForm, erro, salvando, aoFechar, aoSalvar }: any) {
+  const edicao = Boolean(form.id)
+  // Modo expandido: sempre aberto em edição, ou quando o usuário pede mais campos.
+  const [expandido, setExpandido] = useState(edicao)
+
+  // Reseta o modo ao abrir/fechar
+  useEffect(() => { setExpandido(edicao) }, [aberto, edicao])
+
   const campo = (nome: string, rotulo: string, extra: any = {}) => (
     <div>
       <label className="rotulo">{rotulo}</label>
@@ -356,69 +381,108 @@ function ModalPaciente({ aberto, form, setForm, erro, salvando, aoFechar, aoSalv
             className="cartao shadow-alta w-full max-w-xl p-5 sm:p-6 space-y-5 my-auto">
 
             <div className="flex items-center justify-between">
-              <h2 className="text-[16px] font-semibold">
-                {form.id ? 'Editar paciente' : 'Novo paciente'}
-              </h2>
+              <div>
+                <h2 className="text-[16px] font-semibold">
+                  {edicao ? 'Editar paciente' : 'Novo paciente'}
+                </h2>
+                {!edicao && !expandido && (
+                  <p className="text-[11.5px] text-neutro-400 mt-0.5">
+                    Nome e telefone já permitem agendar. Os demais dados podem ser preenchidos depois.
+                  </p>
+                )}
+              </div>
               <button type="button" onClick={aoFechar} className="btn-icone !w-8 !h-8"><X size={17} /></button>
             </div>
 
-            <Grupo titulo="Dados pessoais">
+            {/* Campos essenciais — sempre visíveis */}
+            <div className="space-y-3">
+              <div>
+                <label className="rotulo">Nome completo <span className="text-brand-500">*</span></label>
+                <input className="campo" required value={form.nome} autoFocus
+                  placeholder="Como o paciente será buscado no sistema"
+                  onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="rotulo">Nome completo</label>
-                  <input className="campo" required value={form.nome}
-                    onChange={(e) => setForm({ ...form, nome: e.target.value })} />
-                </div>
-                {campo('dataNascimento', 'Nascimento', { type: 'date' })}
-                <div>
-                  <label className="rotulo">Sexo</label>
-                  <select className="campo" value={form.sexo ?? ''}
-                    onChange={(e) => setForm({ ...form, sexo: e.target.value })}>
-                    <option value="">Não informado</option>
-                    <option value="Feminino">Feminino</option>
-                    <option value="Masculino">Masculino</option>
-                    <option value="Outro">Outro</option>
-                  </select>
-                </div>
-                {campo('cpf', 'CPF')}
-                {campo('rg', 'RG')}
-                {campo('profissao', 'Profissão')}
-                {campo('convenio', 'Convênio')}
+                {campo('telefone', 'Telefone / WhatsApp', { type: 'tel', placeholder: '(00) 00000-0000' })}
+                {campo('convenio', 'Convênio', { placeholder: 'Unimed, Bradesco...' })}
               </div>
-            </Grupo>
+            </div>
 
-            <Grupo titulo="Contato">
-              <div className="grid grid-cols-2 gap-3">
-                {campo('telefone', 'Telefone')}
-                {campo('email', 'E-mail', { type: 'email' })}
-              </div>
-            </Grupo>
+            {/* Expansor: mais dados opcionais */}
+            {!edicao && (
+              <button type="button" onClick={() => setExpandido((v) => !v)}
+                className="flex items-center gap-1.5 text-[12.5px] font-medium text-brand-600 hover:text-brand-700 transition-colors">
+                <ChevronDown size={14} strokeWidth={2.5}
+                  className={`transition-transform duration-200 ${expandido ? 'rotate-180' : ''}`} />
+                {expandido ? 'Menos campos' : 'Adicionar mais dados (nascimento, CPF, endereço…)'}
+              </button>
+            )}
 
-            <Grupo titulo="Endereço">
-              <div className="grid grid-cols-6 gap-3">
-                <div className="col-span-2">{campo('cep', 'CEP')}</div>
-                <div className="col-span-4">{campo('logradouro', 'Logradouro')}</div>
-                <div className="col-span-2">{campo('numero', 'Número')}</div>
-                <div className="col-span-4">{campo('complemento', 'Complemento')}</div>
-                <div className="col-span-2">{campo('bairro', 'Bairro')}</div>
-                <div className="col-span-3">{campo('cidade', 'Cidade')}</div>
-                <div className="col-span-1">{campo('estado', 'UF', { maxLength: 2 })}</div>
-              </div>
-            </Grupo>
+            <AnimatePresence initial={false}>
+              {expandido && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                  className="overflow-hidden space-y-5">
 
-            <Grupo titulo="Outros">
-              {campo('origemContato', 'Como conheceu a clínica')}
-              <div className="mt-3">
-                <label className="rotulo">Observações gerais</label>
-                <textarea rows={2} className="campo resize-none" value={form.observacoesGerais ?? ''}
-                  onChange={(e) => setForm({ ...form, observacoesGerais: e.target.value })} />
+                  <Grupo titulo="Dados pessoais">
+                    <div className="grid grid-cols-2 gap-3">
+                      {campo('dataNascimento', 'Nascimento', { type: 'date' })}
+                      <div>
+                        <label className="rotulo">Sexo</label>
+                        <select className="campo" value={form.sexo ?? ''}
+                          onChange={(e) => setForm({ ...form, sexo: e.target.value })}>
+                          <option value="">Não informado</option>
+                          <option value="Feminino">Feminino</option>
+                          <option value="Masculino">Masculino</option>
+                          <option value="Outro">Outro</option>
+                        </select>
+                      </div>
+                      {campo('cpf', 'CPF')}
+                      {campo('rg', 'RG')}
+                      {campo('profissao', 'Profissão')}
+                      {campo('email', 'E-mail', { type: 'email' })}
+                    </div>
+                  </Grupo>
+
+                  <Grupo titulo="Endereço">
+                    <div className="grid grid-cols-6 gap-3">
+                      <div className="col-span-2">{campo('cep', 'CEP')}</div>
+                      <div className="col-span-4">{campo('logradouro', 'Logradouro')}</div>
+                      <div className="col-span-2">{campo('numero', 'Número')}</div>
+                      <div className="col-span-4">{campo('complemento', 'Complemento')}</div>
+                      <div className="col-span-2">{campo('bairro', 'Bairro')}</div>
+                      <div className="col-span-3">{campo('cidade', 'Cidade')}</div>
+                      <div className="col-span-1">{campo('estado', 'UF', { maxLength: 2 })}</div>
+                    </div>
+                  </Grupo>
+
+                  <Grupo titulo="Outros">
+                    {campo('origemContato', 'Como conheceu a clínica')}
+                    <div className="mt-3">
+                      <label className="rotulo">Observações gerais</label>
+                      <textarea rows={2} className="campo resize-none" value={form.observacoesGerais ?? ''}
+                        onChange={(e) => setForm({ ...form, observacoesGerais: e.target.value })} />
+                    </div>
+                    <label className="flex items-center gap-2 text-[13px] text-neutro-600 dark:text-neutro-400 mt-3">
+                      <input type="checkbox" checked={form.ativo}
+                        onChange={(e) => setForm({ ...form, ativo: e.target.checked })} />
+                      Paciente ativo
+                    </label>
+                  </Grupo>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Aviso de cadastro incompleto */}
+            {!edicao && !expandido && (
+              <div className="flex items-start gap-2 text-[11.5px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-lg px-3.5 py-2.5">
+                <AlertCircle size={13} className="shrink-0 mt-0.5" strokeWidth={2} />
+                Dados como CPF, nascimento e endereço são solicitados depois por notificação no sistema.
               </div>
-              <label className="flex items-center gap-2 text-[13px] text-neutro-600 dark:text-neutro-400 mt-3">
-                <input type="checkbox" checked={form.ativo}
-                  onChange={(e) => setForm({ ...form, ativo: e.target.checked })} />
-                Paciente ativo
-              </label>
-            </Grupo>
+            )}
 
             {erro && <p className="text-[12px] text-red-600">{erro}</p>}
 
@@ -428,7 +492,8 @@ function ModalPaciente({ aberto, form, setForm, erro, salvando, aoFechar, aoSalv
                 Cancelar
               </button>
               <button type="submit" disabled={salvando} className="btn-primario">
-                {salvando && <Loader2 size={14} className="animate-spin" />} Salvar
+                {salvando && <Loader2 size={14} className="animate-spin" />}
+                {!edicao && !expandido ? 'Cadastrar e agendar' : 'Salvar'}
               </button>
             </div>
           </motion.form>

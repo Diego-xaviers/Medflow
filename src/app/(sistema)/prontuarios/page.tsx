@@ -10,6 +10,11 @@ import {
 import { fetcher, enviar } from '@/lib/fetcher'
 import { data, dataHora } from '@/lib/formato'
 import { resumoRefracao } from '@/lib/prescricao'
+import SeletorDeOpcoes from '@/components/SeletorDeOpcoes'
+import {
+  QUEIXA_PRINCIPAL, HISTORICO_OCULAR, HISTORICO_SISTEMICO,
+  MEDICAMENTOS, TEMPO_ULTIMO_EXAME,
+} from '@/lib/opcoesClinicas'
 
 const vazio: any = {
   pacienteId: '',
@@ -190,16 +195,38 @@ export default function ProntuariosPage() {
                 </select>
               </div>
 
+              {/* Anamnese por toque: com o paciente na cadeira, marcar é mais
+                  rápido e mais consistente que digitar — e "Outro" continua
+                  aceitando o que a lista não previu. */}
               <Secao titulo="ANAMNESE">
-                {area('queixaPrincipal', 'Queixa principal', 'O que trouxe o paciente hoje')}
-                <div className="grid grid-cols-2 gap-3">
-                  {campo('historicoOcular', 'Histórico ocular', 'Cirurgias, traumas, uso de óculos')}
-                  {campo('historicoSistemico', 'Histórico sistêmico', 'Diabetes, hipertensão etc.')}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {campo('medicamentosEmUso', 'Medicamentos em uso')}
-                  {campo('tempoUltimoExame', 'Último exame', 'Ex: há 2 anos')}
-                </div>
+                <SeletorDeOpcoes
+                  rotulo="Queixa principal" opcoes={QUEIXA_PRINCIPAL}
+                  dica="O que trouxe o paciente hoje. Pode marcar mais de uma."
+                  permiteNenhum={false}
+                  valor={form.queixaPrincipal}
+                  aoMudar={(v) => setForm({ ...form, queixaPrincipal: v })}
+                />
+                <SeletorDeOpcoes
+                  rotulo="Histórico ocular" opcoes={HISTORICO_OCULAR}
+                  valor={form.historicoOcular}
+                  aoMudar={(v) => setForm({ ...form, historicoOcular: v })}
+                />
+                <SeletorDeOpcoes
+                  rotulo="Histórico sistêmico" opcoes={HISTORICO_SISTEMICO}
+                  valor={form.historicoSistemico}
+                  aoMudar={(v) => setForm({ ...form, historicoSistemico: v })}
+                />
+                <SeletorDeOpcoes
+                  rotulo="Medicamentos em uso" opcoes={MEDICAMENTOS}
+                  valor={form.medicamentosEmUso}
+                  aoMudar={(v) => setForm({ ...form, medicamentosEmUso: v })}
+                />
+                <SeletorDeOpcoes
+                  rotulo="Último exame de vista" opcoes={TEMPO_ULTIMO_EXAME}
+                  permiteNenhum={false}
+                  valor={form.tempoUltimoExame}
+                  aoMudar={(v) => setForm({ ...form, tempoUltimoExame: v })}
+                />
                 <label className="flex items-center gap-2 text-sm text-neutro-600 dark:text-neutro-400">
                   <input type="checkbox" checked={form.usaCorrecaoAtual}
                     onChange={(e) => setForm({ ...form, usaCorrecaoAtual: e.target.checked })} />
