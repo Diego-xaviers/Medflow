@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { signIn } from 'next-auth/react'
 import { CHAVE_BOAS_VINDAS } from '@/components/BoasVindas'
 import { useRouter } from 'next/navigation'
@@ -86,6 +87,15 @@ export default function LoginPage() {
 
         <p className="text-center text-[11px] text-neutro-400 mt-6">
           Acesso restrito. As contas são criadas pelo administrador.
+        </p>
+        <p className="text-center text-[11px] text-neutro-400 mt-3 space-x-2">
+          <Link href="/politica-de-privacidade" className="hover:text-brand-500 transition-colors underline underline-offset-2">
+            Política de Privacidade
+          </Link>
+          <span>·</span>
+          <Link href="/termos" className="hover:text-brand-500 transition-colors underline underline-offset-2">
+            Termos de Uso
+          </Link>
         </p>
       </motion.div>
     </div>

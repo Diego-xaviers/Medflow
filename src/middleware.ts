@@ -41,6 +41,6 @@ export const config = {
     // de existir sessão, na hora de instalar o app na tela inicial. Exigindo
     // login, o navegador recebia um 307 para /login no lugar do arquivo e a
     // instalação simplesmente não acontecia.
-    '/((?!login|agendar|api|manifest.webmanifest|icone.svg|_next/static|_next/image|favicon.ico).*)',
+    '/((?!login|agendar|politica-de-privacidade|termos|api|manifest.webmanifest|icone.svg|_next/static|_next/image|favicon.ico).*)',
   ],
 }

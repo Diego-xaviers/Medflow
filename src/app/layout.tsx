@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import Providers from '@/components/Providers'
+import CookieBanner from '@/components/CookieBanner'
 
 /**
  * Inter com os pesos que realmente usamos. O next/font baixa e serve a fonte
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
       <body className="font-sans antialiased">
         <Providers>{children}</Providers>
+        <CookieBanner />
       </body>
     </html>
   )

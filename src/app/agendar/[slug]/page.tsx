@@ -325,6 +325,14 @@ export default function AgendamentoPublicoPage() {
                 )}
               </button>
             </div>
+            <p className="text-[11px] text-neutro-400 text-center mt-3 leading-relaxed">
+              Ao confirmar, você concorda com o uso dos seus dados para fins de
+              agendamento e atendimento clínico, conforme a{' '}
+              <a href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer"
+                className="underline underline-offset-2 hover:text-neutro-600 transition-colors">
+                Política de Privacidade
+              </a>.
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
