@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { exigirPapel } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { prontuarioSchema } from '@/lib/schemas'
+import { registrarAuditoria } from '@/lib/auditoria'
 
 export async function GET(req: NextRequest) {
   return rota(async () => {
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   return rota(async () => {
-    const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE')
+    const { consultorioId, usuarioId } = await exigirPapel('DONO', 'ATENDENTE')
     const dados = prontuarioSchema.parse(await req.json())
 
     const paciente = await prisma.paciente.findFirst({
@@ -28,9 +29,20 @@ export async function POST(req: NextRequest) {
     })
     if (!paciente) throw new ErroDeNegocio('Paciente não encontrado')
 
-    return prisma.prontuario.create({
+    const prontuario = await prisma.prontuario.create({
       data: { ...dados, consultaId: dados.consultaId || null, consultorioId },
       include: { paciente: { select: { id: true, nome: true } } },
     })
+
+    registrarAuditoria({
+      acao: 'CRIAR',
+      entidade: 'Prontuario',
+      entidadeId: prontuario.id,
+      detalhes: `Paciente: ${prontuario.paciente.nome}`,
+      usuarioId,
+      consultorioId,
+    })
+
+    return prontuario
   })
 }

@@ -16,21 +16,45 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'E-mail', type: 'email' },
         senha: { label: 'Senha', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.senha) return null
 
+        const email = credentials.email.toLowerCase().trim()
+        // Vercel encaminha o IP real via x-forwarded-for.
+        const ip =
+          ((req as any)?.headers?.['x-forwarded-for'] as string)
+            ?.split(',')[0]
+            ?.trim() ??
+          ((req as any)?.headers?.['x-real-ip'] as string) ??
+          'unknown'
+
+        const { tentativaPermitida, registrarTentativa } = await import('./rateLimit')
+        if (!(await tentativaPermitida(email, ip))) {
+          console.warn(`[auth] rate limit: ${email} / ${ip}`)
+          return null
+        }
+
         const usuario = await prisma.usuario.findUnique({
-          where: { email: credentials.email.toLowerCase().trim() },
+          where: { email },
           include: { consultorio: true },
         })
 
         // Mesma resposta para "não existe" e "senha errada": não entregamos
         // a um atacante a informação de quais e-mails estão cadastrados.
-        if (!usuario || !usuario.ativo) return null
-        if (usuario.consultorio && !usuario.consultorio.ativo) return null
+        if (!usuario || !usuario.ativo) {
+          await registrarTentativa(email, ip)
+          return null
+        }
+        if (usuario.consultorio && !usuario.consultorio.ativo) {
+          await registrarTentativa(email, ip)
+          return null
+        }
 
         const senhaConfere = await bcrypt.compare(credentials.senha, usuario.senhaHash)
-        if (!senhaConfere) return null
+        if (!senhaConfere) {
+          await registrarTentativa(email, ip)
+          return null
+        }
 
         return {
           id: usuario.id,

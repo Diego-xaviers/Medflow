@@ -49,6 +49,7 @@ model Consultorio {
   blocosExpediente BlocoExpediente[]
   faturas      Fatura[]
   chamados     Chamado[]
+  logsAuditoria LogAuditoria[]
 
   @@map("consultorios")
 }
@@ -92,6 +93,7 @@ model Usuario {
   receitasComoProfissional  Receita[]     @relation("ProfissionalDaReceita")
   notificacoes              Notificacao[]
   chamados                  Chamado[]
+  logsAuditoria             LogAuditoria[]
 
   @@index([consultorioId])
   @@map("usuarios")
@@ -504,4 +506,40 @@ model ParametrosSaas {
   atualizadoEm    DateTime @updatedAt
 
   @@map("parametros_saas")
+}
+
+/// Trilha de auditoria imutável. Só INSERT, nunca UPDATE/DELETE.
+/// Registra ações sensíveis: criação/edição de pacientes, emissão de receitas,
+/// acesso a prontuários, gestão de usuários.
+model LogAuditoria {
+  id            String   @id @default(cuid())
+  acao          String
+  entidade      String
+  entidadeId    String?
+  detalhes      String?  @db.Text
+  ip            String?
+  criadoEm     DateTime @default(now())
+
+  usuarioId     String?
+  usuario       Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  consultorioId String?
+  consultorio   Consultorio? @relation(fields: [consultorioId], references: [id], onDelete: SetNull)
+
+  @@index([consultorioId, criadoEm])
+  @@index([entidade, entidadeId])
+  @@map("logs_auditoria")
+}
+
+/// Tentativas de login para rate limiting sem depender de Redis externo.
+/// Linhas antigas são varridas periodicamente ou via cron.
+model TentativaLogin {
+  id        String   @id @default(cuid())
+  email     String
+  ip        String
+  criadoEm DateTime @default(now())
+
+  @@index([email, criadoEm])
+  @@index([ip, criadoEm])
+  @@map("tentativas_login")
 }

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { exigirPapel } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { receitaSchema } from '@/lib/schemas'
+import { registrarAuditoria } from '@/lib/auditoria'
 
 export async function GET(req: NextRequest) {
   return rota(async () => {
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     })
     if (!paciente) throw new ErroDeNegocio('Paciente não encontrado')
 
-    return prisma.receita.create({
+    const receita = await prisma.receita.create({
       data: {
         ...dados,
         prontuarioId: dados.prontuarioId || null,
@@ -40,5 +41,16 @@ export async function POST(req: NextRequest) {
       },
       include: { paciente: { select: { id: true, nome: true } } },
     })
+
+    registrarAuditoria({
+      acao: 'CRIAR',
+      entidade: 'Receita',
+      entidadeId: receita.id,
+      detalhes: `Paciente: ${receita.paciente.nome} · Tipo: ${receita.tipoReceita}`,
+      usuarioId,
+      consultorioId,
+    })
+
+    return receita
   })
 }
