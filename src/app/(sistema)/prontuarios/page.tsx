@@ -10,7 +10,6 @@ import {
 import { fetcher, enviar } from '@/lib/fetcher'
 import { data, dataHora } from '@/lib/formato'
 import { resumoRefracao } from '@/lib/prescricao'
-import SeletorDeOpcoes from '@/components/SeletorDeOpcoes'
 import TagsInput from '@/components/TagsInput'
 import BuscaPaciente from '@/components/BuscaPaciente'
 import {
@@ -252,17 +251,19 @@ export default function ProntuariosPage() {
               </div>
 
               <Secao titulo="ANAMNESE">
-                <SeletorDeOpcoes
-                  rotulo="Queixa principal" opcoes={QUEIXA_PRINCIPAL}
-                  dica="O que trouxe o paciente hoje. Pode marcar mais de uma."
-                  permiteNenhum={false}
+                <TagsInput
+                  rotulo="Queixa principal"
+                  sugestoes={QUEIXA_PRINCIPAL}
                   valor={form.queixaPrincipal}
                   aoMudar={(v) => setForm({ ...form, queixaPrincipal: v })}
+                  placeholder="Dificuldade para enxergar, dor de cabeça..."
                 />
-                <SeletorDeOpcoes
-                  rotulo="Histórico ocular" opcoes={HISTORICO_OCULAR}
+                <TagsInput
+                  rotulo="Histórico ocular"
+                  sugestoes={HISTORICO_OCULAR}
                   valor={form.historicoOcular}
                   aoMudar={(v) => setForm({ ...form, historicoOcular: v })}
+                  placeholder="Glaucoma, cirurgia refrativa..."
                 />
                 <TagsInput
                   rotulo="Histórico sistêmico"
@@ -278,11 +279,12 @@ export default function ProntuariosPage() {
                   aoMudar={(v) => setForm({ ...form, medicamentosEmUso: v })}
                   placeholder="Colírio, Anti-hipertensivo..."
                 />
-                <SeletorDeOpcoes
-                  rotulo="Último exame de vista" opcoes={TEMPO_ULTIMO_EXAME}
-                  permiteNenhum={false}
+                <TagsInput
+                  rotulo="Último exame de vista"
+                  sugestoes={TEMPO_ULTIMO_EXAME}
                   valor={form.tempoUltimoExame}
                   aoMudar={(v) => setForm({ ...form, tempoUltimoExame: v })}
+                  placeholder="Primeira consulta, há 1 ano..."
                 />
                 <label className="flex items-center gap-2 text-sm text-neutro-600 dark:text-neutro-400">
                   <input type="checkbox" checked={form.usaCorrecaoAtual}
