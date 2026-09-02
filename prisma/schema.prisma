@@ -242,6 +242,10 @@ model Prontuario {
   refracaoCilindricoOE String?
   refracaoEixoOE      String?
 
+  // Adição (presbiopia) — herdada pela receita para não redigitar
+  adicaoOD String?
+  adicaoOE String?
+
   // Exames complementares
   biomicroscopia   String?
   tonometriaOD     String?

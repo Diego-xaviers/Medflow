@@ -5,12 +5,14 @@ import useSWR from 'swr'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import {
-  Plus, FileText, Trash2, X, Loader2, Eye, ChevronRight, Receipt, Stethoscope,
+  Plus, FileText, Trash2, X, Loader2, Eye, ChevronRight, Receipt, Stethoscope, Pencil,
 } from 'lucide-react'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { data, dataHora } from '@/lib/formato'
 import { resumoRefracao } from '@/lib/prescricao'
 import SeletorDeOpcoes from '@/components/SeletorDeOpcoes'
+import TagsInput from '@/components/TagsInput'
+import BuscaPaciente from '@/components/BuscaPaciente'
 import {
   QUEIXA_PRINCIPAL, HISTORICO_OCULAR, HISTORICO_SISTEMICO,
   MEDICAMENTOS, TEMPO_ULTIMO_EXAME,
@@ -23,12 +25,48 @@ const vazio: any = {
   avSemCorrecaoOD: '', avSemCorrecaoOE: '', avComCorrecaoOD: '', avComCorrecaoOE: '',
   refracaoEsfericoOD: '', refracaoCilindricoOD: '', refracaoEixoOD: '',
   refracaoEsfericoOE: '', refracaoCilindricoOE: '', refracaoEixoOE: '',
+  adicaoOD: '', adicaoOE: '',
   biomicroscopia: '', tonometriaOD: '', tonometriaOE: '', fundoscopia: '',
   motilidadeOcular: '', testeCobertura: '', reflexosPupilares: '', visaoCores: '',
   diagnostico: '', conduta: '', observacoes: '',
 }
 
-/** Bloco de seção do formulário, só pra não repetir markup. */
+function formDoProntuario(p: any): any {
+  return {
+    pacienteId: p.pacienteId ?? '',
+    consultaId: p.consultaId ?? '',
+    queixaPrincipal: p.queixaPrincipal ?? '',
+    historicoOcular: p.historicoOcular ?? '',
+    historicoSistemico: p.historicoSistemico ?? '',
+    medicamentosEmUso: p.medicamentosEmUso ?? '',
+    usaCorrecaoAtual: p.usaCorrecaoAtual ?? false,
+    tempoUltimoExame: p.tempoUltimoExame ?? '',
+    avSemCorrecaoOD: p.avSemCorrecaoOD ?? '',
+    avSemCorrecaoOE: p.avSemCorrecaoOE ?? '',
+    avComCorrecaoOD: p.avComCorrecaoOD ?? '',
+    avComCorrecaoOE: p.avComCorrecaoOE ?? '',
+    refracaoEsfericoOD: p.refracaoEsfericoOD ?? '',
+    refracaoCilindricoOD: p.refracaoCilindricoOD ?? '',
+    refracaoEixoOD: p.refracaoEixoOD ?? '',
+    refracaoEsfericoOE: p.refracaoEsfericoOE ?? '',
+    refracaoCilindricoOE: p.refracaoCilindricoOE ?? '',
+    refracaoEixoOE: p.refracaoEixoOE ?? '',
+    adicaoOD: p.adicaoOD ?? '',
+    adicaoOE: p.adicaoOE ?? '',
+    biomicroscopia: p.biomicroscopia ?? '',
+    tonometriaOD: p.tonometriaOD ?? '',
+    tonometriaOE: p.tonometriaOE ?? '',
+    fundoscopia: p.fundoscopia ?? '',
+    motilidadeOcular: p.motilidadeOcular ?? '',
+    testeCobertura: p.testeCobertura ?? '',
+    reflexosPupilares: p.reflexosPupilares ?? '',
+    visaoCores: p.visaoCores ?? '',
+    diagnostico: p.diagnostico ?? '',
+    conduta: p.conduta ?? '',
+    observacoes: p.observacoes ?? '',
+  }
+}
+
 function Secao({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
@@ -40,10 +78,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   )
 }
 
-/** Linha com um campo para cada olho — o padrão de toda ficha optométrica. */
-function ParOlhos({
-  rotulo, campoOD, campoOE, form, setForm, placeholder,
-}: any) {
+function ParOlhos({ rotulo, campoOD, campoOE, form, setForm, placeholder }: any) {
   return (
     <div>
       <label className="rotulo">{rotulo}</label>
@@ -65,6 +100,7 @@ function ParOlhos({
 
 export default function ProntuariosPage() {
   const [modal, setModal] = useState(false)
+  const [editandoId, setEditandoId] = useState<string | null>(null)
   const [detalheId, setDetalheId] = useState<string | null>(null)
   const [form, setForm] = useState<any>(vazio)
   const [salvando, setSalvando] = useState(false)
@@ -73,14 +109,33 @@ export default function ProntuariosPage() {
   const { data: prontuarios, isLoading, mutate } = useSWR('/api/prontuarios', fetcher)
   const { data: pacientes } = useSWR('/api/pacientes', fetcher)
 
+  function abrirNovo() {
+    setForm(vazio)
+    setEditandoId(null)
+    setModal(true)
+  }
+
+  function abrirEditar(p: any) {
+    setForm(formDoProntuario(p))
+    setEditandoId(p.id)
+    setDetalheId(null)
+    setModal(true)
+  }
+
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
+    if (!form.pacienteId) { setErro('Selecione o paciente'); return }
     setSalvando(true)
     setErro(null)
     try {
-      await enviar('/api/prontuarios', 'POST', form)
+      if (editandoId) {
+        await enviar(`/api/prontuarios/${editandoId}`, 'PUT', form)
+      } else {
+        await enviar('/api/prontuarios', 'POST', form)
+      }
       setModal(false)
       setForm(vazio)
+      setEditandoId(null)
       mutate()
     } catch (e: any) {
       setErro(e.message)
@@ -118,8 +173,7 @@ export default function ProntuariosPage() {
           <h1 className="titulo-pagina">Prontuários</h1>
           <p className="subtitulo">Registro dos exames realizados</p>
         </div>
-        <button onClick={() => { setForm(vazio); setModal(true) }}
-          className="btn-primario">
+        <button onClick={abrirNovo} className="btn-primario">
           <Plus size={16} /> Novo prontuário
         </button>
       </div>
@@ -181,23 +235,22 @@ export default function ProntuariosPage() {
               <div className="flex items-center justify-between sticky top-0 bg-white dark:bg-neutro-900 pb-2">
                 <div className="flex items-center gap-2">
                   <Eye size={18} className="text-brand-500" />
-                  <h2 className="text-[16px] font-semibold">Novo prontuário</h2>
+                  <h2 className="text-[16px] font-semibold">
+                    {editandoId ? 'Editar prontuário' : 'Novo prontuário'}
+                  </h2>
                 </div>
                 <button type="button" onClick={() => setModal(false)} className="text-neutro-400 hover:text-neutro-600"><X size={20} /></button>
               </div>
 
               <div>
                 <label className="rotulo">Paciente</label>
-                <select className="campo" required value={form.pacienteId}
-                  onChange={(e) => setForm({ ...form, pacienteId: e.target.value })}>
-                  <option value="">Selecione o paciente</option>
-                  {pacientes?.map((p: any) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
+                <BuscaPaciente
+                  pacientes={pacientes ?? []}
+                  valor={form.pacienteId}
+                  aoMudar={(id) => setForm({ ...form, pacienteId: id })}
+                />
               </div>
 
-              {/* Anamnese por toque: com o paciente na cadeira, marcar é mais
-                  rápido e mais consistente que digitar — e "Outro" continua
-                  aceitando o que a lista não previu. */}
               <Secao titulo="ANAMNESE">
                 <SeletorDeOpcoes
                   rotulo="Queixa principal" opcoes={QUEIXA_PRINCIPAL}
@@ -211,15 +264,19 @@ export default function ProntuariosPage() {
                   valor={form.historicoOcular}
                   aoMudar={(v) => setForm({ ...form, historicoOcular: v })}
                 />
-                <SeletorDeOpcoes
-                  rotulo="Histórico sistêmico" opcoes={HISTORICO_SISTEMICO}
+                <TagsInput
+                  rotulo="Histórico sistêmico"
+                  sugestoes={HISTORICO_SISTEMICO}
                   valor={form.historicoSistemico}
                   aoMudar={(v) => setForm({ ...form, historicoSistemico: v })}
+                  placeholder="Diabetes, Hipertensão..."
                 />
-                <SeletorDeOpcoes
-                  rotulo="Medicamentos em uso" opcoes={MEDICAMENTOS}
+                <TagsInput
+                  rotulo="Medicamentos em uso"
+                  sugestoes={MEDICAMENTOS}
                   valor={form.medicamentosEmUso}
                   aoMudar={(v) => setForm({ ...form, medicamentosEmUso: v })}
+                  placeholder="Colírio, Anti-hipertensivo..."
                 />
                 <SeletorDeOpcoes
                   rotulo="Último exame de vista" opcoes={TEMPO_ULTIMO_EXAME}
@@ -248,6 +305,8 @@ export default function ProntuariosPage() {
                   form={form} setForm={setForm} placeholder="-0.50" />
                 <ParOlhos rotulo="Eixo" campoOD="refracaoEixoOD" campoOE="refracaoEixoOE"
                   form={form} setForm={setForm} placeholder="180" />
+                <ParOlhos rotulo="Adição" campoOD="adicaoOD" campoOE="adicaoOE"
+                  form={form} setForm={setForm} placeholder="+2.00" />
               </Secao>
 
               <Secao titulo="EXAMES COMPLEMENTARES">
@@ -280,9 +339,9 @@ export default function ProntuariosPage() {
                   className="btn text-neutro-500 hover:bg-neutro-100 dark:hover:bg-neutro-800">
                   Cancelar
                 </button>
-                <button type="submit" disabled={salvando}
-                  className="btn-primario">
-                  {salvando && <Loader2 size={14} className="animate-spin" />} Salvar prontuário
+                <button type="submit" disabled={salvando} className="btn-primario">
+                  {salvando && <Loader2 size={14} className="animate-spin" />}
+                  {editandoId ? 'Salvar alterações' : 'Salvar prontuário'}
                 </button>
               </div>
             </motion.form>
@@ -290,19 +349,12 @@ export default function ProntuariosPage() {
         )}
       </AnimatePresence>
 
-      <PainelExame id={detalheId} aoFechar={() => setDetalheId(null)} />
+      <PainelExame id={detalheId} aoFechar={() => setDetalheId(null)} aoEditar={abrirEditar} />
     </div>
   )
 }
 
-/**
- * O exame por inteiro, em leitura.
- *
- * Sem esta tela o prontuário virava um registro que se escreve e nunca mais se
- * lê — e é justamente na consulta seguinte, comparando com o exame anterior,
- * que ele passa a valer alguma coisa.
- */
-function PainelExame({ id, aoFechar }: { id: string | null; aoFechar: () => void }) {
+function PainelExame({ id, aoFechar, aoEditar }: { id: string | null; aoFechar: () => void; aoEditar: (p: any) => void }) {
   const { data: p, isLoading } = useSWR(id ? `/api/prontuarios/${id}` : null, fetcher)
 
   return (
@@ -332,6 +384,10 @@ function PainelExame({ id, aoFechar }: { id: string | null; aoFechar: () => void
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => aoEditar(p)}
+                      className="btn-suave !py-2 !px-3 !text-[12px]">
+                      <Pencil size={13} strokeWidth={2} /> Editar
+                    </button>
                     <Link href={`/receitas?paciente=${p.paciente?.id}&prontuario=${p.id}`}
                       className="btn-primario !py-2 !px-3 !text-[12px]">
                       <Receipt size={13} strokeWidth={2.2} /> Emitir receita
@@ -366,6 +422,8 @@ function PainelExame({ id, aoFechar }: { id: string | null; aoFechar: () => void
                     ['Esférico — OE', p.refracaoEsfericoOE],
                     ['Cilíndrico — OE', p.refracaoCilindricoOE],
                     ['Eixo — OE', p.refracaoEixoOE],
+                    ['Adição — OD', p.adicaoOD],
+                    ['Adição — OE', p.adicaoOE],
                   ]} />
 
                   <Grupo titulo="Exames complementares" itens={[
@@ -414,7 +472,6 @@ function PainelExame({ id, aoFechar }: { id: string | null; aoFechar: () => void
   )
 }
 
-/** Cartão de topo com o que se olha primeiro ao reabrir um exame. */
 function BlocoResumo({ p }: { p: any }) {
   return (
     <div className="rounded-xl bg-neutro-50 dark:bg-neutro-950/40 border border-neutro-200/70 dark:border-neutro-800 p-4">
@@ -432,7 +489,6 @@ function BlocoResumo({ p }: { p: any }) {
   )
 }
 
-/** Só mostra o que foi preenchido — campo vazio vira ruído numa ficha longa. */
 function Grupo({ titulo, itens }: { titulo: string; itens: [string, any][] }) {
   const preenchidos = itens.filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
   if (preenchidos.length === 0) return null

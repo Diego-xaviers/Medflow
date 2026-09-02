@@ -94,6 +94,9 @@ export const prontuarioSchema = z.object({
   refracaoCilindricoOE: z.string().optional(),
   refracaoEixoOE: z.string().optional(),
 
+  adicaoOD: z.string().optional(),
+  adicaoOE: z.string().optional(),
+
   biomicroscopia: z.string().optional(),
   tonometriaOD: z.string().optional(),
   tonometriaOE: z.string().optional(),

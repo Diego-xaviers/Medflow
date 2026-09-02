@@ -6,12 +6,13 @@ import { useSession } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Link2, Check, Trash2, Loader2, Globe, UserRound, Phone,
-  CalendarPlus, X, Clock, Stethoscope,
+  CalendarPlus, X, Clock, Stethoscope, ToggleLeft, ToggleRight,
 } from 'lucide-react'
 import { format, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import CalendarioMes from '@/components/CalendarioMes'
 import AgendaDaVendedora from '@/components/AgendaDaVendedora'
+import BuscaPaciente from '@/components/BuscaPaciente'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { hora, moeda } from '@/lib/formato'
 
@@ -37,8 +38,6 @@ const estiloStatus: Record<string, { etiqueta: string; barra: string; texto: str
 export default function AgendaPage() {
   const { data: sessao } = useSession()
 
-  // A vendedora acompanha a agenda, mas não a opera: para ela, calendário e
-  // botões de status seriam ruído. Ver AgendaDaVendedora.
   if (sessao?.user?.papel === 'VENDEDORA') return <AgendaDaVendedora />
 
   return <AgendaCompleta />
@@ -51,20 +50,14 @@ function AgendaCompleta() {
   const [copiado, setCopiado] = useState(false)
   const [modal, setModal] = useState(false)
 
-  // Um pedido só traz o mês inteiro: alimenta o calendário e a lista do dia.
   const chaveMes = `/api/consultas?mes=${format(mesRef, 'yyyy-MM')}`
   const { data: doMes, isLoading, mutate } = useSWR(chaveMes, fetcher, {
     refreshInterval: 20_000,
   })
 
-  // O expediente configurado em Configurações manda na duração exibida e no
-  // passo do seletor de horário — não repetimos "30 min" fixo na interface.
   const { data: config } = useSWR('/api/consultorio', fetcher)
   const duracao = config?.duracaoConsultaMin ?? 30
 
-  // O botão "Nova consulta" do Dashboard chega aqui com ?novo=1. Depois de
-  // abrir o formulário limpamos o parâmetro, senão recarregar a página (ou
-  // voltar para ela) reabriria o modal sem que ninguém tenha pedido.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('novo')) {
       setModal(true)
@@ -112,7 +105,6 @@ function AgendaCompleta() {
       </div>
 
       <div className="grid grid-cols-12 gap-5">
-        {/* Calendário */}
         <div className="col-span-12 lg:col-span-4 xl:col-span-3">
           <CalendarioMes
             mesRef={mesRef} aoMudarMes={setMesRef}
@@ -120,7 +112,6 @@ function AgendaCompleta() {
             consultas={doMes ?? []}
           />
 
-          {/* Resumo do dia selecionado */}
           <div className="cartao p-4 mt-5">
             <p className="rotulo-kpi mb-3">Resumo do dia</p>
             <div className="space-y-2.5">
@@ -139,7 +130,6 @@ function AgendaCompleta() {
           </div>
         </div>
 
-        {/* Lista do dia */}
         <div className="col-span-12 lg:col-span-8 xl:col-span-9">
           <div className="flex items-baseline gap-2 mb-4">
             <h2 className="text-[15px] font-semibold capitalize">
@@ -179,7 +169,6 @@ function AgendaCompleta() {
                       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                       className="cartao-interativo overflow-hidden flex items-stretch group">
 
-                      {/* Faixa colorida na lateral, como no Google Agenda */}
                       <div className={`w-1 shrink-0 ${estilo.barra}`} />
 
                       <div className="flex items-center gap-5 px-5 py-4 flex-1 min-w-0">
@@ -232,7 +221,6 @@ function AgendaCompleta() {
 
                         <span className={`etiqueta shrink-0 ${estilo.etiqueta}`}>{estilo.texto}</span>
 
-                        {/* Ações aparecem no hover para não poluir a lista */}
                         <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                           {c.status === 'AGENDADA' && (
                             <>
@@ -268,23 +256,32 @@ function AgendaCompleta() {
   )
 }
 
-/** Agendamento criado pelo próprio consultório (não pelo link público). */
 function ModalNovoAgendamento({ aberto, aoFechar, diaPadrao, duracao, horaAbertura, aoSalvar }: any) {
   const { data: pacientes } = useSWR(aberto ? '/api/pacientes' : null, fetcher)
   const { data: profissionais } = useSWR(aberto ? '/api/profissionais' : null, fetcher)
   const horarioInicial = `${String(horaAbertura ?? 9).padStart(2, '0')}:00`
+  const [avulso, setAvulso] = useState(false)
   const [form, setForm] = useState<any>({
-    pacienteId: '', profissionalId: '', horario: horarioInicial, valor: '', observacoes: '',
+    pacienteId: '', nomeAvulso: '', telefoneAvulso: '',
+    profissionalId: '', horario: horarioInicial, valor: '', observacoes: '',
   })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
-  // Com um profissional só, escolher seria burocracia: já vem preenchido.
   useEffect(() => {
     if (profissionais?.length === 1 && !form.profissionalId) {
       setForm((f: any) => ({ ...f, profissionalId: profissionais[0].id }))
     }
   }, [profissionais, form.profissionalId])
+
+  // Limpa o formulário quando o modal abre
+  useEffect(() => {
+    if (aberto) {
+      setAvulso(false)
+      setForm({ pacienteId: '', nomeAvulso: '', telefoneAvulso: '', profissionalId: '', horario: horarioInicial, valor: '', observacoes: '' })
+      setErro(null)
+    }
+  }, [aberto, horarioInicial])
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
@@ -294,14 +291,27 @@ function ModalNovoAgendamento({ aberto, aoFechar, diaPadrao, duracao, horaAbertu
       const [h, m] = form.horario.split(':')
       dataHora.setHours(Number(h), Number(m), 0, 0)
 
+      let pacienteId = form.pacienteId
+
+      if (avulso) {
+        if (!form.nomeAvulso.trim()) { setErro('Informe o nome do paciente'); setSalvando(false); return }
+        const novoPaciente = await enviar('/api/pacientes', 'POST', {
+          nome: form.nomeAvulso.trim(),
+          telefone: form.telefoneAvulso.trim() || undefined,
+        })
+        pacienteId = novoPaciente.id
+      } else {
+        if (!pacienteId) { setErro('Selecione o paciente'); setSalvando(false); return }
+      }
+
       await enviar('/api/consultas', 'POST', {
-        pacienteId: form.pacienteId,
+        pacienteId,
         profissionalId: form.profissionalId,
         dataHora: dataHora.toISOString(),
         valor: form.valor ? Number(form.valor) : null,
         observacoes: form.observacoes,
       })
-      setForm({ pacienteId: '', profissionalId: form.profissionalId, horario: horarioInicial, valor: '', observacoes: '' })
+
       aoSalvar()
     } catch (e: any) { setErro(e.message) } finally { setSalvando(false) }
   }
@@ -327,14 +337,44 @@ function ModalNovoAgendamento({ aberto, aoFechar, diaPadrao, duracao, horaAbertu
               <button type="button" onClick={aoFechar} className="btn-icone !w-8 !h-8"><X size={17} /></button>
             </div>
 
-            <div>
-              <label className="rotulo">Paciente</label>
-              <select className="campo" required value={form.pacienteId}
-                onChange={(e) => setForm({ ...form, pacienteId: e.target.value })}>
-                <option value="">Selecione o paciente</option>
-                {pacientes?.map((p: any) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-              </select>
-            </div>
+            {/* Toggle paciente cadastrado / avulso */}
+            <button type="button"
+              onClick={() => { setAvulso(!avulso); setForm((f: any) => ({ ...f, pacienteId: '', nomeAvulso: '', telefoneAvulso: '' })) }}
+              className="flex items-center gap-2 text-[12px] text-neutro-500 hover:text-neutro-700 dark:hover:text-neutro-300 transition-colors">
+              {avulso
+                ? <ToggleRight size={18} className="text-brand-500" strokeWidth={2} />
+                : <ToggleLeft size={18} strokeWidth={2} />}
+              Paciente sem cadastro
+            </button>
+
+            {avulso ? (
+              <div className="space-y-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 p-3">
+                <p className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">
+                  O cadastro completo deverá ser preenchido antes do atendimento.
+                </p>
+                <div>
+                  <label className="rotulo">Nome do paciente</label>
+                  <input className="campo" required={avulso} placeholder="Nome completo"
+                    value={form.nomeAvulso}
+                    onChange={e => setForm({ ...form, nomeAvulso: e.target.value })} />
+                </div>
+                <div>
+                  <label className="rotulo">Telefone (opcional)</label>
+                  <input className="campo" placeholder="(00) 00000-0000"
+                    value={form.telefoneAvulso}
+                    onChange={e => setForm({ ...form, telefoneAvulso: e.target.value })} />
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="rotulo">Paciente</label>
+                <BuscaPaciente
+                  pacientes={pacientes ?? []}
+                  valor={form.pacienteId}
+                  aoMudar={(id) => setForm({ ...form, pacienteId: id })}
+                />
+              </div>
+            )}
 
             <div>
               <label className="rotulo">Profissional</label>

@@ -414,7 +414,7 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
                       </div>
                       <div>
                         <label className="rotulo">Valor</label>
-                        <input type="number" step="0.01" className="campo" required placeholder="149,90"
+                        <input type="number" step="0.01" className="campo" required placeholder="100,00"
                           value={novaFatura.valor}
                           onChange={(e) => setNovaFatura({ ...novaFatura, valor: e.target.value })} />
                       </div>
