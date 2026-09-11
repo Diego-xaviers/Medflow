@@ -241,12 +241,12 @@ export function SignInMedflow({ depoimentos = [] }: SignInMedflowProps) {
               <span className="text-brand-950 text-[12px] font-semibold">Medflow</span>
             </div>
             <h2
-              className="text-white text-[26px] font-bold leading-tight max-w-xs"
-              style={{ letterSpacing: '-0.04em' }}
+              className="text-white text-[42px] font-bold leading-[1.1]"
+              style={{ letterSpacing: '-0.045em' }}
             >
               A plataforma que sua clínica merece
             </h2>
-            <p className="text-white/60 text-[13px] mt-2 max-w-[260px] leading-relaxed">
+            <p className="text-white/60 text-[15px] mt-3 max-w-sm leading-relaxed">
               Agenda, prontuários e financeiro integrados — tudo em um só lugar.
             </p>
           </motion.div>
