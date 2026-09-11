@@ -39,6 +39,14 @@ model Consultorio {
   ativo     Boolean  @default(true)
   criadoEm  DateTime @default(now())
 
+  /// Dia do mês de vencimento (1-28). Quando preenchido, o formulário de
+  /// nova fatura auto-preenche o campo vencimento com base na competência.
+  diaVencimento  Int?
+
+  /// Libera o acesso manualmente, ignorando o bloqueio automático por
+  /// inadimplência. Útil quando o admin decide dar carência extra.
+  acessoLiberado Boolean @default(false)
+
   usuarios     Usuario[]
   pacientes    Paciente[]
   consultas    Consulta[]

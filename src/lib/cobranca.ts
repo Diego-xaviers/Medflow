@@ -27,7 +27,13 @@ export interface SituacaoConta {
 
 /** Só um lugar decide se a conta está bloqueada — este. */
 export async function situacaoDaConta(consultorioId: string): Promise<SituacaoConta> {
-  const parametros = await prisma.parametrosSaas.findUnique({ where: { id: 'unico' } })
+  const [parametros, consultorio] = await Promise.all([
+    prisma.parametrosSaas.findUnique({ where: { id: 'unico' } }),
+    prisma.consultorio.findUnique({
+      where: { id: consultorioId },
+      select: { acessoLiberado: true },
+    }),
+  ])
   const diasCarencia = parametros?.diasCarencia ?? CARENCIA_PADRAO
 
   const abertas = await prisma.fatura.findMany({
@@ -45,7 +51,7 @@ export async function situacaoDaConta(consultorioId: string): Promise<SituacaoCo
     : 0
 
   return {
-    bloqueado: diasDeAtraso > diasCarencia,
+    bloqueado: consultorio?.acessoLiberado ? false : diasDeAtraso > diasCarencia,
     emAtraso: vencidas.length > 0,
     diasDeAtraso,
     valorEmAberto: abertas.reduce((s, f) => s + Number(f.valor), 0),

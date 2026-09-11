@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Building2, Plus, X, Loader2, Link2, Check, Users, CalendarCheck2,
   UserRound, KeyRound, Copy, ExternalLink, Settings, Trash2, Wallet,
+  LockOpen, Lock,
 } from 'lucide-react'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { data, moeda } from '@/lib/formato'
@@ -264,10 +265,60 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
   const [erro, setErro] = useState<string | null>(null)
   const [senhaGerada, setSenhaGerada] = useState<{ nome: string; email: string; senha: string } | null>(null)
   const [confirmacao, setConfirmacao] = useState('')
+  const [diaVencimento, setDiaVencimento] = useState<string>('')
+  const [salvandoDia, setSalvandoDia] = useState(false)
   const [novaFatura, setNovaFatura] = useState({
     competencia: new Date().toISOString().slice(0, 7),
     valor: '', vencimento: '', descricao: '',
   })
+
+  // Quando o painel carrega, sincroniza o diaVencimento com o do consultório
+  useEffect(() => {
+    if (c?.diaVencimento) setDiaVencimento(String(c.diaVencimento))
+  }, [c?.diaVencimento])
+
+  // Auto-preenche o vencimento com base no dia configurado + competência
+  useEffect(() => {
+    const dia = parseInt(diaVencimento)
+    if (!dia || !novaFatura.competencia) return
+    const [ano, mes] = novaFatura.competencia.split('-').map(Number)
+    // Garante que o dia não passa do último dia do mês
+    const ultimo = new Date(ano, mes, 0).getDate()
+    const diaReal = Math.min(dia, ultimo)
+    const venc = `${novaFatura.competencia}-${String(diaReal).padStart(2, '0')}`
+    setNovaFatura((f) => ({ ...f, vencimento: venc }))
+  }, [diaVencimento, novaFatura.competencia])
+
+  // Avança a competência para o mês seguinte ao último lançado
+  useEffect(() => {
+    if (!c?.faturas?.length) return
+    const ultima = c.faturas[0]?.competencia
+    if (!ultima) return
+    const [ano, mes] = ultima.split('-').map(Number)
+    const proxMes = mes === 12 ? 1 : mes + 1
+    const proxAno = mes === 12 ? ano + 1 : ano
+    setNovaFatura((f) => ({
+      ...f,
+      competencia: `${proxAno}-${String(proxMes).padStart(2, '0')}`,
+    }))
+  }, [c?.faturas])
+
+  async function salvarDiaVencimento() {
+    setSalvandoDia(true); setErro(null)
+    try {
+      const dia = diaVencimento ? parseInt(diaVencimento) : null
+      await enviar(`/api/admin/consultorios/${id}`, 'PATCH', { diaVencimento: dia })
+      await mutate()
+    } catch (e: any) { setErro(e.message) } finally { setSalvandoDia(false) }
+  }
+
+  async function alternarAcessoLiberado() {
+    setOcupado(true); setErro(null)
+    try {
+      await enviar(`/api/admin/consultorios/${id}`, 'PATCH', { acessoLiberado: !c.acessoLiberado })
+      await mutate(); aoMudar()
+    } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
+  }
 
   async function redefinirSenha(usuario: any) {
     const senha = gerarSenha()
@@ -401,6 +452,47 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
                     <h3 className="text-[11px] font-semibold tracking-wider text-brand-600 dark:text-brand-400 mb-3">
                       FATURAS
                     </h3>
+
+                    {/* Configuração do dia de vencimento recorrente */}
+                    <div className="flex items-end gap-2 mb-4 p-3 rounded-lg bg-neutro-50 dark:bg-neutro-950/40 border border-neutro-200/70 dark:border-neutro-800">
+                      <div className="flex-1">
+                        <label className="rotulo">Dia de vencimento mensal</label>
+                        <input type="number" min={1} max={28} className="campo" placeholder="Ex: 10"
+                          value={diaVencimento}
+                          onChange={(e) => setDiaVencimento(e.target.value)} />
+                        <p className="text-[11px] text-neutro-400 mt-1">
+                          Auto-preenche o vencimento ao criar novas faturas.
+                        </p>
+                      </div>
+                      <button type="button" onClick={salvarDiaVencimento} disabled={salvandoDia}
+                        className="btn-suave !py-2 !px-3 shrink-0 mb-1">
+                        {salvandoDia ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                        Salvar
+                      </button>
+                    </div>
+
+                    {/* Liberar acesso manualmente */}
+                    <button type="button" onClick={alternarAcessoLiberado} disabled={ocupado}
+                      className={`w-full flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 mb-4 text-left transition-colors ${
+                        c.acessoLiberado
+                          ? 'border-brand-300 dark:border-brand-800 bg-brand-50 dark:bg-brand-900/20'
+                          : 'border-neutro-200/70 dark:border-neutro-800 hover:bg-neutro-50 dark:hover:bg-neutro-800/40'
+                      }`}>
+                      {c.acessoLiberado
+                        ? <LockOpen size={15} className="text-brand-600 shrink-0" strokeWidth={2} />
+                        : <Lock size={15} className="text-neutro-400 shrink-0" strokeWidth={2} />}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-medium">
+                          {c.acessoLiberado ? 'Acesso liberado manualmente' : 'Liberar acesso manualmente'}
+                        </p>
+                        <p className="text-[11px] text-neutro-400">
+                          {c.acessoLiberado
+                            ? 'Ignorando o bloqueio automático por inadimplência — clique para reverter'
+                            : 'Permite uso mesmo com fatura em atraso além da carência'}
+                        </p>
+                      </div>
+                    </button>
+
                     <form onSubmit={criarFatura} className="grid grid-cols-2 gap-2.5 mb-4">
                       <div>
                         <label className="rotulo">Competência</label>

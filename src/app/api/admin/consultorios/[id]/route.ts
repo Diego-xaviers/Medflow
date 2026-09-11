@@ -9,7 +9,8 @@ type Params = { params: { id: string } }
 
 const ajusteSchema = z.object({
   ativo: z.boolean().optional(),
-  /// Redefinição de senha de um usuário do consultório.
+  acessoLiberado: z.boolean().optional(),
+  diaVencimento: z.coerce.number().int().min(1).max(28).optional().nullable(),
   redefinirSenha: z
     .object({
       usuarioId: z.string().min(1),
@@ -74,11 +75,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return { ok: true, redefinida: { nome: alvo.nome, email: alvo.email } }
     }
 
-    if (dados.ativo !== undefined) {
-      await prisma.consultorio.update({
-        where: { id: consultorio.id },
-        data: { ativo: dados.ativo },
-      })
+    const atualizacao: Record<string, any> = {}
+    if (dados.ativo !== undefined) atualizacao.ativo = dados.ativo
+    if (dados.acessoLiberado !== undefined) atualizacao.acessoLiberado = dados.acessoLiberado
+    if (dados.diaVencimento !== undefined) atualizacao.diaVencimento = dados.diaVencimento
+
+    if (Object.keys(atualizacao).length > 0) {
+      await prisma.consultorio.update({ where: { id: consultorio.id }, data: atualizacao })
     }
 
     return { ok: true }
