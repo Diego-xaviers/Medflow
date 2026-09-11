@@ -9,37 +9,41 @@ export default {
         sans: ['var(--fonte-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       letterSpacing: {
-        // Números grandes ficam melhores levemente apertados
-        apertado: '-0.02em',
+        apertado:  '-0.02em',
+        comprimido: '-0.035em',
+        forte:      '-0.05em',
+      },
+      fontWeight: {
+        extrabold: '800',
       },
       colors: {
-        // Verde da marca, mais dessaturado que antes — menos "verde néon",
-        // mais próximo do tom sóbrio das referências.
+        // ZipPay green — vibrante, usado com parcimônia como único acento
         brand: {
-          50: '#f0faf6',
-          100: '#daf2e7',
-          200: '#b7e4d1',
-          300: '#86cfb4',
-          400: '#4fb392',
-          500: '#2b9878',
-          600: '#1d7a61',
-          700: '#186250',
-          800: '#164e41',
-          900: '#134036',
+          50:  '#eafff5',
+          100: '#c6fde4',
+          200: '#8df9cb',
+          300: '#47eeaa',
+          400: '#18e28d',
+          500: '#00DC82',  // cor exata ZipPay
+          600: '#00b368',
+          700: '#008c52',
+          800: '#006e40',
+          900: '#005535',
+          950: '#002b1c',
         },
-        // Cinzas com um leve toque quente, para não ficar "azulado de Bootstrap"
+        // Cinzas neutros puros — zero tom de cor, exatamente como ZipPay
         neutro: {
-          50: '#fafafa',
-          100: '#f4f4f5',
-          200: '#e8e8ea',
-          300: '#d3d3d7',
-          400: '#a1a1aa',
-          500: '#71717a',
-          600: '#52525b',
-          700: '#3f3f46',
-          800: '#27272a',
-          900: '#18181b',
-          950: '#0e0e10',
+          50:  '#f7f7f7',
+          100: '#f0f0f0',
+          200: '#e4e4e4',
+          300: '#d0d0d0',
+          400: '#a3a3a3',
+          500: '#737373',
+          600: '#525252',
+          700: '#404040',
+          800: '#262626',
+          900: '#171717',
+          950: '#0a0a0a',
         },
       },
       boxShadow: {

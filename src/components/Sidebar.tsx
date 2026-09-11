@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import { useSession } from 'next-auth/react'
 import {
   LayoutGrid, CalendarDays, Users, FileText, Receipt, Wallet,
-  Bell, BarChart3, LifeBuoy, Settings, UserCircle, Eye, UsersRound, Building2,
+  Bell, BarChart3, LifeBuoy, Settings, UserCircle, UsersRound, Building2,
 } from 'lucide-react'
 import { podeAbrir, type PapelUsuario } from '@/lib/permissoes'
 
@@ -44,7 +44,7 @@ function Item({ label, icon: Icon, href, aoNavegar, variante }: { label: string;
       {ativo && (
         <motion.span
           layoutId={`fundoNav-${variante}`}
-          className="absolute inset-0 bg-white dark:bg-neutro-800 rounded-lg shadow-suave"
+          className="absolute inset-0 bg-brand-50 dark:bg-brand-950/50 rounded-lg"
           transition={{ type: 'spring', stiffness: 380, damping: 34 }}
         />
       )}
@@ -60,15 +60,15 @@ function Item({ label, icon: Icon, href, aoNavegar, variante }: { label: string;
       <span
         className={`relative flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-colors duration-200 ${
           ativo
-            ? 'text-neutro-900 dark:text-white font-medium'
-            : 'text-neutro-500 dark:text-neutro-400 font-normal hover:text-neutro-900 dark:hover:text-neutro-200'
+            ? 'text-neutro-900 dark:text-white font-semibold'
+            : 'text-neutro-500 dark:text-neutro-400 font-normal hover:text-neutro-800 dark:hover:text-neutro-200'
         }`}
       >
         <Icon
-          size={17}
-          strokeWidth={ativo ? 2.1 : 1.8}
-          className={`transition-all duration-200 ${
-            ativo ? 'text-brand-600 dark:text-brand-400' : 'group-hover:scale-105'
+          size={16}
+          strokeWidth={ativo ? 2.2 : 1.7}
+          className={`transition-all duration-200 flex-shrink-0 ${
+            ativo ? 'text-brand-500' : 'group-hover:scale-105 group-hover:text-neutro-700 dark:group-hover:text-neutro-300'
           }`}
         />
         {label}
@@ -81,7 +81,7 @@ function Grupo({ titulo, itens, aoNavegar, variante }: { titulo?: string; itens:
   return (
     <div>
       {titulo && (
-        <p className="px-3 mb-1.5 text-[10px] font-medium tracking-wider text-neutro-400 uppercase">
+        <p className="px-3 mb-1 text-[10px] font-semibold tracking-widest text-neutro-400 dark:text-neutro-600 uppercase">
           {titulo}
         </p>
       )}
@@ -111,33 +111,31 @@ export default function Sidebar({ aoNavegar, variante = 'fixa' }: { aoNavegar?: 
   const adminVisiveis = visiveis(admin)
 
   return (
-    <aside className="w-[236px] shrink-0 border-r border-neutro-200/70 dark:border-neutro-800 bg-neutro-100/50 dark:bg-neutro-900/40 h-screen sticky top-0 flex flex-col">
-      <div className="flex items-center gap-2.5 px-5 h-[65px] border-b border-neutro-200/70 dark:border-neutro-800">
-        <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-white shadow-suave">
-          <Eye size={17} strokeWidth={2.2} />
+    <aside className="w-[236px] shrink-0 border-r border-neutro-200 dark:border-neutro-800 bg-white dark:bg-neutro-950 h-screen sticky top-0 flex flex-col">
+      <div className="flex items-center gap-2.5 px-4 h-[60px] border-b border-neutro-200 dark:border-neutro-800">
+        <div className="w-8 h-8 rounded-[9px] bg-brand-500 flex items-center justify-center shadow-suave flex-shrink-0">
+          <span className="text-brand-950 font-black text-[18px] leading-none" style={{ letterSpacing: '-2px', marginRight: '-1px' }}>+</span>
         </div>
         <div>
-          <p className="text-[15px] font-semibold leading-none tracking-apertado">Medflow</p>
-          <p className="text-[9px] font-medium tracking-wider text-neutro-400 mt-1">
-            GESTÃO CLÍNICA
+          <p className="text-[15px] font-bold leading-none" style={{ letterSpacing: '-0.025em' }}>Medflow</p>
+          <p className="text-[9px] font-semibold tracking-widest text-neutro-400 dark:text-neutro-600 mt-1 uppercase">
+            Gestão Clínica
           </p>
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-5 space-y-6 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
         {principaisVisiveis.length > 0 && <Grupo itens={principaisVisiveis} aoNavegar={aoNavegar} variante={variante} />}
         {operacaoVisiveis.length > 0 && <Grupo titulo="Operação" itens={operacaoVisiveis} aoNavegar={aoNavegar} variante={variante} />}
         {adminVisiveis.length > 0 && <Grupo titulo="Admin" itens={adminVisiveis} aoNavegar={aoNavegar} variante={variante} />}
       </nav>
 
       <div className="px-3 pb-4">
-        {/* O super admin não pertence a consultório: mostrar "—" aqui pareceria
-            dado faltando, quando na verdade é o normal para a conta dele. */}
-        <div className="rounded-lg bg-white dark:bg-neutro-800/60 border border-neutro-200/70 dark:border-neutro-800 px-3 py-2.5">
-          <p className="text-[10px] font-medium tracking-wider text-neutro-400 uppercase">
+        <div className="rounded-lg bg-neutro-50 dark:bg-neutro-900 border border-neutro-200 dark:border-neutro-800 px-3 py-2.5">
+          <p className="text-[10px] font-semibold tracking-widest text-neutro-400 dark:text-neutro-600 uppercase mb-0.5">
             {papel === 'SUPER_ADMIN' ? 'Conta' : 'Consultório'}
           </p>
-          <p className="text-[13px] font-medium truncate mt-0.5">
+          <p className="text-[13px] font-semibold truncate text-neutro-800 dark:text-neutro-200" style={{ letterSpacing: '-0.01em' }}>
             {papel === 'SUPER_ADMIN'
               ? 'Administração Medflow'
               : sessao?.user?.consultorioNome ?? '—'}

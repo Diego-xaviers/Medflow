@@ -9,7 +9,7 @@
   }
 
   body {
-    @apply bg-neutro-50 text-neutro-900 dark:bg-neutro-950 dark:text-neutro-100;
+    @apply bg-white text-neutro-900 dark:bg-neutro-950 dark:text-neutro-100;
     font-weight: 400;
   }
 
@@ -87,7 +87,8 @@
            hover:bg-neutro-800 dark:hover:bg-neutro-100 shadow-suave;
   }
 
-  .btn-marca { @apply btn bg-brand-600 text-white hover:bg-brand-700 shadow-suave; }
+  /* Verde ZipPay é claro: texto escuro sobre ele para contraste WCAG */
+  .btn-marca { @apply btn bg-brand-500 text-brand-950 font-semibold hover:bg-brand-400 shadow-suave; }
 
   .btn-suave {
     @apply btn border border-neutro-200 dark:border-neutro-700

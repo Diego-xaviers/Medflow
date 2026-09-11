@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
 import Link from 'next/link'
 import useSWR from 'swr'
-import { Search, Moon, Sun, LogOut, ChevronDown, UserRound, Pencil, Menu, Eye } from 'lucide-react'
+import { Search, Moon, Sun, LogOut, ChevronDown, UserRound, Pencil, Menu } from 'lucide-react'
 import { useTema } from './TemaProvider'
 import Avatar from './Avatar'
 import Notificacoes from './Notificacoes'
@@ -33,8 +33,8 @@ export default function Topbar({ aoAbrirMenu }: { aoAbrirMenu?: () => void } = {
         <button onClick={aoAbrirMenu} aria-label="Abrir menu" className="btn-icone shrink-0">
           <Menu size={20} strokeWidth={2} />
         </button>
-        <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center text-white shrink-0">
-          <Eye size={15} strokeWidth={2.2} />
+        <div className="w-7 h-7 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
+          <span className="text-brand-950 font-black text-[14px] leading-none" style={{ letterSpacing: '-1.5px', marginRight: '-1px' }}>+</span>
         </div>
         <p className="text-[14px] font-semibold tracking-apertado">Medflow</p>
       </div>
