@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Link2, Check, Trash2, Loader2, Globe, UserRound, Phone,
-  CalendarPlus, X, Clock, Stethoscope, ToggleLeft, ToggleRight, MessageCircle,
+  CalendarPlus, X, Clock, Stethoscope, ToggleLeft, ToggleRight, MessageCircle, Pencil,
 } from 'lucide-react'
 import { format, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -50,6 +50,7 @@ function AgendaCompleta() {
   const [dia, setDia] = useState(() => new Date())
   const [copiado, setCopiado] = useState(false)
   const [modal, setModal] = useState(false)
+  const [editando, setEditando] = useState<any | null>(null)
   const [somenteMeus, setSomenteMeus] = useState(false)
 
   const chaveMes = `/api/consultas?mes=${format(mesRef, 'yyyy-MM')}`
@@ -285,6 +286,10 @@ function AgendaCompleta() {
                         {ehVendedora ? (
                           consultaMinha ? (
                             <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                              <button onClick={() => setEditando(c)} title="Editar agendamento"
+                                className="btn-icone !w-8 !h-8 hover:!text-brand-600 hover:!bg-brand-50 dark:hover:!bg-brand-900/30">
+                                <Pencil size={14} strokeWidth={2} />
+                              </button>
                               <button onClick={() => excluir(c.id)} title="Excluir"
                                 className="btn-icone !w-8 !h-8 hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/40">
                                 <Trash2 size={15} strokeWidth={2} />
@@ -340,6 +345,9 @@ function AgendaCompleta() {
       <ModalNovoAgendamento aberto={modal} aoFechar={() => setModal(false)}
         diaPadrao={dia} duracao={duracao} horaAbertura={config?.horaAbertura ?? 8}
         aoSalvar={() => { setModal(false); mutate() }} />
+
+      <ModalEditarAgendamento consulta={editando} aoFechar={() => setEditando(null)}
+        aoSalvar={() => { setEditando(null); mutate() }} />
     </div>
   )
 }
@@ -504,6 +512,126 @@ function ModalNovoAgendamento({ aberto, aoFechar, diaPadrao, duracao, horaAbertu
               </button>
               <button type="submit" disabled={salvando} className="btn-primario">
                 {salvando && <Loader2 size={14} className="animate-spin" />} Agendar
+              </button>
+            </div>
+          </motion.form>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+function ModalEditarAgendamento({ consulta, aoFechar, aoSalvar }: { consulta: any; aoFechar: () => void; aoSalvar: () => void }) {
+  const { data: pacientes } = useSWR(consulta ? '/api/pacientes' : null, fetcher)
+  const { data: profissionais } = useSWR(consulta ? '/api/profissionais' : null, fetcher)
+  const [form, setForm] = useState<any>({
+    pacienteId: '', profissionalId: '', data: '', horario: '', valor: '', observacoes: '',
+  })
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (consulta) {
+      const dt = new Date(consulta.dataHora)
+      setForm({
+        pacienteId: consulta.pacienteId ?? '',
+        profissionalId: consulta.profissionalId ?? '',
+        data: format(dt, 'yyyy-MM-dd'),
+        horario: format(dt, 'HH:mm'),
+        valor: consulta.valor ? String(Number(consulta.valor)) : '',
+        observacoes: consulta.observacoes ?? '',
+      })
+      setErro(null)
+    }
+  }, [consulta])
+
+  async function salvar(e: React.FormEvent) {
+    e.preventDefault()
+    setSalvando(true); setErro(null)
+    try {
+      const dataHora = new Date(`${form.data}T${form.horario}:00`)
+      await enviar(`/api/consultas/${consulta.id}`, 'PATCH', {
+        dataHora: dataHora.toISOString(),
+        pacienteId: form.pacienteId,
+        profissionalId: form.profissionalId,
+        valor: form.valor ? Number(form.valor) : null,
+        observacoes: form.observacoes || null,
+      })
+      aoSalvar()
+    } catch (e: any) { setErro(e.message) } finally { setSalvando(false) }
+  }
+
+  return (
+    <AnimatePresence>
+      {consulta && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-neutro-900/30 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+          <motion.form onSubmit={salvar}
+            initial={{ opacity: 0, y: 14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="cartao shadow-alta w-full max-w-md p-5 sm:p-6 space-y-4">
+
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-[16px] font-semibold">Editar agendamento</h2>
+                <p className="text-[12px] text-neutro-400 mt-0.5">{consulta?.paciente?.nome}</p>
+              </div>
+              <button type="button" onClick={aoFechar} className="btn-icone !w-8 !h-8"><X size={17} /></button>
+            </div>
+
+            <div>
+              <label className="rotulo">Paciente</label>
+              <BuscaPaciente
+                pacientes={pacientes ?? []}
+                valor={form.pacienteId}
+                aoMudar={(id) => setForm({ ...form, pacienteId: id })}
+              />
+            </div>
+
+            <div>
+              <label className="rotulo">Profissional</label>
+              <select className="campo" required value={form.profissionalId}
+                onChange={(e) => setForm({ ...form, profissionalId: e.target.value })}>
+                <option value="">Quem vai atender</option>
+                {profissionais?.map((p: any) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="rotulo">Data</label>
+                <input type="date" className="campo" required value={form.data}
+                  onChange={(e) => setForm({ ...form, data: e.target.value })} />
+              </div>
+              <div>
+                <label className="rotulo">Horário</label>
+                <input type="time" className="campo" required value={form.horario}
+                  onChange={(e) => setForm({ ...form, horario: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="rotulo">Valor (opcional)</label>
+                <input type="number" step="0.01" className="campo" placeholder="0,00" value={form.valor}
+                  onChange={(e) => setForm({ ...form, valor: e.target.value })} />
+              </div>
+              <div>
+                <label className="rotulo">Observações</label>
+                <input className="campo" value={form.observacoes}
+                  onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
+              </div>
+            </div>
+
+            {erro && <p className="text-[12px] text-red-600">{erro}</p>}
+
+            <div className="flex justify-end gap-2.5 pt-1">
+              <button type="button" onClick={aoFechar} className="btn text-neutro-500 hover:bg-neutro-100 dark:hover:bg-neutro-800">
+                Cancelar
+              </button>
+              <button type="submit" disabled={salvando} className="btn-primario">
+                {salvando && <Loader2 size={14} className="animate-spin" />} Salvar
               </button>
             </div>
           </motion.form>

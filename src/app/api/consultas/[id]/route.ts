@@ -12,6 +12,14 @@ const statusSchema = z.object({
   status: z.enum(['AGENDADA', 'CONCLUIDA', 'FALTA', 'CANCELADA']),
 })
 
+const editSchema = z.object({
+  dataHora: z.coerce.date(),
+  pacienteId: z.string().min(1),
+  profissionalId: z.string().min(1),
+  valor: z.number().nullable().optional(),
+  observacoes: z.string().nullable().optional(),
+})
+
 const rotuloStatus: Record<string, string> = {
   AGENDADA: 'reaberto', CONCLUIDA: 'concluído',
   FALTA: 'marcado como falta', CANCELADA: 'cancelado',
@@ -20,13 +28,62 @@ const rotuloStatus: Record<string, string> = {
 export async function PATCH(req: NextRequest, { params }: Params) {
   return rota(async () => {
     const { consultorioId, usuarioId, nome, papel } = await exigirPapel('DONO', 'ATENDENTE', 'VENDEDORA')
-    const { status } = statusSchema.parse(await req.json())
+    const corpo = await req.json()
 
-    // VENDEDORA só pode alterar status de consultas que ela mesma criou
+    // VENDEDORA só pode mexer nas consultas que ela mesma criou
     const filtro = papel === 'VENDEDORA'
       ? { id: params.id, consultorioId, criadoPorId: usuarioId }
       : { id: params.id, consultorioId }
 
+    // Edição completa (dataHora, paciente, profissional, valor, observações)
+    if ('dataHora' in corpo) {
+      const dados = editSchema.parse(corpo)
+
+      const paciente = await prisma.paciente.findFirst({
+        where: { id: dados.pacienteId, consultorioId },
+        select: { id: true, nome: true },
+      })
+      if (!paciente) throw new ErroDeNegocio('Paciente não encontrado')
+
+      const profissional = await prisma.usuario.findFirst({
+        where: { id: dados.profissionalId, consultorioId, ativo: true },
+        select: { id: true, nome: true },
+      })
+      if (!profissional) throw new ErroDeNegocio('Profissional não encontrado')
+
+      const resultado = await prisma.consulta.updateMany({
+        where: filtro,
+        data: {
+          dataHora: dados.dataHora,
+          pacienteId: dados.pacienteId,
+          profissionalId: dados.profissionalId,
+          valor: dados.valor ?? null,
+          observacoes: dados.observacoes ?? null,
+        },
+      })
+      if (resultado.count === 0) throw new ErroDeNegocio('Consulta não encontrada')
+
+      await notificar({
+        usuarioIds: await equipeDoConsultorio(consultorioId, { exceto: usuarioId }),
+        consultorioId,
+        tipo: 'AGENDAMENTO',
+        titulo: `Agendamento editado — ${paciente.nome}`,
+        descricao: `${fmtDataHora(dados.dataHora)} com ${profissional.nome} · por ${nome}`,
+        link: '/agenda',
+      })
+
+      return prisma.consulta.findUnique({
+        where: { id: params.id },
+        include: {
+          paciente: { select: { id: true, nome: true } },
+          profissional: { select: { id: true, nome: true } },
+          criadoPor: { select: { id: true, nome: true } },
+        },
+      })
+    }
+
+    // Mudança de status (comportamento original)
+    const { status } = statusSchema.parse(corpo)
     const resultado = await prisma.consulta.updateMany({ where: filtro, data: { status } })
     if (resultado.count === 0) throw new ErroDeNegocio('Consulta não encontrada')
 
