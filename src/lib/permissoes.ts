@@ -39,9 +39,9 @@ const ROTAS: Record<PapelUsuario, string[] | '*'> = {
     '/configuracoes', '/perfil', '/cobranca',
   ],
 
-  // A vendedora acompanha a agenda para saber quem vem e quando — e nada
-  // além disso. Prontuário, receita e financeiro não são da função dela.
-  VENDEDORA: ['/agenda', '/suporte', '/perfil', '/cobranca'],
+  // A vendedora agenda e acompanha — mas cobrança e dados clínicos não são
+  // da função dela. Acesso à fatura da clínica não faz sentido para a vendedora.
+  VENDEDORA: ['/agenda', '/suporte', '/perfil'],
 }
 
 /** Para onde mandar cada papel quando ele cai numa tela que não pode abrir. */

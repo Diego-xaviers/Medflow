@@ -6,15 +6,15 @@ import { useSession } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Link2, Check, Trash2, Loader2, Globe, UserRound, Phone,
-  CalendarPlus, X, Clock, Stethoscope, ToggleLeft, ToggleRight,
+  CalendarPlus, X, Clock, Stethoscope, ToggleLeft, ToggleRight, MessageCircle,
 } from 'lucide-react'
 import { format, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import CalendarioMes from '@/components/CalendarioMes'
-import AgendaDaVendedora from '@/components/AgendaDaVendedora'
 import BuscaPaciente from '@/components/BuscaPaciente'
 import { fetcher, enviar } from '@/lib/fetcher'
-import { hora, moeda } from '@/lib/formato'
+import { hora, moeda, data as fmtData } from '@/lib/formato'
+import { linkWhatsApp } from '@/lib/whatsapp'
 
 const estiloStatus: Record<string, { etiqueta: string; barra: string; texto: string }> = {
   AGENDADA: {
@@ -36,19 +36,21 @@ const estiloStatus: Record<string, { etiqueta: string; barra: string; texto: str
 }
 
 export default function AgendaPage() {
-  const { data: sessao } = useSession()
-
-  if (sessao?.user?.papel === 'VENDEDORA') return <AgendaDaVendedora />
-
   return <AgendaCompleta />
 }
 
 function AgendaCompleta() {
   const { data: sessao } = useSession()
+  const papel = sessao?.user?.papel
+  const ehVendedora = papel === 'VENDEDORA'
+  const meuId = sessao?.user?.id
+  const meuNome = sessao?.user?.name ?? ''
+
   const [mesRef, setMesRef] = useState(() => new Date())
   const [dia, setDia] = useState(() => new Date())
   const [copiado, setCopiado] = useState(false)
   const [modal, setModal] = useState(false)
+  const [somenteMeus, setSomenteMeus] = useState(false)
 
   const chaveMes = `/api/consultas?mes=${format(mesRef, 'yyyy-MM')}`
   const { data: doMes, isLoading, mutate } = useSWR(chaveMes, fetcher, {
@@ -65,8 +67,13 @@ function AgendaCompleta() {
     }
   }, [])
 
+  function ehMinha(c: any) {
+    return c.criadoPor?.id === meuId || c.vendedoraResponsavel === meuNome
+  }
+
   const doDia = (doMes ?? [])
     .filter((c: any) => isSameDay(new Date(c.dataHora), dia))
+    .filter((c: any) => !somenteMeus || ehMinha(c))
     .sort((a: any, b: any) => a.dataHora.localeCompare(b.dataHora))
 
   async function mudarStatus(id: string, status: string) {
@@ -86,14 +93,24 @@ function AgendaCompleta() {
     setTimeout(() => setCopiado(false), 2000)
   }
 
+  const rotuloDodia = () => {
+    const hoje = new Date().toDateString()
+    const selec = dia.toDateString()
+    if (selec === hoje) return 'Hoje'
+    if (selec === new Date(Date.now() + 864e5).toDateString()) return 'Amanhã'
+    return format(dia, "EEEE, d 'de' MMMM", { locale: ptBR })
+  }
+
   return (
     <div className="p-4 sm:p-7 max-w-[1500px]">
-      <div className="flex items-end justify-between mb-7">
+      <div className="flex items-end justify-between mb-7 gap-3 flex-wrap">
         <div>
           <h1 className="titulo-pagina">Agenda</h1>
-          <p className="subtitulo mt-1">Seus atendimentos, atualizados em tempo real</p>
+          <p className="subtitulo mt-1">
+            {ehVendedora ? 'Todos os profissionais · clique num dia para ver os horários' : 'Seus atendimentos, atualizados em tempo real'}
+          </p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button onClick={copiarLink} className="btn-suave">
             {copiado ? <Check size={16} className="text-brand-600" /> : <Link2 size={16} strokeWidth={2} />}
             {copiado ? 'Link copiado' : 'Link de agendamento'}
@@ -112,32 +129,54 @@ function AgendaCompleta() {
             consultas={doMes ?? []}
           />
 
-          <div className="cartao p-4 mt-5">
-            <p className="rotulo-kpi mb-3">Resumo do dia</p>
-            <div className="space-y-2.5">
-              {[
-                ['Total', doDia.length],
-                ['Agendadas', doDia.filter((c: any) => c.status === 'AGENDADA').length],
-                ['Concluídas', doDia.filter((c: any) => c.status === 'CONCLUIDA').length],
-                ['Faltas', doDia.filter((c: any) => c.status === 'FALTA').length],
-              ].map(([rotulo, valor]) => (
-                <div key={rotulo as string} className="flex items-center justify-between">
-                  <span className="text-[12px] text-neutro-500">{rotulo}</span>
-                  <span className="text-[13px] font-medium numerico">{valor as number}</span>
-                </div>
-              ))}
+          {!ehVendedora && (
+            <div className="cartao p-4 mt-5">
+              <p className="rotulo-kpi mb-3">Resumo do dia</p>
+              <div className="space-y-2.5">
+                {[
+                  ['Total', doDia.length],
+                  ['Agendadas', doDia.filter((c: any) => c.status === 'AGENDADA').length],
+                  ['Concluídas', doDia.filter((c: any) => c.status === 'CONCLUIDA').length],
+                  ['Faltas', doDia.filter((c: any) => c.status === 'FALTA').length],
+                ].map(([rotulo, valor]) => (
+                  <div key={rotulo as string} className="flex items-center justify-between">
+                    <span className="text-[12px] text-neutro-500">{rotulo}</span>
+                    <span className="text-[13px] font-medium numerico">{valor as number}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="col-span-12 lg:col-span-8 xl:col-span-9">
-          <div className="flex items-baseline gap-2 mb-4">
-            <h2 className="text-[15px] font-semibold capitalize">
-              {format(dia, "EEEE, d 'de' MMMM", { locale: ptBR })}
-            </h2>
-            <span className="text-[12px] text-neutro-400">
-              {doDia.length} atendimento{doDia.length === 1 ? '' : 's'}
-            </span>
+          {/* Título do dia + filtro "Meus agendamentos" */}
+          <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <div className="flex items-baseline gap-2">
+              <h2 className={`text-[15px] font-semibold capitalize ${dia.toDateString() === new Date().toDateString() && ehVendedora ? 'text-brand-600' : ''}`}>
+                {rotuloDodia()}
+              </h2>
+              <span className="text-[12px] text-neutro-400">
+                {doDia.length} atendimento{doDia.length === 1 ? '' : 's'}
+              </span>
+            </div>
+
+            {/* Filtro visível para todos, mas especialmente útil para a vendedora */}
+            <div className="flex items-center gap-2">
+              {[
+                { rotulo: 'Todos', valor: false },
+                { rotulo: 'Meus agendamentos', valor: true },
+              ].map((op) => (
+                <button key={op.rotulo} onClick={() => setSomenteMeus(op.valor)}
+                  className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all duration-200 active:scale-[0.98] ${
+                    somenteMeus === op.valor
+                      ? 'bg-neutro-900 dark:bg-white text-white dark:text-neutro-900 border-neutro-900 dark:border-white'
+                      : 'border-neutro-200 dark:border-neutro-700 text-neutro-500'
+                  }`}>
+                  {op.rotulo}
+                </button>
+              ))}
+            </div>
           </div>
 
           {isLoading ? (
@@ -153,27 +192,37 @@ function AgendaCompleta() {
                     <div className="w-11 h-11 rounded-full bg-neutro-100 dark:bg-neutro-800 flex items-center justify-center mb-3">
                       <Clock size={19} className="text-neutro-400" strokeWidth={1.8} />
                     </div>
-                    <p className="text-[13px] font-medium">Nenhum atendimento neste dia</p>
+                    <p className="text-[13px] font-medium">
+                      {somenteMeus ? 'Nenhum agendamento seu neste dia' : 'Nenhum atendimento neste dia'}
+                    </p>
                     <p className="text-[12px] text-neutro-400 mt-0.5">
-                      Compartilhe seu link para receber agendamentos
+                      {somenteMeus
+                        ? 'Agendamentos que você criou aparecem aqui.'
+                        : 'Compartilhe seu link para receber agendamentos'}
                     </p>
                   </motion.div>
                 )}
 
                 {doDia.map((c: any) => {
                   const estilo = estiloStatus[c.status]
+                  const consultaMinha = ehMinha(c)
+                  const telefone = c.telefoneContato ?? c.paciente?.telefone
+                  const whats = linkWhatsApp(
+                    telefone,
+                    `Olá, ${c.paciente?.nome}! Confirmando seu atendimento de ${fmtData(c.dataHora)} às ${hora(c.dataHora)}.`
+                  )
                   return (
                     <motion.div key={c.id} layout
                       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -14, transition: { duration: 0.18 } }}
                       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                      className="cartao-interativo overflow-hidden flex items-stretch group">
+                      className={`cartao-interativo overflow-hidden flex items-stretch group ${consultaMinha && ehVendedora ? 'border-brand-300 dark:border-brand-800' : ''}`}>
 
                       <div className={`w-1 shrink-0 ${estilo.barra}`} />
 
-                      <div className="flex items-center gap-5 px-5 py-4 flex-1 min-w-0">
-                        <div className="text-center shrink-0 w-16">
-                          <p className="text-[17px] font-semibold numerico tracking-apertado leading-none">
+                      <div className="flex items-center gap-3 sm:gap-5 px-4 sm:px-5 py-3.5 sm:py-4 flex-1 min-w-0">
+                        <div className="text-center shrink-0 w-14 sm:w-16">
+                          <p className="text-[16px] sm:text-[17px] font-semibold numerico tracking-apertado leading-none">
                             {hora(c.dataHora)}
                           </p>
                           <p className="text-[10px] text-neutro-400 mt-1">{duracao} min</p>
@@ -182,7 +231,7 @@ function AgendaCompleta() {
                         <div className="w-px self-stretch bg-neutro-100 dark:bg-neutro-800" />
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="text-[14px] font-medium truncate">{c.paciente.nome}</p>
                             {c.origemPublica && (
                               <span title="Agendado pelo link público"
@@ -190,12 +239,16 @@ function AgendaCompleta() {
                                 <Globe size={10} strokeWidth={2.2} /> Online
                               </span>
                             )}
+                            {consultaMinha && ehVendedora && (
+                              <span className="text-[10px] font-medium text-brand-700 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 px-1.5 py-0.5 rounded">
+                                Seu cliente
+                              </span>
+                            )}
                           </div>
-                          <div className="flex items-center gap-3 mt-1">
-                            {(c.telefoneContato ?? c.paciente.telefone) && (
+                          <div className="flex items-center gap-3 mt-1 flex-wrap">
+                            {telefone && (
                               <span className="flex items-center gap-1 text-[11px] text-neutro-400">
-                                <Phone size={10} strokeWidth={2} />
-                                {c.telefoneContato ?? c.paciente.telefone}
+                                <Phone size={10} strokeWidth={2} /> {telefone}
                               </span>
                             )}
                             {c.profissional && (
@@ -204,7 +257,14 @@ function AgendaCompleta() {
                                 <Stethoscope size={10} strokeWidth={2} /> {c.profissional.nome}
                               </span>
                             )}
-                            {c.vendedoraResponsavel && (
+                            {/* Quem agendou — visível sempre, especialmente útil no celular */}
+                            {c.criadoPor && (
+                              <span className="flex items-center gap-1 text-[11px] text-neutro-400"
+                                title="Agendado por">
+                                <UserRound size={10} strokeWidth={2} /> {c.criadoPor.nome}
+                              </span>
+                            )}
+                            {!c.criadoPor && c.vendedoraResponsavel && (
                               <span className="flex items-center gap-1 text-[11px] text-neutro-400"
                                 title="Vendedora responsável">
                                 <UserRound size={10} strokeWidth={2} /> {c.vendedoraResponsavel}
@@ -214,31 +274,59 @@ function AgendaCompleta() {
                         </div>
 
                         {c.valor && (
-                          <p className="text-[13px] font-medium numerico shrink-0">
+                          <p className="text-[13px] font-medium numerico shrink-0 hidden sm:block">
                             {moeda(Number(c.valor))}
                           </p>
                         )}
 
-                        <span className={`etiqueta shrink-0 ${estilo.etiqueta}`}>{estilo.texto}</span>
+                        <span className={`etiqueta shrink-0 hidden sm:flex ${estilo.etiqueta}`}>{estilo.texto}</span>
 
-                        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                          {c.status === 'AGENDADA' && (
-                            <>
-                              <button onClick={() => mudarStatus(c.id, 'CONCLUIDA')} title="Concluir"
-                                className="btn-icone !w-8 !h-8 hover:!text-brand-600 hover:!bg-brand-50 dark:hover:!bg-brand-900/30">
-                                <Check size={15} strokeWidth={2.2} />
+                        {/* Ações: VENDEDORA só vê botões nos próprios agendamentos */}
+                        {ehVendedora ? (
+                          consultaMinha ? (
+                            <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                              <button onClick={() => excluir(c.id)} title="Excluir"
+                                className="btn-icone !w-8 !h-8 hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/40">
+                                <Trash2 size={15} strokeWidth={2} />
                               </button>
-                              <button onClick={() => mudarStatus(c.id, 'FALTA')} title="Marcar falta"
-                                className="btn-icone !w-8 !h-8 hover:!text-amber-600 hover:!bg-amber-50 dark:hover:!bg-amber-950/40">
-                                <X size={15} strokeWidth={2.2} />
-                              </button>
-                            </>
-                          )}
-                          <button onClick={() => excluir(c.id)} title="Excluir"
-                            className="btn-icone !w-8 !h-8 hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/40">
-                            <Trash2 size={15} strokeWidth={2} />
-                          </button>
-                        </div>
+                            </div>
+                          ) : (
+                            /* Contato rápido para agendamentos de outros */
+                            <div className="flex items-center gap-1 shrink-0">
+                              {telefone && (
+                                <a href={`tel:${telefone.replace(/\D/g, '')}`} title={`Ligar para ${telefone}`}
+                                  className="btn-icone !w-8 !h-8">
+                                  <Phone size={14} strokeWidth={2} />
+                                </a>
+                              )}
+                              {whats && (
+                                <a href={whats} target="_blank" rel="noreferrer" title="Falar no WhatsApp"
+                                  className="btn-icone !w-8 !h-8 hover:!text-brand-600 hover:!bg-brand-50 dark:hover:!bg-brand-900/30">
+                                  <MessageCircle size={14} strokeWidth={2} />
+                                </a>
+                              )}
+                            </div>
+                          )
+                        ) : (
+                          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            {c.status === 'AGENDADA' && (
+                              <>
+                                <button onClick={() => mudarStatus(c.id, 'CONCLUIDA')} title="Concluir"
+                                  className="btn-icone !w-8 !h-8 hover:!text-brand-600 hover:!bg-brand-50 dark:hover:!bg-brand-900/30">
+                                  <Check size={15} strokeWidth={2.2} />
+                                </button>
+                                <button onClick={() => mudarStatus(c.id, 'FALTA')} title="Marcar falta"
+                                  className="btn-icone !w-8 !h-8 hover:!text-amber-600 hover:!bg-amber-50 dark:hover:!bg-amber-950/40">
+                                  <X size={15} strokeWidth={2.2} />
+                                </button>
+                              </>
+                            )}
+                            <button onClick={() => excluir(c.id)} title="Excluir"
+                              className="btn-icone !w-8 !h-8 hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/40">
+                              <Trash2 size={15} strokeWidth={2} />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   )
@@ -274,7 +362,6 @@ function ModalNovoAgendamento({ aberto, aoFechar, diaPadrao, duracao, horaAbertu
     }
   }, [profissionais, form.profissionalId])
 
-  // Limpa o formulário quando o modal abre
   useEffect(() => {
     if (aberto) {
       setAvulso(false)
@@ -298,6 +385,7 @@ function ModalNovoAgendamento({ aberto, aoFechar, diaPadrao, duracao, horaAbertu
         const novoPaciente = await enviar('/api/pacientes', 'POST', {
           nome: form.nomeAvulso.trim(),
           telefone: form.telefoneAvulso.trim() || undefined,
+          cadastroRapido: true,
         })
         pacienteId = novoPaciente.id
       } else {
@@ -337,7 +425,6 @@ function ModalNovoAgendamento({ aberto, aoFechar, diaPadrao, duracao, horaAbertu
               <button type="button" onClick={aoFechar} className="btn-icone !w-8 !h-8"><X size={17} /></button>
             </div>
 
-            {/* Toggle paciente cadastrado / avulso */}
             <button type="button"
               onClick={() => { setAvulso(!avulso); setForm((f: any) => ({ ...f, pacienteId: '', nomeAvulso: '', telefoneAvulso: '' })) }}
               className="flex items-center gap-2 text-[12px] text-neutro-500 hover:text-neutro-700 dark:hover:text-neutro-300 transition-colors">

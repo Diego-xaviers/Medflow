@@ -98,6 +98,7 @@ model Usuario {
   consultorio   Consultorio? @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
 
   consultasComoProfissional Consulta[]    @relation("ProfissionalDaConsulta")
+  consultasCriadas          Consulta[]    @relation("CriadorDaConsulta")
   receitasComoProfissional  Receita[]     @relation("ProfissionalDaReceita")
   notificacoes              Notificacao[]
   chamados                  Chamado[]
@@ -178,6 +179,10 @@ model Consulta {
   /// com NULL) e o mesmo horário poderia ser vendido duas vezes.
   profissionalId String
   profissional   Usuario @relation("ProfissionalDaConsulta", fields: [profissionalId], references: [id], onDelete: Cascade)
+
+  /// Quem criou o agendamento internamente (nulo para agendamentos públicos).
+  criadoPorId String?
+  criadoPor   Usuario? @relation("CriadorDaConsulta", fields: [criadoPorId], references: [id], onDelete: SetNull)
 
   consultorioId String
   consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)

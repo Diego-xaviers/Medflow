@@ -6,7 +6,7 @@ import { pacienteSchema } from '@/lib/schemas'
 
 export async function GET(req: NextRequest) {
   return rota(async () => {
-    const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE')
+    const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE', 'VENDEDORA')
     const busca = req.nextUrl.searchParams.get('busca')?.trim()
 
     return prisma.paciente.findMany({
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   return rota(async () => {
-    const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE')
+    const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE', 'VENDEDORA')
     const corpo = await req.json()
     const cadastroRapido = Boolean(corpo.cadastroRapido)
     const dados = pacienteSchema.parse(corpo)

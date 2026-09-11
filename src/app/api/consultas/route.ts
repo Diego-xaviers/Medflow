@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
       include: {
         paciente: { select: { id: true, nome: true, telefone: true } },
         profissional: { select: { id: true, nome: true, fotoUrl: true } },
+        criadoPor: { select: { id: true, nome: true } },
       },
       orderBy: { dataHora: 'asc' },
     })
@@ -53,9 +54,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   return rota(async () => {
-    // Agendar é ato de recepção, não de venda: a vendedora acompanha a agenda
-    // mas não mexe nela.
-    const { consultorioId, usuarioId, nome } = await exigirPapel('DONO', 'ATENDENTE')
+    const { consultorioId, usuarioId, nome } = await exigirPapel('DONO', 'ATENDENTE', 'VENDEDORA')
     const dados = consultaSchema.parse(await req.json())
 
     // O paciente também precisa ser deste consultório
@@ -83,7 +82,7 @@ export async function POST(req: NextRequest) {
     if (ocupado) throw new ErroDeNegocio(`${profissional.nome} já tem atendimento neste horário`)
 
     const consulta = await prisma.consulta.create({
-      data: { ...dados, consultorioId },
+      data: { ...dados, consultorioId, criadoPorId: usuarioId },
       include: {
         paciente: { select: { id: true, nome: true } },
         profissional: { select: { id: true, nome: true } },
