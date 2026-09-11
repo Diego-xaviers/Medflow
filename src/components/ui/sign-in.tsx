@@ -222,39 +222,42 @@ export function SignInMedflow({ depoimentos = [] }: SignInMedflowProps) {
             </div>
           </motion.div>
 
-          {/* Stats */}
-          <div className="absolute bottom-44 left-7 right-7 grid grid-cols-3 gap-3">
-            {[
-              { numero: '98%', label: 'Satisfação' },
-              { numero: '+500', label: 'Clínicas' },
-              { numero: '4.9★', label: 'Avaliação' },
-            ].map((stat, i) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 + i * 0.08, duration: 0.4 }}
-                className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/10"
-              >
-                <p
-                  className="text-white font-bold text-[18px] leading-none"
-                  style={{ letterSpacing: '-0.04em' }}
+          {/* Stats + Depoimentos — bloco único ancorado no bottom */}
+          <div className="absolute bottom-7 left-7 right-7 flex flex-col gap-3">
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { numero: '98%', label: 'Satisfação' },
+                { numero: '+500', label: 'Clínicas' },
+                { numero: '4.9★', label: 'Avaliação' },
+              ].map((stat, i) => (
+                <motion.div
+                  key={stat.label}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 + i * 0.08, duration: 0.4 }}
+                  className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/10"
                 >
-                  {stat.numero}
-                </p>
-                <p className="text-white/55 text-[11px] mt-1">{stat.label}</p>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Depoimentos */}
-          {depoimentos.length > 0 && (
-            <div className="absolute bottom-7 left-7 right-7 flex gap-3 overflow-hidden">
-              {depoimentos.slice(0, 2).map((dep, i) => (
-                <CartaoDepoimento key={dep.nome} dep={dep} delay={0.65 + i * 0.12} />
+                  <p
+                    className="text-white font-bold text-[18px] leading-none"
+                    style={{ letterSpacing: '-0.04em' }}
+                  >
+                    {stat.numero}
+                  </p>
+                  <p className="text-white/55 text-[11px] mt-1">{stat.label}</p>
+                </motion.div>
               ))}
             </div>
-          )}
+
+            {/* Depoimentos */}
+            {depoimentos.length > 0 && (
+              <div className="flex gap-3">
+                {depoimentos.slice(0, 2).map((dep, i) => (
+                  <CartaoDepoimento key={dep.nome} dep={dep} delay={0.65 + i * 0.12} />
+                ))}
+              </div>
+            )}
+          </div>
         </motion.div>
       </section>
 
