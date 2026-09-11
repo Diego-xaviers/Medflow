@@ -12,7 +12,7 @@ const depoimentos: Depoimento[] = [
     avatarSrc: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=80&q=80',
     nome: 'Dr. André Ferreira',
     cargo: 'Oftalmologista · RJ',
-    texto: 'Prontuários e agenda integrados — ganho horas por semana.',
+    texto: 'Prontuários e agenda integrados. Ganho horas por semana.',
     stat: { numero: '+500', label: 'Clínicas' },
   },
   {
