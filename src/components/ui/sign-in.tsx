@@ -15,6 +15,7 @@ export interface Depoimento {
   nome: string
   cargo: string
   texto: string
+  stat: { numero: string; label: string }
 }
 
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
@@ -27,24 +28,43 @@ function CampoGlass({ children }: { children: React.ReactNode }) {
   )
 }
 
-function CartaoDepoimento({ dep, delay }: { dep: Depoimento; delay: number }) {
+function CartaoBento({ dep, delay }: { dep: Depoimento; delay: number }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ delay, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className="flex items-start gap-3 rounded-2xl bg-white/15 backdrop-blur-xl border border-white/20 p-4 w-56 shrink-0"
+      className="bg-white/10 backdrop-blur-xl border border-white/15 rounded-2xl p-4 flex flex-col gap-3"
     >
-      <img
-        src={dep.avatarSrc}
-        className="h-9 w-9 object-cover rounded-xl flex-shrink-0"
-        alt={dep.nome}
-      />
-      <div className="text-sm leading-snug text-white min-w-0">
-        <p className="font-semibold truncate">{dep.nome}</p>
-        <p className="text-white/55 text-[11px] mb-1 truncate">{dep.cargo}</p>
-        <p className="text-white/80 text-[12px] leading-relaxed">{dep.texto}</p>
+      {/* Stat */}
+      <div>
+        <p
+          className="text-white font-bold text-[22px] leading-none"
+          style={{ letterSpacing: '-0.04em' }}
+        >
+          {dep.stat.numero}
+        </p>
+        <p className="text-white/50 text-[10px] mt-0.5 uppercase tracking-wider">
+          {dep.stat.label}
+        </p>
       </div>
+
+      {/* Divisor */}
+      <div className="border-t border-white/10" />
+
+      {/* Depoimento */}
+      <div className="flex items-start gap-2.5">
+        <img
+          src={dep.avatarSrc}
+          className="h-8 w-8 object-cover rounded-xl flex-shrink-0"
+          alt={dep.nome}
+        />
+        <div className="min-w-0">
+          <p className="text-white font-semibold text-[12px] truncate">{dep.nome}</p>
+          <p className="text-white/50 text-[10px] truncate">{dep.cargo}</p>
+        </div>
+      </div>
+      <p className="text-white/75 text-[11px] leading-relaxed">{dep.texto}</p>
     </motion.div>
   )
 }
@@ -194,7 +214,7 @@ export function SignInMedflow({ depoimentos = [] }: SignInMedflowProps) {
         </motion.div>
       </section>
 
-      {/* ── Coluna direita: hero + depoimentos ── */}
+      {/* ── Coluna direita: hero + bento grid ── */}
       <section className="hidden md:block flex-1 relative p-4">
         <motion.div
           initial={{ opacity: 0, x: 20 }}
@@ -207,57 +227,38 @@ export function SignInMedflow({ depoimentos = [] }: SignInMedflowProps) {
           }}
         >
           {/* Gradiente */}
-          <div className="absolute inset-0 bg-gradient-to-t from-neutro-950/85 via-neutro-950/20 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-neutro-950/90 via-neutro-950/30 to-transparent" />
 
-          {/* Pill de marca */}
+          {/* CTA topo */}
           <motion.div
-            initial={{ opacity: 0, y: -8 }}
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.4 }}
-            className="absolute top-7 left-7"
+            transition={{ delay: 0.35, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute top-7 left-7 right-7"
           >
-            <div className="inline-flex items-center gap-2 bg-brand-500/90 backdrop-blur-sm rounded-full px-3 py-1.5">
+            <div className="inline-flex items-center gap-2 bg-brand-500/90 backdrop-blur-sm rounded-full px-3 py-1.5 mb-4">
               <span className="text-brand-950 font-black text-[12px]" style={{ letterSpacing: '-1px' }}>+</span>
               <span className="text-brand-950 text-[12px] font-semibold">Medflow</span>
             </div>
+            <h2
+              className="text-white text-[26px] font-bold leading-tight max-w-xs"
+              style={{ letterSpacing: '-0.04em' }}
+            >
+              A plataforma que sua clínica merece
+            </h2>
+            <p className="text-white/60 text-[13px] mt-2 max-w-[260px] leading-relaxed">
+              Agenda, prontuários e financeiro integrados — tudo em um só lugar.
+            </p>
           </motion.div>
 
-          {/* Stats + Depoimentos — bloco único ancorado no bottom */}
-          <div className="absolute bottom-7 left-7 right-7 flex flex-col gap-3">
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { numero: '98%', label: 'Satisfação' },
-                { numero: '+500', label: 'Clínicas' },
-                { numero: '4.9★', label: 'Avaliação' },
-              ].map((stat, i) => (
-                <motion.div
-                  key={stat.label}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + i * 0.08, duration: 0.4 }}
-                  className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/10"
-                >
-                  <p
-                    className="text-white font-bold text-[18px] leading-none"
-                    style={{ letterSpacing: '-0.04em' }}
-                  >
-                    {stat.numero}
-                  </p>
-                  <p className="text-white/55 text-[11px] mt-1">{stat.label}</p>
-                </motion.div>
+          {/* Bento grid: 2×2 com stat + depoimento em cada célula */}
+          {depoimentos.length > 0 && (
+            <div className="absolute bottom-7 left-7 right-7 grid grid-cols-2 gap-2.5">
+              {depoimentos.slice(0, 4).map((dep, i) => (
+                <CartaoBento key={dep.nome} dep={dep} delay={0.5 + i * 0.1} />
               ))}
             </div>
-
-            {/* Depoimentos */}
-            {depoimentos.length > 0 && (
-              <div className="flex gap-3">
-                {depoimentos.slice(0, 2).map((dep, i) => (
-                  <CartaoDepoimento key={dep.nome} dep={dep} delay={0.65 + i * 0.12} />
-                ))}
-              </div>
-            )}
-          </div>
+          )}
         </motion.div>
       </section>
 
