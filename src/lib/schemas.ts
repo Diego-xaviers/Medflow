@@ -3,27 +3,27 @@ import { FUSOS_BR, NOMES_DIAS } from './agenda'
 
 export const pacienteSchema = z.object({
   nome: z.string().min(2, 'Informe o nome do paciente'),
-  email: z.string().email('E-mail inválido').optional().or(z.literal('')),
-  telefone: z.string().optional(),
+  email: z.string().email('E-mail inválido').optional().nullable().or(z.literal('')),
+  telefone: z.string().optional().nullable(),
   dataNascimento: z.coerce.date().optional().nullable(),
   ativo: z.boolean().default(true),
 
-  cpf: z.string().optional(),
-  rg: z.string().optional(),
-  sexo: z.string().optional(),
-  profissao: z.string().optional(),
+  cpf: z.string().optional().nullable(),
+  rg: z.string().optional().nullable(),
+  sexo: z.string().optional().nullable(),
+  profissao: z.string().optional().nullable(),
 
-  cep: z.string().optional(),
-  logradouro: z.string().optional(),
-  numero: z.string().optional(),
-  complemento: z.string().optional(),
-  bairro: z.string().optional(),
-  cidade: z.string().optional(),
-  estado: z.string().optional(),
+  cep: z.string().optional().nullable(),
+  logradouro: z.string().optional().nullable(),
+  numero: z.string().optional().nullable(),
+  complemento: z.string().optional().nullable(),
+  bairro: z.string().optional().nullable(),
+  cidade: z.string().optional().nullable(),
+  estado: z.string().optional().nullable(),
 
-  convenio: z.string().optional(),
-  observacoesGerais: z.string().optional(),
-  origemContato: z.string().optional(),
+  convenio: z.string().optional().nullable(),
+  observacoesGerais: z.string().optional().nullable(),
+  origemContato: z.string().optional().nullable(),
 })
 
 export const consultaSchema = z.object({
