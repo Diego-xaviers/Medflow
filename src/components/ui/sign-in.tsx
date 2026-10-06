@@ -7,6 +7,7 @@ import { signIn } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff, Loader2, LogIn } from 'lucide-react'
 import { CHAVE_BOAS_VINDAS } from '@/components/BoasVindas'
+import { CHAVE_SESSAO_ATIVA } from '@/components/Moldura'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ export function SignInMedflow({ depoimentos = [] }: SignInMedflowProps) {
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [mostrarSenha, setMostrarSenha] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
 
@@ -88,12 +90,23 @@ export function SignInMedflow({ depoimentos = [] }: SignInMedflowProps) {
     setEnviando(true)
     setErro(null)
 
-    const resultado = await signIn('credentials', { email, senha, redirect: false })
+    const resultado = await signIn('credentials', {
+      email,
+      senha,
+      rememberMe: String(rememberMe),
+      redirect: false,
+    })
 
     if (resultado?.error) {
       setErro('E-mail ou senha inválidos.')
       setEnviando(false)
       return
+    }
+
+    // Sem "lembrar de mim": marca sessão ativa no sessionStorage.
+    // Fechar o browser zera o sessionStorage e força novo login.
+    if (!rememberMe) {
+      try { sessionStorage.setItem(CHAVE_SESSAO_ATIVA, '1') } catch {}
     }
 
     sessionStorage.setItem(CHAVE_BOAS_VINDAS, '1')
@@ -179,6 +192,16 @@ export function SignInMedflow({ depoimentos = [] }: SignInMedflowProps) {
                 </div>
               </CampoGlass>
             </div>
+
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border-neutro-300 accent-brand-500 cursor-pointer"
+              />
+              <span className="text-[13px] text-neutro-600 dark:text-neutro-400">Lembrar de mim</span>
+            </label>
 
             {erro && (
               <motion.p

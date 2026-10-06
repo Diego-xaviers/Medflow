@@ -16,14 +16,26 @@ import { podeAbrir, TELA_INICIAL, type PapelUsuario } from '@/lib/permissoes'
  * middleware entrasse na frente, o fetch do navegador receberia o HTML de uma
  * tela de login e a mensagem de erro exibida ao usuário viraria lixo.
  */
+const SESSION_TTL = 24 * 3600 // 24h — safety net para sessões sem "lembrar de mim"
+
 export default withAuth(
   function middleware(req) {
-    const papel = req.nextauth.token?.papel as PapelUsuario | undefined
+    const token = req.nextauth.token
+    const papel = token?.papel as PapelUsuario | undefined
     const caminho = req.nextUrl.pathname
 
+    // Sessão sem "lembrar de mim": expira após 24h como fallback server-side.
+    // A proteção primária é o check de sessionStorage no Moldura (client).
+    if (!token?.rememberMe && token?.loginAt) {
+      if (Math.floor(Date.now() / 1000) > (token.loginAt as number) + SESSION_TTL) {
+        const destino = req.nextUrl.clone()
+        destino.pathname = '/login'
+        destino.search = ''
+        return NextResponse.redirect(destino)
+      }
+    }
+
     if (papel && !podeAbrir(papel, caminho)) {
-      // Devolve para a tela inicial do papel em vez de mostrar um 403 seco:
-      // quem chegou aqui geralmente clicou num link antigo ou trocou de conta.
       const destino = req.nextUrl.clone()
       destino.pathname = TELA_INICIAL[papel] ?? '/'
       destino.search = ''

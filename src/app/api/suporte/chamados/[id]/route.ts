@@ -16,6 +16,7 @@ const mensagemSchema = z.object({
 const ajusteSchema = z.object({
   escalar: z.boolean().optional(),
   resolver: z.boolean().optional(),
+  reabrir: z.boolean().optional(),
 })
 
 /**
@@ -126,6 +127,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           link: '/suporte',
         })
       }
+    }
+
+    if (dados.reabrir && chamado.status === 'RESOLVIDO') {
+      await prisma.chamado.update({
+        where: { id: chamado.id },
+        data: { status: 'ABERTO' },
+      })
     }
 
     if (dados.escalar && !chamado.escalado) {

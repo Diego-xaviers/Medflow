@@ -16,48 +16,50 @@ datasource db {
 
 /// O tenant. Cada optometrista tem o seu.
 model Consultorio {
-  id        String   @id @default(cuid())
-  nome      String
+  id       String  @id @default(cuid())
+  nome     String
   /// Usado na URL pública de agendamento: /agendar/{slug}
-  slug      String   @unique
-  telefone  String?
-  endereco  String?
+  slug     String  @unique
+  telefone String?
+  endereco String?
 
   /// Logo da clínica, como data URI. Sai no cabeçalho da receita impressa.
   /// Mesma escolha da foto de perfil: sem storage de arquivos contratado, e
   /// a imagem é recortada e reduzida no navegador antes de subir. Guardada em
   /// PNG para preservar transparência — logo sobre fundo branco é o caso.
-  logoUrl   String?  @db.Text
+  logoUrl String? @db.Text
 
   /// Quanto dura cada atendimento. Junto com os blocos de expediente, é o que
   /// define os horários que o link público oferece.
-  duracaoConsultaMin Int    @default(30)
+  duracaoConsultaMin Int      @default(30)
   /// Fuso da clínica, no padrão IANA. Precisa existir: o servidor roda em UTC
   /// na Vercel, então "abre às 8h" sem fuso viraria 8h UTC — 5h da manhã aqui.
   /// E o Brasil tem mais de um fuso: Cuiabá é UTC-4, São Paulo é UTC-3.
-  fusoHorario        String @default("America/Sao_Paulo")
-  ativo     Boolean  @default(true)
-  criadoEm  DateTime @default(now())
+  fusoHorario        String   @default("America/Sao_Paulo")
+  ativo              Boolean  @default(true)
+  criadoEm           DateTime @default(now())
 
   /// Dia do mês de vencimento (1-28). Quando preenchido, o formulário de
   /// nova fatura auto-preenche o campo vencimento com base na competência.
-  diaVencimento  Int?
+  diaVencimento Int?
 
   /// Libera o acesso manualmente, ignorando o bloqueio automático por
   /// inadimplência. Útil quando o admin decide dar carência extra.
   acessoLiberado Boolean @default(false)
 
-  usuarios     Usuario[]
-  pacientes    Paciente[]
-  consultas    Consulta[]
-  lancamentos  Lancamento[]
-  prontuarios  Prontuario[]
-  receitas     Receita[]
-  notificacoes Notificacao[]
+  usuarios         Usuario[]
+  pacientes        Paciente[]
+  consultas        Consulta[]
+  lancamentos      Lancamento[]
+  prontuarios      Prontuario[]
+  receitas         Receita[]
+  encaminhamentos  Encaminhamento[]
+  ausencias        Ausencia[]
+  notificacoes    Notificacao[]
   blocosExpediente BlocoExpediente[]
-  faturas      Fatura[]
-  chamados     Chamado[]
-  logsAuditoria LogAuditoria[]
+  faturas          Fatura[]
+  chamados         Chamado[]
+  logsAuditoria    LogAuditoria[]
 
   @@map("consultorios")
 }
@@ -97,9 +99,11 @@ model Usuario {
   consultorioId String?
   consultorio   Consultorio? @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
 
-  consultasComoProfissional Consulta[]    @relation("ProfissionalDaConsulta")
-  consultasCriadas          Consulta[]    @relation("CriadorDaConsulta")
-  receitasComoProfissional  Receita[]     @relation("ProfissionalDaReceita")
+  consultasComoProfissional Consulta[]     @relation("ProfissionalDaConsulta")
+  consultasCriadas          Consulta[]     @relation("CriadorDaConsulta")
+  receitasComoProfissional  Receita[]      @relation("ProfissionalDaReceita")
+  encaminhamentosEmitidos   Encaminhamento[] @relation("ProfissionalDoEncaminhamento")
+  ausencias                 Ausencia[]
   notificacoes              Notificacao[]
   chamados                  Chamado[]
   logsAuditoria             LogAuditoria[]
@@ -118,18 +122,18 @@ model Paciente {
   criadoEm       DateTime  @default(now())
 
   // Documento e endereço — necessários para emitir receita e para contato
-  cpf        String?
-  rg         String?
-  sexo       String?
-  profissao  String?
+  cpf       String?
+  rg        String?
+  sexo      String?
+  profissao String?
 
-  cep        String?
-  logradouro String?
-  numero     String?
+  cep         String?
+  logradouro  String?
+  numero      String?
   complemento String?
-  bairro     String?
-  cidade     String?
-  estado     String?
+  bairro      String?
+  cidade      String?
+  estado      String?
 
   // Contexto clínico rápido, que o optometrista quer ver antes do atendimento
   convenio          String?
@@ -228,16 +232,16 @@ model Lancamento {
 /// Tudo aqui é achado clínico: o que o paciente relata e o que o
 /// optometrista mede/observa. A prescrição final NÃO fica aqui.
 model Prontuario {
-  id       String   @id @default(cuid())
+  id        String   @id @default(cuid())
   dataExame DateTime @default(now())
 
   // Anamnese
-  queixaPrincipal      String?
-  historicoOcular      String?
-  historicoSistemico   String?
-  medicamentosEmUso    String?
-  usaCorrecaoAtual     Boolean @default(false)
-  tempoUltimoExame     String?
+  queixaPrincipal    String?
+  historicoOcular    String?
+  historicoSistemico String?
+  medicamentosEmUso  String?
+  usaCorrecaoAtual   Boolean @default(false)
+  tempoUltimoExame   String?
 
   // Acuidade visual SEM correção
   avSemCorrecaoOD String?
@@ -248,26 +252,26 @@ model Prontuario {
   avComCorrecaoOE String?
 
   // Refração encontrada no exame (achado, não prescrição)
-  refracaoEsfericoOD  String?
+  refracaoEsfericoOD   String?
   refracaoCilindricoOD String?
-  refracaoEixoOD      String?
-  refracaoEsfericoOE  String?
+  refracaoEixoOD       String?
+  refracaoEsfericoOE   String?
   refracaoCilindricoOE String?
-  refracaoEixoOE      String?
+  refracaoEixoOE       String?
 
   // Adição (presbiopia) — herdada pela receita para não redigitar
   adicaoOD String?
   adicaoOE String?
 
   // Exames complementares
-  biomicroscopia   String?
-  tonometriaOD     String?
-  tonometriaOE     String?
-  fundoscopia      String?
-  motilidadeOcular String?
-  testeCobertura   String?
+  biomicroscopia    String?
+  tonometriaOD      String?
+  tonometriaOE      String?
+  fundoscopia       String?
+  motilidadeOcular  String?
+  testeCobertura    String?
   reflexosPupilares String?
-  visaoCores       String?
+  visaoCores        String?
 
   // Conclusão
   diagnostico String?
@@ -310,9 +314,9 @@ enum TipoLente {
 /// a lente. O grau abaixo é o prescrito, que pode diferir do achado no exame
 /// (o optometrista costuma ajustar por conforto/adaptação).
 model Receita {
-  id             String   @id @default(cuid())
-  dataEmissao    DateTime @default(now())
-  validadeAte    DateTime
+  id          String   @id @default(cuid())
+  dataEmissao DateTime @default(now())
+  validadeAte DateTime
 
   // Longe
   longeEsfericoOD   String?
@@ -321,6 +325,14 @@ model Receita {
   longeEsfericoOE   String?
   longeCilindricoOE String?
   longeEixoOE       String?
+
+  // Perto
+  pertoEsfericoOD   String?
+  pertoCilindricoOD String?
+  pertoEixoOD       String?
+  pertoEsfericoOE   String?
+  pertoCilindricoOE String?
+  pertoEixoOE       String?
 
   // Adição (presbiopia)
   adicaoOD String?
@@ -336,11 +348,11 @@ model Receita {
   avCorrigidaOE String?
 
   // Distância pupilar e altura de montagem
-  dpLongeOD  String?
-  dpLongeOE  String?
-  dpPerto    String?
-  alturaOD   String?
-  alturaOE   String?
+  dpLongeOD String?
+  dpLongeOE String?
+  dpPerto   String?
+  alturaOD  String?
+  alturaOE  String?
 
   // Prisma, quando indicado
   prismaOD     String?
@@ -349,10 +361,10 @@ model Receita {
   baseprismaOE String?
 
   // Indicação da lente
-  tipoLente        TipoLente @default(MONOFOCAL)
-  materialLente    String?
-  tratamentos      String?
-  orientacoesUso   String?
+  tipoLente      TipoLente @default(MONOFOCAL)
+  materialLente  String?
+  tratamentos    String?
+  orientacoesUso String?
 
   pacienteId String
   paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
@@ -373,6 +385,25 @@ model Receita {
 
   @@index([consultorioId, pacienteId])
   @@map("receitas")
+}
+
+/// Encaminhamento em texto livre, escrito pelo próprio profissional. O
+/// paciente vai por nome digitado, não por vínculo: encaminha-se também quem
+/// ainda não tem ficha na clínica.
+model Encaminhamento {
+  id           String   @id @default(cuid())
+  dataEmissao  DateTime @default(now())
+  pacienteNome String
+  texto        String
+
+  profissionalId String?
+  profissional   Usuario? @relation("ProfissionalDoEncaminhamento", fields: [profissionalId], references: [id], onDelete: SetNull)
+
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+
+  @@index([consultorioId])
+  @@map("encaminhamentos")
 }
 
 /// Aviso na campainha do topo. Uma linha por destinatário: com equipe pequena
@@ -460,19 +491,39 @@ model MensagemChamado {
 /// como padrão de quem ainda não montou os blocos — e foi assim que os
 /// consultórios já cadastrados ganharam a grade inicial sem intervenção.
 model BlocoExpediente {
-  id         String @id @default(cuid())
+  id        String @id @default(cuid())
   /// 0 = domingo … 6 = sábado, no padrão do Date.getDay().
-  diaSemana  Int
+  diaSemana Int
   /// Minutos desde a meia-noite: 8h = 480, 12h30 = 750. Guardar em minuto
   /// evita a dupla hora+minuto e permite meia hora sem campo extra.
-  inicioMin  Int
-  fimMin     Int
+  inicioMin Int
+  fimMin    Int
 
   consultorioId String
   consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
 
   @@index([consultorioId, diaSemana])
   @@map("blocos_expediente")
+}
+
+/// Período em que um profissional não atende (férias, curso, consulta
+/// médica). Nenhum agendamento — público ou interno — cai dentro dele.
+/// Guardado como instante exato: dia inteiro vira 00h do primeiro dia até
+/// 00h do dia seguinte ao último, no fuso do consultório.
+model Ausencia {
+  id     String   @id @default(cuid())
+  inicio DateTime
+  fim    DateTime
+  motivo String?
+
+  profissionalId String
+  profissional   Usuario @relation(fields: [profissionalId], references: [id], onDelete: Cascade)
+
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+
+  @@index([consultorioId, profissionalId, inicio])
+  @@map("ausencias")
 }
 
 enum StatusFatura {
@@ -529,16 +580,16 @@ model ParametrosSaas {
 /// Registra ações sensíveis: criação/edição de pacientes, emissão de receitas,
 /// acesso a prontuários, gestão de usuários.
 model LogAuditoria {
-  id            String   @id @default(cuid())
-  acao          String
-  entidade      String
-  entidadeId    String?
-  detalhes      String?  @db.Text
-  ip            String?
-  criadoEm     DateTime @default(now())
+  id         String   @id @default(cuid())
+  acao       String
+  entidade   String
+  entidadeId String?
+  detalhes   String?  @db.Text
+  ip         String?
+  criadoEm   DateTime @default(now())
 
-  usuarioId     String?
-  usuario       Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   consultorioId String?
   consultorio   Consultorio? @relation(fields: [consultorioId], references: [id], onDelete: SetNull)
@@ -551,9 +602,9 @@ model LogAuditoria {
 /// Tentativas de login para rate limiting sem depender de Redis externo.
 /// Linhas antigas são varridas periodicamente ou via cron.
 model TentativaLogin {
-  id        String   @id @default(cuid())
-  email     String
-  ip        String
+  id       String   @id @default(cuid())
+  email    String
+  ip       String
   criadoEm DateTime @default(now())
 
   @@index([email, criadoEm])

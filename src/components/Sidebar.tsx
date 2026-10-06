@@ -5,27 +5,28 @@ import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { useSession } from 'next-auth/react'
 import {
-  LayoutGrid, CalendarDays, Users, FileText, Receipt, Wallet,
+  LayoutGrid, CalendarDays, Users, FileText, Receipt, Send, Wallet,
   Bell, BarChart3, LifeBuoy, Settings, UserCircle, UsersRound, Building2,
 } from 'lucide-react'
 import { podeAbrir, type PapelUsuario } from '@/lib/permissoes'
 
-const principais = [
+export const principais = [
   { label: 'Dashboard', icon: LayoutGrid, href: '/' },
   { label: 'Agenda', icon: CalendarDays, href: '/agenda' },
   { label: 'Pacientes', icon: Users, href: '/pacientes' },
   { label: 'Prontuários', icon: FileText, href: '/prontuarios' },
   { label: 'Receitas', icon: Receipt, href: '/receitas' },
+  { label: 'Encaminhamentos', icon: Send, href: '/encaminhamentos' },
 ]
 
-const operacao = [
+export const operacao = [
   { label: 'Financeiro', icon: Wallet, href: '/financeiro' },
   { label: 'Lembretes', icon: Bell, href: '/lembretes' },
   { label: 'Relatórios', icon: BarChart3, href: '/relatorios' },
   { label: 'Suporte', icon: LifeBuoy, href: '/suporte' },
 ]
 
-const admin = [
+export const admin = [
   { label: 'Cobrança', icon: Wallet, href: '/cobranca' },
   { label: 'Consultórios', icon: Building2, href: '/admin' },
   { label: 'Equipe', icon: UsersRound, href: '/equipe' },

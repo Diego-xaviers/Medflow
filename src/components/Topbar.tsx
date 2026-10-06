@@ -5,10 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
 import Link from 'next/link'
 import useSWR from 'swr'
-import { Search, Moon, Sun, LogOut, ChevronDown, UserRound, Pencil, Menu } from 'lucide-react'
+import { Moon, Sun, LogOut, ChevronDown, UserRound, Pencil, Menu } from 'lucide-react'
 import { useTema } from './TemaProvider'
 import Avatar from './Avatar'
 import Notificacoes from './Notificacoes'
+import BuscaGlobal from './BuscaGlobal'
 import { fetcher } from '@/lib/fetcher'
 
 const rotuloPapel: Record<string, string> = {
@@ -39,17 +40,7 @@ export default function Topbar({ aoAbrirMenu }: { aoAbrirMenu?: () => void } = {
         <p className="text-[14px] font-semibold tracking-apertado">Medflow</p>
       </div>
 
-      {/* Busca */}
-      <div className="hidden md:flex group items-center gap-2.5 w-full max-w-sm px-3 py-2 rounded-lg border border-neutro-200 dark:border-neutro-700 bg-neutro-50/60 dark:bg-neutro-950/40 transition-all duration-200 focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-500/10 focus-within:bg-white dark:focus-within:bg-neutro-950">
-        <Search size={15} className="text-neutro-400 shrink-0" strokeWidth={2} />
-        <input
-          className="w-full bg-transparent outline-none text-[13px] placeholder:text-neutro-400"
-          placeholder="Buscar paciente, consulta..."
-        />
-        <kbd className="text-[10px] font-medium text-neutro-400 bg-white dark:bg-neutro-800 border border-neutro-200 dark:border-neutro-700 px-1.5 py-0.5 rounded shrink-0">
-          ⌘K
-        </kbd>
-      </div>
+      <BuscaGlobal />
 
       <div className="flex items-center gap-0.5 sm:gap-1.5 md:ml-6">
         {/* Tema */}

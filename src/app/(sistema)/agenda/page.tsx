@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Link2, Check, Trash2, Loader2, Globe, UserRound, Phone,
-  CalendarPlus, X, Clock, Stethoscope, ToggleLeft, ToggleRight, MessageCircle, Pencil,
+  CalendarPlus, CalendarOff, X, Clock, Stethoscope, ToggleLeft, ToggleRight, MessageCircle, Pencil,
 } from 'lucide-react'
 import { format, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -35,6 +35,35 @@ const estiloStatus: Record<string, { etiqueta: string; barra: string; texto: str
   },
 }
 
+/** Nome de quem agendou; agendamento antigo ou do link público não tem usuário. */
+function quemAgendou(c: any) {
+  return c.criadoPor?.nome ?? c.vendedoraResponsavel ?? (c.origemPublica ? 'link público' : 'não registrado')
+}
+
+/** "o dia todo" ou "das 14:00 às 18:00", recortado ao dia exibido. */
+function periodoNoDia(a: any, inicioDia: Date, fimDia: Date) {
+  const ini = new Date(Math.max(new Date(a.inicio).getTime(), inicioDia.getTime()))
+  const fim = new Date(Math.min(new Date(a.fim).getTime(), fimDia.getTime()))
+  if (ini.getTime() === inicioDia.getTime() && fim.getTime() === fimDia.getTime()) return 'o dia todo'
+  return `das ${format(ini, 'HH:mm')} às ${fim.getTime() === fimDia.getTime() ? '24:00' : format(fim, 'HH:mm')}`
+}
+
+/** Período legível de uma ausência para a lista do modal. */
+function descreverAusencia(a: any) {
+  const ini = new Date(a.inicio)
+  const fim = new Date(a.fim)
+  const diaInteiro = format(ini, 'HH:mm') === '00:00' && format(fim, 'HH:mm') === '00:00'
+  if (diaInteiro) {
+    const ultimo = new Date(fim.getTime() - 1)
+    return isSameDay(ini, ultimo)
+      ? `${fmtData(ini)} · dia todo`
+      : `${fmtData(ini)} a ${fmtData(ultimo)} · dias inteiros`
+  }
+  return isSameDay(ini, fim)
+    ? `${fmtData(ini)} · ${format(ini, 'HH:mm')}–${format(fim, 'HH:mm')}`
+    : `${fmtData(ini)} ${format(ini, 'HH:mm')} a ${fmtData(fim)} ${format(fim, 'HH:mm')}`
+}
+
 export default function AgendaPage() {
   return <AgendaCompleta />
 }
@@ -52,6 +81,8 @@ function AgendaCompleta() {
   const [modal, setModal] = useState(false)
   const [editando, setEditando] = useState<any | null>(null)
   const [somenteMeus, setSomenteMeus] = useState(false)
+  const [desfazerFalta, setDesfazerFalta] = useState<string | null>(null)
+  const [ajustandoValor, setAjustandoValor] = useState<any | null>(null)
 
   const chaveMes = `/api/consultas?mes=${format(mesRef, 'yyyy-MM')}`
   const { data: doMes, isLoading, mutate } = useSWR(chaveMes, fetcher, {
@@ -59,6 +90,18 @@ function AgendaCompleta() {
   })
 
   const { data: config } = useSWR('/api/consultorio', fetcher)
+  const { data: profissionais } = useSWR('/api/profissionais', fetcher)
+  const { data: ausencias, mutate: recarregarAusencias } = useSWR('/api/ausencias', fetcher)
+  const [modalAusencia, setModalAusencia] = useState(false)
+  // Só quem atende pacientes fecha a própria agenda.
+  const atendo = !!profissionais?.some((p: any) => p.id === meuId)
+
+  // Ausências que encostam no dia selecionado, de qualquer profissional.
+  const inicioDia = new Date(dia); inicioDia.setHours(0, 0, 0, 0)
+  const fimDia = new Date(inicioDia); fimDia.setDate(fimDia.getDate() + 1)
+  const ausentesNoDia = (ausencias ?? []).filter(
+    (a: any) => new Date(a.inicio) < fimDia && new Date(a.fim) > inicioDia
+  )
   const duracao = config?.duracaoConsultaMin ?? 30
 
   useEffect(() => {
@@ -80,6 +123,18 @@ function AgendaCompleta() {
   async function mudarStatus(id: string, status: string) {
     await enviar(`/api/consultas/${id}`, 'PATCH', { status })
     mutate()
+  }
+
+  async function aoMarcarFalta(id: string) {
+    await mudarStatus(id, 'FALTA')
+    setDesfazerFalta(id)
+    setTimeout(() => setDesfazerFalta(null), 20000)
+  }
+
+  async function aoDesfazer() {
+    const id = desfazerFalta
+    setDesfazerFalta(null)
+    if (id) await mudarStatus(id, 'AGENDADA')
   }
 
   async function excluir(id: string) {
@@ -116,6 +171,11 @@ function AgendaCompleta() {
             {copiado ? <Check size={16} className="text-brand-600" /> : <Link2 size={16} strokeWidth={2} />}
             {copiado ? 'Link copiado' : 'Link de agendamento'}
           </button>
+          {atendo && (
+            <button onClick={() => setModalAusencia(true)} className="btn-suave">
+              <CalendarOff size={16} strokeWidth={2} /> Minhas ausências
+            </button>
+          )}
           <button onClick={() => setModal(true)} className="btn-primario">
             <CalendarPlus size={16} strokeWidth={2.2} /> Novo agendamento
           </button>
@@ -179,6 +239,20 @@ function AgendaCompleta() {
               ))}
             </div>
           </div>
+
+          {ausentesNoDia.length > 0 && (
+            <div className="mb-3 space-y-1.5">
+              {ausentesNoDia.map((a: any) => (
+                <div key={a.id} className="flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-[12px] text-amber-800 dark:text-amber-300">
+                  <CalendarOff size={13} strokeWidth={2} className="shrink-0" />
+                  <span>
+                    <strong className="font-medium">{a.profissional?.nome}</strong> ausente {periodoNoDia(a, inicioDia, fimDia)}
+                    {a.motivo && <span className="text-amber-600/80 dark:text-amber-400/70"> · {a.motivo}</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {isLoading ? (
             <div className="space-y-3">
@@ -258,27 +332,34 @@ function AgendaCompleta() {
                                 <Stethoscope size={10} strokeWidth={2} /> {c.profissional.nome}
                               </span>
                             )}
-                            {/* Quem agendou — visível sempre, especialmente útil no celular */}
-                            {c.criadoPor && (
-                              <span className="flex items-center gap-1 text-[11px] text-neutro-400"
-                                title="Agendado por">
-                                <UserRound size={10} strokeWidth={2} /> {c.criadoPor.nome}
-                              </span>
-                            )}
-                            {!c.criadoPor && c.vendedoraResponsavel && (
-                              <span className="flex items-center gap-1 text-[11px] text-neutro-400"
-                                title="Vendedora responsável">
-                                <UserRound size={10} strokeWidth={2} /> {c.vendedoraResponsavel}
+                            {/* Quem agendou — sempre visível. Só o profissional
+                                da consulta pode corrigir. */}
+                            {c.profissionalId === meuId ? (
+                              <button onClick={() => setEditando(c)}
+                                title="Agendado por — clique para corrigir"
+                                className="flex items-center gap-1 text-[11px] text-neutro-400 hover:text-brand-600 transition-colors">
+                                <UserRound size={10} strokeWidth={2} /> Agendado por {quemAgendou(c)}
+                                <Pencil size={9} strokeWidth={2} />
+                              </button>
+                            ) : (
+                              <span className="flex items-center gap-1 text-[11px] text-neutro-400" title="Agendado por">
+                                <UserRound size={10} strokeWidth={2} /> Agendado por {quemAgendou(c)}
                               </span>
                             )}
                           </div>
                         </div>
 
-                        {c.valor && (
-                          <p className="text-[13px] font-medium numerico shrink-0 hidden sm:block">
-                            {moeda(Number(c.valor))}
+                        <div className="hidden sm:flex items-center gap-1 shrink-0">
+                          <p className="text-[13px] font-medium numerico">
+                            {c.valor ? moeda(Number(c.valor)) : <span className="text-neutro-300 dark:text-neutro-600">—</span>}
                           </p>
-                        )}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setAjustandoValor(c) }}
+                            title="Ajustar valor"
+                            className="btn-icone !w-6 !h-6 !text-neutro-300 opacity-0 group-hover:opacity-100 hover:!text-brand-600 hover:!bg-brand-50 dark:hover:!bg-brand-900/30 transition-opacity">
+                            <Pencil size={11} strokeWidth={2} />
+                          </button>
+                        </div>
 
                         <span className={`etiqueta shrink-0 hidden sm:flex ${estilo.etiqueta}`}>{estilo.texto}</span>
 
@@ -320,11 +401,18 @@ function AgendaCompleta() {
                                   className="btn-icone !w-8 !h-8 hover:!text-brand-600 hover:!bg-brand-50 dark:hover:!bg-brand-900/30">
                                   <Check size={15} strokeWidth={2.2} />
                                 </button>
-                                <button onClick={() => mudarStatus(c.id, 'FALTA')} title="Marcar falta"
+                                <button onClick={() => aoMarcarFalta(c.id)} title="Marcar falta"
                                   className="btn-icone !w-8 !h-8 hover:!text-amber-600 hover:!bg-amber-50 dark:hover:!bg-amber-950/40">
                                   <X size={15} strokeWidth={2.2} />
                                 </button>
                               </>
+                            )}
+                            {/* O profissional da consulta edita o agendamento inteiro */}
+                            {c.profissionalId === meuId && (
+                              <button onClick={() => setEditando(c)} title="Editar agendamento"
+                                className="btn-icone !w-8 !h-8 hover:!text-brand-600 hover:!bg-brand-50 dark:hover:!bg-brand-900/30">
+                                <Pencil size={14} strokeWidth={2} />
+                              </button>
                             )}
                             <button onClick={() => excluir(c.id)} title="Excluir"
                               className="btn-icone !w-8 !h-8 hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/40">
@@ -346,8 +434,33 @@ function AgendaCompleta() {
         diaPadrao={dia} duracao={duracao} horaAbertura={config?.horaAbertura ?? 8}
         aoSalvar={() => { setModal(false); mutate() }} />
 
-      <ModalEditarAgendamento consulta={editando} aoFechar={() => setEditando(null)}
+      <ModalAusencias aberto={modalAusencia} aoFechar={() => setModalAusencia(false)}
+        minhas={(ausencias ?? []).filter((a: any) => a.profissional?.id === meuId && new Date(a.fim) > new Date())}
+        aoMudar={() => recarregarAusencias()} />
+
+      <ModalEditarAgendamento consulta={editando} meuId={meuId} aoFechar={() => setEditando(null)}
         aoSalvar={() => { setEditando(null); mutate() }} />
+
+      <ModalAjustarValor consulta={ajustandoValor} aoFechar={() => setAjustandoValor(null)}
+        aoSalvar={() => { setAjustandoValor(null); mutate() }} />
+
+
+      <AnimatePresence>
+        {desfazerFalta && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-neutro-900 dark:bg-white text-white dark:text-neutro-900 px-4 py-3 rounded-xl shadow-alta text-[13px] font-medium whitespace-nowrap">
+            <span>Falta registrada.</span>
+            <button onClick={aoDesfazer}
+              className="text-brand-400 dark:text-brand-600 hover:text-brand-300 dark:hover:text-brand-500 font-semibold transition-colors">
+              Desfazer
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -521,11 +634,208 @@ function ModalNovoAgendamento({ aberto, aoFechar, diaPadrao, duracao, horaAbertu
   )
 }
 
-function ModalEditarAgendamento({ consulta, aoFechar, aoSalvar }: { consulta: any; aoFechar: () => void; aoSalvar: () => void }) {
+function ModalAjustarValor({ consulta, aoFechar, aoSalvar }: { consulta: any; aoFechar: () => void; aoSalvar: () => void }) {
+  const [valor, setValor] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (consulta) {
+      setValor(consulta.valor ? String(Number(consulta.valor)) : '')
+      setErro(null)
+    }
+  }, [consulta])
+
+  async function salvar(e: React.FormEvent) {
+    e.preventDefault()
+    setSalvando(true); setErro(null)
+    try {
+      await enviar(`/api/consultas/${consulta.id}`, 'PATCH', { valor: valor ? Number(valor) : null })
+      aoSalvar()
+    } catch (e: any) { setErro(e.message) } finally { setSalvando(false) }
+  }
+
+  return (
+    <AnimatePresence>
+      {consulta && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-neutro-900/30 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+          <motion.form onSubmit={salvar}
+            initial={{ opacity: 0, y: 14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="cartao shadow-alta w-full max-w-xs p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-[16px] font-semibold">Ajustar valor</h2>
+                <p className="text-[12px] text-neutro-400 mt-0.5">{consulta?.paciente?.nome}</p>
+              </div>
+              <button type="button" onClick={aoFechar} className="btn-icone !w-8 !h-8"><X size={17} /></button>
+            </div>
+            <div>
+              <label className="rotulo">Valor da consulta</label>
+              <input type="number" step="0.01" min="0" className="campo" placeholder="0,00"
+                value={valor} autoFocus onChange={(e) => setValor(e.target.value)} />
+            </div>
+            {erro && <p className="text-[12px] text-red-600">{erro}</p>}
+            <div className="flex justify-end gap-2.5 pt-1">
+              <button type="button" onClick={aoFechar}
+                className="btn text-neutro-500 hover:bg-neutro-100 dark:hover:bg-neutro-800">Cancelar</button>
+              <button type="submit" disabled={salvando} className="btn-primario">
+                {salvando && <Loader2 size={14} className="animate-spin" />} Salvar
+              </button>
+            </div>
+          </motion.form>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+function ModalAusencias({ aberto, aoFechar, minhas, aoMudar }: { aberto: boolean; aoFechar: () => void; minhas: any[]; aoMudar: () => void }) {
+  const hoje = format(new Date(), 'yyyy-MM-dd')
+  const inicial = { dataInicio: hoje, dataFim: hoje, diaInteiro: true, horaInicio: '', horaFim: '', motivo: '' }
+  const [form, setForm] = useState(inicial)
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (aberto) { setForm(inicial); setErro(null); setAviso(null) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aberto])
+
+  async function salvar(e: React.FormEvent) {
+    e.preventDefault()
+    setSalvando(true); setErro(null); setAviso(null)
+    try {
+      const nova = await enviar('/api/ausencias', 'POST', {
+        dataInicio: form.dataInicio,
+        dataFim: form.dataFim || form.dataInicio,
+        horaInicio: form.diaInteiro ? undefined : form.horaInicio,
+        horaFim: form.diaInteiro ? undefined : form.horaFim,
+        motivo: form.motivo || undefined,
+      })
+      if (nova.conflitos > 0) {
+        setAviso(`Você já tem ${nova.conflitos} atendimento${nova.conflitos > 1 ? 's' : ''} marcado${nova.conflitos > 1 ? 's' : ''} nesse período. Remarque pela agenda.`)
+      }
+      setForm(inicial)
+      aoMudar()
+    } catch (e: any) { setErro(e.message) } finally { setSalvando(false) }
+  }
+
+  async function remover(id: string) {
+    if (!confirm('Reabrir a agenda neste período?')) return
+    await enviar(`/api/ausencias/${id}`, 'DELETE')
+    aoMudar()
+  }
+
+  return (
+    <AnimatePresence>
+      {aberto && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-neutro-900/30 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+          <motion.form onSubmit={salvar}
+            initial={{ opacity: 0, y: 14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="cartao shadow-alta w-full max-w-md p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-[16px] font-semibold">Minhas ausências</h2>
+                <p className="text-[12px] text-neutro-400 mt-0.5">Ninguém consegue agendar com você nesses períodos.</p>
+              </div>
+              <button type="button" onClick={aoFechar} className="btn-icone !w-8 !h-8"><X size={17} /></button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="rotulo">De</label>
+                <input type="date" className="campo" required min={hoje} value={form.dataInicio}
+                  onChange={(e) => setForm({ ...form, dataInicio: e.target.value, dataFim: form.dataFim < e.target.value ? e.target.value : form.dataFim })} />
+              </div>
+              <div>
+                <label className="rotulo">Até</label>
+                <input type="date" className="campo" required min={form.dataInicio} value={form.dataFim}
+                  onChange={(e) => setForm({ ...form, dataFim: e.target.value })} />
+              </div>
+            </div>
+
+            <button type="button" onClick={() => setForm({ ...form, diaInteiro: !form.diaInteiro })}
+              className="flex items-center gap-2 text-[12px] text-neutro-500 hover:text-neutro-700 dark:hover:text-neutro-300 transition-colors">
+              {form.diaInteiro
+                ? <ToggleRight size={18} className="text-brand-500" strokeWidth={2} />
+                : <ToggleLeft size={18} strokeWidth={2} />}
+              Dia inteiro
+            </button>
+
+            {!form.diaInteiro && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="rotulo">Das</label>
+                  <input type="time" className="campo" required value={form.horaInicio}
+                    onChange={(e) => setForm({ ...form, horaInicio: e.target.value })} />
+                </div>
+                <div>
+                  <label className="rotulo">Até as</label>
+                  <input type="time" className="campo" required value={form.horaFim}
+                    onChange={(e) => setForm({ ...form, horaFim: e.target.value })} />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="rotulo">Motivo (opcional)</label>
+              <input className="campo" placeholder="Férias, congresso..." value={form.motivo}
+                onChange={(e) => setForm({ ...form, motivo: e.target.value })} />
+            </div>
+
+            {erro && <p className="text-[12px] text-red-600">{erro}</p>}
+            {aviso && <p className="text-[12px] text-amber-600">{aviso}</p>}
+
+            <div className="flex justify-end gap-2.5">
+              <button type="submit" disabled={salvando} className="btn-primario">
+                {salvando && <Loader2 size={14} className="animate-spin" />} Fechar agenda
+              </button>
+            </div>
+
+            <div className="pt-3 border-t border-neutro-100 dark:border-neutro-800">
+              <p className="rotulo mb-2">Próximas ausências</p>
+              {minhas.length === 0 ? (
+                <p className="text-[12px] text-neutro-400">Nenhuma ausência registrada.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {minhas.map((a) => (
+                    <div key={a.id} className="flex items-center gap-2 rounded-lg bg-neutro-50 dark:bg-neutro-950/40 px-3 py-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12.5px] font-medium numerico">{descreverAusencia(a)}</p>
+                        {a.motivo && <p className="text-[11px] text-neutro-400 truncate">{a.motivo}</p>}
+                      </div>
+                      <button type="button" onClick={() => remover(a.id)} title="Reabrir agenda"
+                        className="btn-icone !w-7 !h-7 hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/40">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.form>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+function ModalEditarAgendamento({ consulta, meuId, aoFechar, aoSalvar }: { consulta: any; meuId?: string; aoFechar: () => void; aoSalvar: () => void }) {
+  // Corrigir quem agendou é só do profissional que atende a consulta.
+  const podeTrocarCriador = !!consulta && consulta.profissionalId === meuId
   const { data: pacientes } = useSWR(consulta ? '/api/pacientes' : null, fetcher)
+  const { data: equipe } = useSWR(podeTrocarCriador ? '/api/profissionais?equipe=1' : null, fetcher)
   const { data: profissionais } = useSWR(consulta ? '/api/profissionais' : null, fetcher)
   const [form, setForm] = useState<any>({
-    pacienteId: '', profissionalId: '', data: '', horario: '', valor: '', observacoes: '',
+    pacienteId: '', profissionalId: '', data: '', horario: '', valor: '', observacoes: '', criadoPorId: '',
   })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -540,6 +850,7 @@ function ModalEditarAgendamento({ consulta, aoFechar, aoSalvar }: { consulta: an
         horario: format(dt, 'HH:mm'),
         valor: consulta.valor ? String(Number(consulta.valor)) : '',
         observacoes: consulta.observacoes ?? '',
+        criadoPorId: consulta.criadoPor?.id ?? '',
       })
       setErro(null)
     }
@@ -556,6 +867,7 @@ function ModalEditarAgendamento({ consulta, aoFechar, aoSalvar }: { consulta: an
         profissionalId: form.profissionalId,
         valor: form.valor ? Number(form.valor) : null,
         observacoes: form.observacoes || null,
+        ...(podeTrocarCriador && form.criadoPorId && { criadoPorId: form.criadoPorId }),
       })
       aoSalvar()
     } catch (e: any) { setErro(e.message) } finally { setSalvando(false) }
@@ -597,6 +909,17 @@ function ModalEditarAgendamento({ consulta, aoFechar, aoSalvar }: { consulta: an
                 {profissionais?.map((p: any) => <option key={p.id} value={p.id}>{p.nome}</option>)}
               </select>
             </div>
+
+            {podeTrocarCriador && (
+              <div>
+                <label className="rotulo">Agendado por</label>
+                <select className="campo" value={form.criadoPorId}
+                  onChange={(e) => setForm({ ...form, criadoPorId: e.target.value })}>
+                  <option value="">{consulta.vendedoraResponsavel ?? (consulta.origemPublica ? 'Link público' : 'Não registrado')}</option>
+                  {equipe?.map((u: any) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                </select>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>

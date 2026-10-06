@@ -40,6 +40,7 @@ function iniciais(nome: string) {
 
 export default function PacientesPage() {
   const [busca, setBusca] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState<'todos' | 'ativo' | 'inativo'>('todos')
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState<any>(vazio)
   const [salvando, setSalvando] = useState(false)
@@ -53,6 +54,10 @@ export default function PacientesPage() {
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('paciente')
     if (id) setDetalheId(id)
+    // Busca do topo escolhendo paciente com esta tela já aberta.
+    const abrir = (e: Event) => setDetalheId((e as CustomEvent<string>).detail)
+    window.addEventListener('medflow:abrir-paciente', abrir)
+    return () => window.removeEventListener('medflow:abrir-paciente', abrir)
   }, [])
 
   const { data: pacientes, isLoading, mutate } = useSWR(
@@ -106,27 +111,51 @@ export default function PacientesPage() {
         </button>
       </div>
 
-      <div className="flex items-center gap-2.5 w-full max-w-sm mb-5 px-3 py-2.5 rounded-lg border border-neutro-200 dark:border-neutro-700 bg-white dark:bg-neutro-900 transition-all focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-500/10">
-        <Search size={15} className="text-neutro-400" strokeWidth={2} />
-        <input className="w-full bg-transparent outline-none text-[13px] placeholder:text-neutro-400"
-          placeholder="Buscar por nome ou e-mail..." value={busca} onChange={(e) => setBusca(e.target.value)} />
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-1 min-w-[200px] max-w-sm px-3 py-2.5 rounded-lg border border-neutro-200 dark:border-neutro-700 bg-white dark:bg-neutro-900 transition-all focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-500/10">
+          <Search size={15} className="text-neutro-400" strokeWidth={2} />
+          <input className="w-full bg-transparent outline-none text-[13px] placeholder:text-neutro-400"
+            placeholder="Buscar por nome ou e-mail..." value={busca} onChange={(e) => setBusca(e.target.value)} />
+        </div>
+        <div className="flex items-center gap-1.5">
+          {([
+            { rotulo: 'Todos', valor: 'todos' },
+            { rotulo: 'Ativos', valor: 'ativo' },
+            { rotulo: 'Inativos', valor: 'inativo' },
+          ] as const).map((op) => (
+            <button key={op.valor} onClick={() => setFiltroStatus(op.valor)}
+              className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all duration-200 active:scale-[0.98] ${
+                filtroStatus === op.valor
+                  ? 'bg-neutro-900 dark:bg-white text-white dark:text-neutro-900 border-neutro-900 dark:border-white'
+                  : 'border-neutro-200 dark:border-neutro-700 text-neutro-500'
+              }`}>
+              {op.rotulo}
+            </button>
+          ))}
+        </div>
       </div>
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="esqueleto h-[132px]" />)}
         </div>
-      ) : pacientes?.length === 0 ? (
-        <div className="cartao py-20 flex flex-col items-center">
-          <div className="w-11 h-11 rounded-full bg-neutro-100 dark:bg-neutro-800 flex items-center justify-center mb-3">
-            <Search size={19} className="text-neutro-400" strokeWidth={1.8} />
+      ) : (() => {
+        const lista = (pacientes ?? []).filter((p: any) => {
+          if (filtroStatus === 'ativo') return p.ativo
+          if (filtroStatus === 'inativo') return !p.ativo
+          return true
+        })
+        return lista.length === 0 ? (
+          <div className="cartao py-20 flex flex-col items-center">
+            <div className="w-11 h-11 rounded-full bg-neutro-100 dark:bg-neutro-800 flex items-center justify-center mb-3">
+              <Search size={19} className="text-neutro-400" strokeWidth={1.8} />
+            </div>
+            <p className="text-[13px] font-medium">Nenhum paciente encontrado</p>
+            <p className="text-[12px] text-neutro-400 mt-0.5">Tente outro termo ou cadastre um novo</p>
           </div>
-          <p className="text-[13px] font-medium">Nenhum paciente encontrado</p>
-          <p className="text-[12px] text-neutro-400 mt-0.5">Tente outro termo ou cadastre um novo</p>
-        </div>
-      ) : (
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {pacientes?.map((p: any, i: number) => (
+          {lista.map((p: any, i: number) => (
             <motion.button key={p.id}
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: Math.min(i * 0.03, 0.3), duration: 0.3 }}
@@ -188,7 +217,8 @@ export default function PacientesPage() {
             </motion.button>
           ))}
         </div>
-      )}
+        )
+      })()}
 
       <PainelDetalhe id={detalheId} aoFechar={() => setDetalheId(null)}
         aoEditar={abrirEdicao} aoExcluir={excluir} />

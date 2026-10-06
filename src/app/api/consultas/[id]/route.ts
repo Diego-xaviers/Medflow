@@ -4,6 +4,8 @@ import { exigirPapel } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { notificar, equipeDoConsultorio } from '@/lib/notificacoes'
 import { dataHora as fmtDataHora } from '@/lib/formato'
+import { registrarAuditoria } from '@/lib/auditoria'
+import { exigirSemAusencia } from '@/lib/ausencias'
 import { z } from 'zod'
 
 type Params = { params: { id: string } }
@@ -18,6 +20,7 @@ const editSchema = z.object({
   profissionalId: z.string().min(1),
   valor: z.number().nullable().optional(),
   observacoes: z.string().nullable().optional(),
+  criadoPorId: z.string().min(1).optional(),
 })
 
 const rotuloStatus: Record<string, string> = {
@@ -30,14 +33,35 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { consultorioId, usuarioId, nome, papel } = await exigirPapel('DONO', 'ATENDENTE', 'VENDEDORA')
     const corpo = await req.json()
 
-    // VENDEDORA só pode mexer nas consultas que ela mesma criou
+    // VENDEDORA só mexe nas consultas que ela criou. O profissional mexe nas
+    // consultas que ele atende, qualquer que seja o papel dele.
     const filtro = papel === 'VENDEDORA'
-      ? { id: params.id, consultorioId, criadoPorId: usuarioId }
+      ? { id: params.id, consultorioId, OR: [{ criadoPorId: usuarioId }, { profissionalId: usuarioId }] }
       : { id: params.id, consultorioId }
 
-    // Edição completa (dataHora, paciente, profissional, valor, observações)
+    // Edição completa (dataHora, paciente, profissional, valor, observações, quem agendou)
     if ('dataHora' in corpo) {
       const dados = editSchema.parse(corpo)
+
+      const atual = await prisma.consulta.findFirst({
+        where: filtro,
+        select: { profissionalId: true, dataHora: true, criadoPorId: true, criadoPor: { select: { nome: true } } },
+      })
+      if (!atual) throw new ErroDeNegocio('Consulta não encontrada')
+
+      // Corrigir quem agendou é só do profissional que atende a consulta.
+      const trocaCriador = dados.criadoPorId !== undefined && dados.criadoPorId !== atual.criadoPorId
+      let novoCriador: { nome: string } | null = null
+      if (trocaCriador) {
+        if (atual.profissionalId !== usuarioId) {
+          throw new ErroDeNegocio('Só o profissional da consulta pode alterar quem agendou')
+        }
+        novoCriador = await prisma.usuario.findFirst({
+          where: { id: dados.criadoPorId!, consultorioId },
+          select: { nome: true },
+        })
+        if (!novoCriador) throw new ErroDeNegocio('Usuário não encontrado')
+      }
 
       const paciente = await prisma.paciente.findFirst({
         where: { id: dados.pacienteId, consultorioId },
@@ -51,6 +75,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       })
       if (!profissional) throw new ErroDeNegocio('Profissional não encontrado')
 
+      // Só revalida ausência se mudou quando ou com quem: editar a observação
+      // de uma consulta já marcada não pode travar.
+      if (dados.dataHora.getTime() !== atual.dataHora.getTime() || dados.profissionalId !== atual.profissionalId) {
+        const { duracaoConsultaMin } = await prisma.consultorio.findUniqueOrThrow({
+          where: { id: consultorioId }, select: { duracaoConsultaMin: true },
+        })
+        await exigirSemAusencia(consultorioId, profissional.id, dados.dataHora, duracaoConsultaMin)
+      }
+
       const resultado = await prisma.consulta.updateMany({
         where: filtro,
         data: {
@@ -59,9 +92,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           profissionalId: dados.profissionalId,
           valor: dados.valor ?? null,
           observacoes: dados.observacoes ?? null,
+          ...(trocaCriador && { criadoPorId: dados.criadoPorId }),
         },
       })
       if (resultado.count === 0) throw new ErroDeNegocio('Consulta não encontrada')
+
+      if (trocaCriador) {
+        registrarAuditoria({
+          acao: 'EDITAR',
+          entidade: 'Consulta',
+          entidadeId: params.id,
+          detalhes: `Agendado por: ${atual.criadoPor?.nome ?? '—'} → ${novoCriador!.nome} · Paciente: ${paciente.nome}`,
+          usuarioId,
+          consultorioId,
+        })
+      }
 
       await notificar({
         usuarioIds: await equipeDoConsultorio(consultorioId, { exceto: usuarioId }),
@@ -72,6 +117,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         link: '/agenda',
       })
 
+      return prisma.consulta.findUnique({
+        where: { id: params.id },
+        include: {
+          paciente: { select: { id: true, nome: true } },
+          profissional: { select: { id: true, nome: true } },
+          criadoPor: { select: { id: true, nome: true } },
+        },
+      })
+    }
+
+    // Ajuste de valor isolado
+    if ('valor' in corpo && !('dataHora' in corpo)) {
+      const { valor } = z.object({ valor: z.number().nullable() }).parse(corpo)
+      const resultado = await prisma.consulta.updateMany({
+        where: filtro,
+        data: { valor: valor ?? null },
+      })
+      if (resultado.count === 0) throw new ErroDeNegocio('Consulta não encontrada')
       return prisma.consulta.findUnique({
         where: { id: params.id },
         include: {

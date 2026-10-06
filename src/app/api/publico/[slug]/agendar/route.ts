@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { agendamentoPublicoSchema } from '@/lib/schemas'
 import { dentroDoExpediente } from '@/lib/agenda'
+import { exigirSemAusencia } from '@/lib/ausencias'
 import { notificar, equipeDoConsultorio } from '@/lib/notificacoes'
 import { dataHora as fmtDataHora } from '@/lib/formato'
 
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!dentroDoExpediente(consultorio, dados.dataHora)) {
       throw new ErroDeNegocio('Horário fora do período de atendimento')
     }
+    await exigirSemAusencia(consultorio.id, profissional.id, dados.dataHora, consultorio.duracaoConsultaMin)
 
     // Cria paciente e consulta juntos. Se a consulta falhar (por exemplo,
     // alguém pegou o horário no meio do caminho), o paciente não fica

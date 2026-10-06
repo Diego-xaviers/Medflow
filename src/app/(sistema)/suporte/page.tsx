@@ -79,6 +79,7 @@ function SuporteDoCliente() {
               await mutate()
               if (novo?.id) setAtivoId(novo.id)
             }}
+            aoAbrirNovo={() => setAtivoId('novo')}
           />
         </div>
 
@@ -95,12 +96,13 @@ function SuporteDoCliente() {
 /* ─────────────────────────── Conversa ─────────────────────────── */
 
 function Conversa({
-  chamado, carregando, souSuporte, aoAtualizar,
+  chamado, carregando, souSuporte, aoAtualizar, aoAbrirNovo,
 }: {
   chamado: any | null
   carregando?: boolean
   souSuporte: boolean
   aoAtualizar: (novo?: any) => Promise<void> | void
+  aoAbrirNovo?: () => void
 }) {
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -206,22 +208,30 @@ function Conversa({
 
       {erro && <p className="px-5 py-2 text-[12px] text-red-600">{erro}</p>}
 
-      <form onSubmit={mandar}
-        className="flex items-end gap-2 px-4 py-3 border-t border-neutro-100 dark:border-neutro-800">
-        <textarea
-          rows={1} value={texto} disabled={encerrado}
-          onChange={(e) => setTexto(e.target.value)}
-          onKeyDown={(e) => {
-            // Enter envia, Shift+Enter quebra linha — o padrão de todo chat.
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); mandar(e as any) }
-          }}
-          placeholder={encerrado ? 'Chamado encerrado' : 'Escreva sua mensagem…'}
-          className="campo !mt-0 resize-none max-h-28 disabled:opacity-60" />
-        <button type="submit" disabled={enviando || encerrado || !texto.trim()}
-          className="btn-primario !px-3.5 !py-2.5 shrink-0">
-          {enviando ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} strokeWidth={2.2} />}
-        </button>
-      </form>
+      {encerrado && !souSuporte ? (
+        <div className="px-4 py-3 border-t border-neutro-100 dark:border-neutro-800">
+          <button onClick={aoAbrirNovo}
+            className="btn-primario w-full">
+            <Plus size={15} strokeWidth={2.4} /> Abrir novo chamado
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={mandar}
+          className="flex items-end gap-2 px-4 py-3 border-t border-neutro-100 dark:border-neutro-800">
+          <textarea
+            rows={1} value={texto} disabled={encerrado}
+            onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); mandar(e as any) }
+            }}
+            placeholder="Escreva sua mensagem…"
+            className="campo !mt-0 resize-none max-h-28 disabled:opacity-60" />
+          <button type="submit" disabled={enviando || !texto.trim()}
+            className="btn-primario !px-3.5 !py-2.5 shrink-0">
+            {enviando ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} strokeWidth={2.2} />}
+          </button>
+        </form>
+      )}
     </section>
   )
 }

@@ -174,3 +174,20 @@
     transition-duration: .01ms !important;
   }
 }
+
+/* Fundo da conversa na Central de disparos — o "papel de parede" do
+   WhatsApp, feito com dois padrões de pontos em vez de imagem. */
+.papel-whats {
+  background-color: #efeae2;
+  background-image:
+    radial-gradient(rgb(0 0 0 / 0.045) 1px, transparent 1.2px),
+    radial-gradient(rgb(0 0 0 / 0.03) 1px, transparent 1.2px);
+  background-size: 18px 18px, 18px 18px;
+  background-position: 0 0, 9px 9px;
+}
+.dark .papel-whats {
+  background-color: #0b141a;
+  background-image:
+    radial-gradient(rgb(255 255 255 / 0.04) 1px, transparent 1.2px),
+    radial-gradient(rgb(255 255 255 / 0.025) 1px, transparent 1.2px);
+}

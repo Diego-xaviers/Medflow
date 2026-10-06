@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { isBefore } from 'date-fns'
 import { gerarHorariosDoDia, partesDaData, instanteNoFuso, FUSO_PADRAO } from '@/lib/agenda'
+import { cruzaAusencia } from '@/lib/ausencias'
 
 type Params = { params: { slug: string } }
 
@@ -65,13 +66,25 @@ export async function GET(req: NextRequest, { params }: Params) {
     })
     const ocupadosSet = new Set(ocupadas.map((c) => c.dataHora.getTime()))
 
+    // Horário que cruza uma ausência do profissional some como ocupado.
+    const ausencias = await prisma.ausencia.findMany({
+      where: {
+        consultorioId: consultorio.id,
+        profissionalId: profissional.id,
+        inicio: { lt: inicioDoSeguinte },
+        fim: { gt: inicioDoDia },
+      },
+      select: { inicio: true, fim: true },
+    })
+
     const agora = new Date()
 
     // Em dia que o consultório não abre, a lista volta vazia e a página
     // pública mostra "sem horários" — sem precisar saber a regra aqui.
     return gerarHorariosDoDia(consultorio, diaParam).map((momento) => ({
       dataHora: momento.toISOString(),
-      disponivel: !ocupadosSet.has(momento.getTime()) && !isBefore(momento, agora),
+      disponivel: !ocupadosSet.has(momento.getTime()) && !isBefore(momento, agora)
+        && !cruzaAusencia(ausencias, momento, consultorio.duracaoConsultaMin),
     }))
   })
 }

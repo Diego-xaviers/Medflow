@@ -15,6 +15,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: 'E-mail', type: 'email' },
         senha: { label: 'Senha', type: 'password' },
+        rememberMe: { label: 'Lembrar', type: 'text' },
       },
       async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.senha) return null
@@ -64,6 +65,8 @@ export const authOptions: NextAuthOptions = {
           consultorioId: usuario.consultorioId,
           consultorioNome: usuario.consultorio?.nome ?? null,
           consultorioSlug: usuario.consultorio?.slug ?? null,
+          rememberMe: credentials.rememberMe === 'true',
+          loginAt: Math.floor(Date.now() / 1000),
         } as any
       },
     }),
@@ -79,6 +82,8 @@ export const authOptions: NextAuthOptions = {
         token.consultorioId = (user as any).consultorioId
         token.consultorioNome = (user as any).consultorioNome
         token.consultorioSlug = (user as any).consultorioSlug
+        token.rememberMe = (user as any).rememberMe
+        token.loginAt = (user as any).loginAt
       }
 
       // Disparado por `useSession().update()` — usado quando a pessoa edita o
@@ -114,6 +119,7 @@ export const authOptions: NextAuthOptions = {
         session.user.consultorioId = token.consultorioId as string | null
         session.user.consultorioNome = token.consultorioNome as string | null
         session.user.consultorioSlug = token.consultorioSlug as string | null
+        session.user.rememberMe = token.rememberMe ?? false
       }
       return session
     },

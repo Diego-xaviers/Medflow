@@ -140,22 +140,21 @@ export default function ImprimirReceitaPage() {
                 <th className="text-left font-medium py-1.5">Esférico</th>
                 <th className="text-left font-medium py-1.5">Cilíndrico</th>
                 <th className="text-left font-medium py-1.5">Eixo</th>
-                <th className="text-left font-medium py-1.5">Adição</th>
               </tr>
             </thead>
             <tbody className="numerico">
-              <LinhaOlho
-                olho="OD (direito)"
-                esf={r.longeEsfericoOD} cil={r.longeCilindricoOD}
-                eixo={r.longeEixoOD} adicao={r.adicaoOD}
-              />
-              <LinhaOlho
-                olho="OE (esquerdo)"
-                esf={r.longeEsfericoOE} cil={r.longeCilindricoOE}
-                eixo={r.longeEixoOE} adicao={r.adicaoOE}
-              />
+              <LinhaOlho olho="Longe OD" esf={r.longeEsfericoOD} cil={r.longeCilindricoOD} eixo={r.longeEixoOD} />
+              <LinhaOlho olho="Longe OE" esf={r.longeEsfericoOE} cil={r.longeCilindricoOE} eixo={r.longeEixoOE} />
+              <LinhaOlho olho="Perto OD" esf={r.pertoEsfericoOD} cil={r.pertoCilindricoOD} eixo={r.pertoEixoOD} />
+              <LinhaOlho olho="Perto OE" esf={r.pertoEsfericoOE} cil={r.pertoCilindricoOE} eixo={r.pertoEixoOE} />
             </tbody>
           </table>
+          {(temValor(r.adicaoOD) || temValor(r.adicaoOE)) && (
+            <div className="flex gap-8 mt-3 numerico text-[12.5px]">
+              <Dado rotulo="Adição OD" valor={r.adicaoOD || '—'} />
+              <Dado rotulo="Adição OE" valor={r.adicaoOE || '—'} />
+            </div>
+          )}
         </section>
 
         {/* Acuidade alcançada — o número que o paciente quer saber */}
@@ -253,7 +252,7 @@ function Dado({ rotulo, valor, destaque }: { rotulo: string; valor: any; destaqu
   )
 }
 
-function LinhaOlho({ olho, esf, cil, eixo, adicao }: any) {
+function LinhaOlho({ olho, esf, cil, eixo }: any) {
   const celula = (v: any) => (temValor(v) ? String(v) : '—')
   return (
     <tr className="border-t border-neutro-200">
@@ -261,7 +260,6 @@ function LinhaOlho({ olho, esf, cil, eixo, adicao }: any) {
       <td className="py-2">{celula(esf)}</td>
       <td className="py-2">{celula(cil)}</td>
       <td className="py-2">{temValor(eixo) ? `${eixo}°` : '—'}</td>
-      <td className="py-2">{celula(adicao)}</td>
     </tr>
   )
 }

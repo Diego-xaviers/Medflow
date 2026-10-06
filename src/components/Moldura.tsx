@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { useSession, signOut } from 'next-auth/react'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import PortaoDeAcesso from './PortaoDeAcesso'
 import BoasVindas from './BoasVindas'
+
+export const CHAVE_SESSAO_ATIVA = 'mf_session_active'
 
 /**
  * A moldura do sistema: menu lateral, cabeçalho e conteúdo.
@@ -25,6 +28,21 @@ import BoasVindas from './BoasVindas'
 export default function Moldura({ children }: { children: React.ReactNode }) {
   const [gavetaAberta, setGavetaAberta] = useState(false)
   const caminho = usePathname()
+  const { data: sessao, status } = useSession()
+
+  // Sessão sem "lembrar de mim": exige login sempre que o browser for reaberto.
+  // sessionStorage é zerado ao fechar o browser/aba — se não há flag, sai.
+  useEffect(() => {
+    if (status !== 'authenticated') return
+    if (sessao?.user?.rememberMe) return
+    try {
+      if (!sessionStorage.getItem(CHAVE_SESSAO_ATIVA)) {
+        signOut({ callbackUrl: '/login' })
+      }
+    } catch {
+      // sessionStorage indisponível (modo privado restrito) — não bloquear
+    }
+  }, [status, sessao?.user?.rememberMe])
 
   // Navegou? Fecha a gaveta. Sem isto, o menu continuaria por cima da tela
   // que a pessoa acabou de abrir.

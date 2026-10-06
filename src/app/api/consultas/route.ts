@@ -7,6 +7,7 @@ import { startOfDay, endOfDay, startOfMonth, endOfMonth, addDays } from 'date-fn
 import { diaLocal } from '@/lib/agenda'
 import { notificar, equipeDoConsultorio } from '@/lib/notificacoes'
 import { dataHora as fmtDataHora } from '@/lib/formato'
+import { exigirSemAusencia } from '@/lib/ausencias'
 
 /**
  * Leitura liberada para toda a equipe — inclusive a vendedora, que precisa
@@ -80,6 +81,11 @@ export async function POST(req: NextRequest) {
       select: { id: true },
     })
     if (ocupado) throw new ErroDeNegocio(`${profissional.nome} já tem atendimento neste horário`)
+
+    const { duracaoConsultaMin } = await prisma.consultorio.findUniqueOrThrow({
+      where: { id: consultorioId }, select: { duracaoConsultaMin: true },
+    })
+    await exigirSemAusencia(consultorioId, profissional.id, dados.dataHora, duracaoConsultaMin)
 
     const consulta = await prisma.consulta.create({
       data: { ...dados, consultorioId, criadoPorId: usuarioId },

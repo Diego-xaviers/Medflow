@@ -8,6 +8,7 @@ import {
   Plus, Receipt, Trash2, X, Loader2, Glasses, FileText, Wand2, Link2,
   Printer, MessageCircle, PhoneOff,
 } from 'lucide-react'
+import CampoBusca, { contem } from '@/components/CampoBusca'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { data } from '@/lib/formato'
 import { herdarDoProntuario, resumoRefracao, textoDaReceita } from '@/lib/prescricao'
@@ -25,6 +26,8 @@ const vazio: any = {
   tipoReceita: 'OPTOMETRICA',
   longeEsfericoOD: '', longeCilindricoOD: '', longeEixoOD: '',
   longeEsfericoOE: '', longeCilindricoOE: '', longeEixoOE: '',
+  pertoEsfericoOD: '', pertoCilindricoOD: '', pertoEixoOD: '',
+  pertoEsfericoOE: '', pertoCilindricoOE: '', pertoEixoOE: '',
   adicaoOD: '', adicaoOE: '',
   avCorrigidaOD: '', avCorrigidaOE: '',
   dpLongeOD: '', dpLongeOE: '', dpPerto: '', alturaOD: '', alturaOE: '',
@@ -124,6 +127,10 @@ export default function ReceitasPage() {
   const [erro, setErro] = useState<string | null>(null)
 
   const { data: receitas, isLoading, mutate } = useSWR('/api/receitas', fetcher)
+  const [busca, setBusca] = useState('')
+  const filtradas = receitas?.filter((r: any) =>
+    contem(busca, r.paciente?.nome, r.materialLente, data(r.dataEmissao),
+      tiposLente.find(([v]) => v === r.tipoLente)?.[1]))
   const { data: pacientes } = useSWR('/api/pacientes', fetcher)
   // Nome, telefone e endereço da clínica entram no texto que vai ao paciente.
   const { data: consultorio } = useSWR('/api/consultorio', fetcher)
@@ -214,14 +221,20 @@ export default function ReceitasPage() {
         </button>
       </div>
 
+      <div className="mb-5">
+        <CampoBusca valor={busca} aoMudar={setBusca} placeholder="Buscar por paciente, lente ou data..." />
+      </div>
+
       {isLoading ? (
         <div className="py-16 flex justify-center"><Loader2 className="animate-spin text-neutro-300" /></div>
       ) : (
         <div className="space-y-3">
-          {receitas?.length === 0 && (
-            <p className="text-sm text-neutro-400 text-center py-12">Nenhuma receita emitida ainda.</p>
+          {filtradas?.length === 0 && (
+            <p className="text-sm text-neutro-400 text-center py-12">
+              {busca ? 'Nenhuma receita encontrada.' : 'Nenhuma receita emitida ainda.'}
+            </p>
           )}
-          {receitas?.map((r: any) => (
+          {filtradas?.map((r: any) => (
             <div key={r.id} className="cartao px-5 py-4 flex items-center gap-4 hover:border-brand-300 dark:hover:border-brand-700 transition-colors">
               <div className="w-9 h-9 rounded-lg bg-brand-50 dark:bg-brand-700/20 text-brand-600 flex items-center justify-center shrink-0">
                 <Receipt size={17} />
@@ -374,6 +387,15 @@ export default function ReceitasPage() {
                   form={form} setForm={setForm} placeholder="-0.50" herdados={herdados} />
                 <ParOlhos rotulo="Eixo" campoOD="longeEixoOD" campoOE="longeEixoOE"
                   form={form} setForm={setForm} placeholder="180" herdados={herdados} />
+              </Secao>
+
+              <Secao titulo="GRAU PARA PERTO">
+                <ParOlhos rotulo="Esférico" campoOD="pertoEsfericoOD" campoOE="pertoEsfericoOE"
+                  form={form} setForm={setForm} placeholder="+1.25" />
+                <ParOlhos rotulo="Cilíndrico" campoOD="pertoCilindricoOD" campoOE="pertoCilindricoOE"
+                  form={form} setForm={setForm} placeholder="-0.50" />
+                <ParOlhos rotulo="Eixo" campoOD="pertoEixoOD" campoOE="pertoEixoOE"
+                  form={form} setForm={setForm} placeholder="180" />
               </Secao>
 
               <Secao titulo="ADIÇÃO (PRESBIOPIA)">

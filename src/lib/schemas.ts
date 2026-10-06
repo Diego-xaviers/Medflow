@@ -125,6 +125,13 @@ export const receitaSchema = z.object({
   longeCilindricoOE: z.string().optional(),
   longeEixoOE: z.string().optional(),
 
+  pertoEsfericoOD: z.string().optional(),
+  pertoCilindricoOD: z.string().optional(),
+  pertoEixoOD: z.string().optional(),
+  pertoEsfericoOE: z.string().optional(),
+  pertoCilindricoOE: z.string().optional(),
+  pertoEixoOE: z.string().optional(),
+
   adicaoOD: z.string().optional(),
   adicaoOE: z.string().optional(),
 
@@ -149,6 +156,20 @@ export const receitaSchema = z.object({
   materialLente: z.string().optional(),
   tratamentos: z.string().optional(),
   orientacoesUso: z.string().optional(),
+})
+
+export const ausenciaSchema = z.object({
+  dataInicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida'),
+  dataFim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida'),
+  /// Em branco = dia inteiro.
+  horaInicio: z.string().optional(),
+  horaFim: z.string().optional(),
+  motivo: z.string().max(200).optional(),
+})
+
+export const encaminhamentoSchema = z.object({
+  pacienteNome: z.string().trim().min(1, 'Informe o nome do paciente').max(200),
+  texto: z.string().trim().min(1, 'Escreva o encaminhamento').max(10000),
 })
 
 /**

@@ -27,14 +27,14 @@ const ROTAS: Record<PapelUsuario, string[] | '*'> = {
   // se cadastram OUTROS consultórios. Listar tudo com `'*'` colocava esse
   // item no menu dele e o clique morria num 403 vindo da API.
   DONO: [
-    '/', '/agenda', '/pacientes', '/prontuarios', '/receitas',
+    '/', '/agenda', '/pacientes', '/prontuarios', '/receitas', '/encaminhamentos',
     '/financeiro', '/lembretes', '/relatorios', '/suporte',
     '/equipe', '/configuracoes', '/perfil', '/cobranca',
   ],
 
   // A atendente toca a operação inteira, menos a administração da equipe.
   ATENDENTE: [
-    '/', '/agenda', '/pacientes', '/prontuarios', '/receitas',
+    '/', '/agenda', '/pacientes', '/prontuarios', '/receitas', '/encaminhamentos',
     '/financeiro', '/lembretes', '/relatorios', '/suporte',
     '/configuracoes', '/perfil', '/cobranca',
   ],

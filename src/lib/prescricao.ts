@@ -111,6 +111,13 @@ export function textoDaReceita(r: any): string {
       { esf: r.longeEsfericoOD, cil: r.longeCilindricoOD, eixo: r.longeEixoOD },
       { esf: r.longeEsfericoOE, cil: r.longeCilindricoOE, eixo: r.longeEixoOE }
     ) ?? 'Não prescrito',
+    '',
+    '*Grau para perto*',
+    linhaOlhos(
+      'Perto',
+      { esf: r.pertoEsfericoOD, cil: r.pertoCilindricoOD, eixo: r.pertoEixoOD },
+      { esf: r.pertoEsfericoOE, cil: r.pertoCilindricoOE, eixo: r.pertoEixoOE }
+    ) ?? 'Não prescrito',
     parSimples('Adição', r.adicaoOD, r.adicaoOE),
     parSimples('Visão esperada com o óculos', r.avCorrigidaOD, r.avCorrigidaOE),
     '',

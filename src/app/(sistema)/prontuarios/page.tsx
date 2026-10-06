@@ -7,6 +7,7 @@ import Link from 'next/link'
 import {
   Plus, FileText, Trash2, X, Loader2, Eye, ChevronRight, Receipt, Stethoscope, Pencil,
 } from 'lucide-react'
+import CampoBusca, { contem } from '@/components/CampoBusca'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { data, dataHora } from '@/lib/formato'
 import { resumoRefracao } from '@/lib/prescricao'
@@ -106,6 +107,9 @@ export default function ProntuariosPage() {
   const [erro, setErro] = useState<string | null>(null)
 
   const { data: prontuarios, isLoading, mutate } = useSWR('/api/prontuarios', fetcher)
+  const [busca, setBusca] = useState('')
+  const filtrados = prontuarios?.filter((p: any) =>
+    contem(busca, p.paciente?.nome, p.diagnostico, data(p.dataExame)))
   const { data: pacientes } = useSWR('/api/pacientes', fetcher)
 
   function abrirNovo() {
@@ -177,14 +181,20 @@ export default function ProntuariosPage() {
         </button>
       </div>
 
+      <div className="mb-5">
+        <CampoBusca valor={busca} aoMudar={setBusca} placeholder="Buscar por paciente, diagnóstico ou data..." />
+      </div>
+
       {isLoading ? (
         <div className="py-16 flex justify-center"><Loader2 className="animate-spin text-neutro-300" /></div>
       ) : (
         <div className="space-y-3">
-          {prontuarios?.length === 0 && (
-            <p className="text-sm text-neutro-400 text-center py-12">Nenhum prontuário registrado ainda.</p>
+          {filtrados?.length === 0 && (
+            <p className="text-sm text-neutro-400 text-center py-12">
+              {busca ? 'Nenhum prontuário encontrado.' : 'Nenhum prontuário registrado ainda.'}
+            </p>
           )}
-          {prontuarios?.map((p: any) => (
+          {filtrados?.map((p: any) => (
             <div key={p.id} className="cartao-interativo px-5 py-4 flex items-center gap-4 group">
               <button onClick={() => setDetalheId(p.id)}
                 className="flex items-center gap-4 flex-1 min-w-0 text-left">

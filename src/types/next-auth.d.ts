@@ -13,6 +13,7 @@ declare module 'next-auth' {
       consultorioId: string | null
       consultorioNome: string | null
       consultorioSlug: string | null
+      rememberMe: boolean
     }
   }
 }
@@ -23,5 +24,7 @@ declare module 'next-auth/jwt' {
     consultorioId?: string | null
     consultorioNome?: string | null
     consultorioSlug?: string | null
+    rememberMe?: boolean
+    loginAt?: number
   }
 }
