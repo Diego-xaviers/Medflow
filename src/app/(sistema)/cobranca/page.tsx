@@ -2,29 +2,33 @@
 
 import { useState } from 'react'
 import useSWR from 'swr'
+import { useSession } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import {
   Wallet, Copy, Check, ShieldCheck, CircleAlert, CircleCheck, Clock,
-  QrCode, Receipt, Ban,
+  QrCode, Receipt, Ban, CreditCard, ExternalLink, RefreshCw, Lock, Loader2, Sparkles,
 } from 'lucide-react'
-import { fetcher } from '@/lib/fetcher'
+import { fetcher, enviar } from '@/lib/fetcher'
 import { moeda, data as fmtData } from '@/lib/formato'
 
 /**
  * Cobrança e pagamentos do consultório.
  *
- * Esta tela mostra a fatura e o meio de pagar. Ela NÃO coleta nada: não há
- * campo de cartão, não há formulário de pagamento e o sistema não conversa
- * com adquirente. O que aparece é uma chave PIX e um QR — a transferência
- * acontece inteira no aplicativo do banco de quem paga, e a baixa é feita
- * manualmente por quem administra o Medflow.
- *
- * É uma decisão consciente enquanto a segurança do fluxo financeiro não for
- * auditada: sem dado de pagamento guardado, não há o que vazar.
+ * Com assinatura no Asaas, a fatura traz PIX e link de checkout próprios, e a
+ * baixa chega sozinha pelo webhook. Sem assinatura, vale o PIX manual do
+ * administrador. Em nenhum caso esta tela coleta dado de cartão: ele é
+ * digitado na página do Asaas.
  */
 export default function CobrancaPage() {
-  const { data, isLoading } = useSWR('/api/cobranca', fetcher, { refreshInterval: 60_000 })
+  const { data, isLoading, mutate } = useSWR('/api/cobranca', fetcher, { refreshInterval: 60_000 })
   const [copiado, setCopiado] = useState(false)
+  const [conferindo, setConferindo] = useState(false)
+
+  /** "Já paguei": consulta o Asaas na hora, sem esperar o webhook. */
+  async function conferirPagamento() {
+    setConferindo(true)
+    try { await mutate(await fetcher('/api/cobranca?atualizar=1'), { revalidate: false }) } finally { setConferindo(false) }
+  }
 
   const situacao = data?.situacao
   const pix = data?.pix
@@ -52,6 +56,8 @@ export default function CobrancaPage() {
       ) : (
         <div className="space-y-5">
           <Situacao situacao={situacao} />
+
+          <PagamentoOnline online={data?.online} aoMudar={() => conferirPagamento()} />
 
           {atual ? (
             <section className="cartao p-5 sm:p-6">
@@ -84,7 +90,7 @@ export default function CobrancaPage() {
                         {copiado ? 'Código copiado' : 'Copiar código PIX'}
                       </button>
                     </>
-                  ) : (
+                  ) : atual.linkPagamento ? null : (
                     <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 px-4 py-3 mt-5">
                       <p className="text-[12.5px] text-amber-800 dark:text-amber-300">
                         A chave PIX ainda não foi configurada pelo administrador.
@@ -108,7 +114,19 @@ export default function CobrancaPage() {
                 )}
               </div>
 
-              <div className="flex items-start gap-2.5 text-[11.5px] text-neutro-500 bg-neutro-50 dark:bg-neutro-950/40 border border-neutro-200/70 dark:border-neutro-800 rounded-lg px-4 py-3 mt-6">
+              {atual.linkPagamento && (
+                <div className="flex flex-wrap gap-2 mt-5">
+                  <a href={atual.linkPagamento} target="_blank" rel="noreferrer" className="btn-primario">
+                    <CreditCard size={15} strokeWidth={2} /> Pagar agora <ExternalLink size={13} strokeWidth={2} />
+                  </a>
+                  <button onClick={conferirPagamento} disabled={conferindo} className="btn-suave">
+                    {conferindo ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} strokeWidth={2} />}
+                    Já paguei, atualizar
+                  </button>
+                </div>
+              )}
+
+              {!atual.automatica && <div className="flex items-start gap-2.5 text-[11.5px] text-neutro-500 bg-neutro-50 dark:bg-neutro-950/40 border border-neutro-200/70 dark:border-neutro-800 rounded-lg px-4 py-3 mt-6">
                 <ShieldCheck size={15} className="shrink-0 mt-0.5 text-brand-600" strokeWidth={2} />
                 <span>
                   <strong className="font-medium">Não pedimos cartão.</strong> O Medflow não
@@ -116,7 +134,7 @@ export default function CobrancaPage() {
                   sai do seu banco direto para o nosso. Depois de pagar, a baixa
                   é feita manualmente e o acesso volta na hora.
                 </span>
-              </div>
+              </div>}
             </section>
           ) : (
             <div className="cartao py-16 flex flex-col items-center text-center px-6">
@@ -216,6 +234,10 @@ function Historico({ faturas }: { faturas: any[] }) {
                   {f.pagoEm && ` · pago em ${fmtData(f.pagoEm)}`}
                 </p>
               </div>
+              {f.linkPagamento && (
+                <a href={f.linkPagamento} target="_blank" rel="noreferrer"
+                  className="text-[12px] font-medium text-brand-600 hover:underline shrink-0">Pagar</a>
+              )}
               <span className={`etiqueta shrink-0 ${estilo.classe}`}>{estilo.texto}</span>
               <p className="text-[13px] font-semibold numerico shrink-0 w-24 text-right">
                 {moeda(f.valor)}
@@ -225,5 +247,130 @@ function Historico({ faturas }: { faturas: any[] }) {
         })}
       </div>
     </section>
+  )
+}
+
+/**
+ * Cobrança automática pelo Asaas. O dono escolhe PIX ou cartão; o cartão
+ * é digitado na página do Asaas, nunca aqui.
+ */
+function PagamentoOnline({ online, aoMudar }: { online: any; aoMudar: () => void }) {
+  const { data: sessao } = useSession()
+  const ehDono = sessao?.user?.papel === 'DONO'
+  const [editando, setEditando] = useState(false)
+  const [forma, setForma] = useState<'PIX' | 'CREDIT_CARD'>(online?.forma ?? 'CREDIT_CARD')
+  const [documento, setDocumento] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  if (!online?.disponivel && !online?.ativo) return null
+
+  async function ativar(e: React.FormEvent) {
+    e.preventDefault()
+    setSalvando(true); setErro(null)
+    try {
+      await enviar('/api/cobranca/assinatura', 'POST', { forma, documento })
+      setEditando(false)
+      aoMudar()
+    } catch (e: any) { setErro(e.message) } finally { setSalvando(false) }
+  }
+
+  const rotuloForma = online.forma === 'CREDIT_CARD'
+    ? 'Cartão de crédito · débito automático todo mês'
+    : 'PIX · a cobrança chega todo mês'
+
+  if (online.ativo && !editando) {
+    return (
+      <section className="cartao p-5 flex items-center gap-4 flex-wrap">
+        <div className="w-11 h-11 rounded-lg bg-brand-50 dark:bg-brand-900/30 text-brand-600 flex items-center justify-center shrink-0">
+          {online.forma === 'CREDIT_CARD' ? <CreditCard size={20} strokeWidth={2} /> : <QrCode size={20} strokeWidth={2} />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[14px] font-semibold">Pagamento automático ativo</p>
+          <p className="text-[12.5px] text-neutro-500 mt-0.5">
+            {rotuloForma}{online.valorMensalidade ? ` · ${moeda(online.valorMensalidade)}/mês` : ''}
+          </p>
+        </div>
+        {ehDono && (
+          <button onClick={() => { setForma(online.forma === 'PIX' ? 'CREDIT_CARD' : 'PIX'); setEditando(true) }}
+            className="btn-suave !text-[12.5px]">
+            Trocar para {online.forma === 'PIX' ? 'cartão' : 'PIX'}
+          </button>
+        )}
+      </section>
+    )
+  }
+
+  if (!ehDono) {
+    return (
+      <section className="cartao p-5 text-[12.5px] text-neutro-500">
+        O pagamento online está disponível. Peça ao dono do consultório para ativar em Cobrança.
+      </section>
+    )
+  }
+
+  return (
+    <motion.form onSubmit={ativar}
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      className="cartao p-5 sm:p-6 space-y-4">
+      <div>
+        <h2 className="titulo-secao flex items-center gap-2">
+          <Sparkles size={15} className="text-brand-600" strokeWidth={2} />
+          {online.ativo ? 'Trocar forma de pagamento' : 'Ative o pagamento automático'}
+        </h2>
+        <p className="text-[12.5px] text-neutro-500 mt-1">
+          Mensalidade de <strong className="font-semibold text-neutro-800 dark:text-neutro-100">{moeda(online.valorMensalidade)}</strong>.
+          A baixa é automática e o acesso não fica preso esperando confirmação.
+        </p>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-2.5">
+        {([
+          ['CREDIT_CARD', CreditCard, 'Cartão de crédito', 'Cobrado sozinho todo mês. Você não precisa lembrar.'],
+          ['PIX', QrCode, 'PIX', 'Todo mês chega a cobrança; paga em segundos pelo app do banco.'],
+        ] as const).map(([valor, Icone, titulo, dica]) => (
+          <button key={valor} type="button" onClick={() => setForma(valor)}
+            className={`text-left p-3.5 rounded-xl border transition-all active:scale-[0.99] ${
+              forma === valor
+                ? 'border-brand-400 bg-brand-50 dark:bg-brand-900/20 dark:border-brand-700 ring-4 ring-brand-500/10'
+                : 'border-neutro-200 dark:border-neutro-700 hover:border-neutro-300'
+            }`}>
+            <span className="flex items-center gap-2 text-[13.5px] font-semibold">
+              <Icone size={16} strokeWidth={2} className={forma === valor ? 'text-brand-600' : 'text-neutro-400'} />
+              {titulo}
+            </span>
+            <span className="block text-[11.5px] text-neutro-500 mt-1">{dica}</span>
+          </button>
+        ))}
+      </div>
+
+      <div>
+        <label className="rotulo">CPF ou CNPJ de quem paga</label>
+        <input className="campo" required inputMode="numeric" placeholder="000.000.000-00"
+          value={documento} onChange={(e) => setDocumento(e.target.value)} />
+        <p className="text-[11px] text-neutro-400 mt-1.5">
+          Exigido para emitir a cobrança e a nota fiscal.
+          {online.documentoFinal && ` Cadastrado hoje: final ${online.documentoFinal}.`}
+        </p>
+      </div>
+
+      {erro && <p className="text-[12px] text-red-600">{erro}</p>}
+
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="flex items-center gap-1.5 text-[11.5px] text-neutro-500">
+          <Lock size={12} strokeWidth={2} /> Cartão digitado no ambiente seguro do Asaas, nunca no Medflow.
+        </p>
+        <div className="flex gap-2">
+          {online.ativo && (
+            <button type="button" onClick={() => setEditando(false)}
+              className="btn text-neutro-500 hover:bg-neutro-100 dark:hover:bg-neutro-800">Cancelar</button>
+          )}
+          <button type="submit" disabled={salvando} className="btn-primario">
+            {salvando && <Loader2 size={14} className="animate-spin" />}
+            {online.ativo ? 'Salvar' : 'Ativar pagamento'}
+          </button>
+        </div>
+      </div>
+    </motion.form>
   )
 }

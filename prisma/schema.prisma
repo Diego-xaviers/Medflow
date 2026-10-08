@@ -47,6 +47,18 @@ model Consultorio {
   /// inadimplência. Útil quando o admin decide dar carência extra.
   acessoLiberado Boolean @default(false)
 
+  /// Mensalidade cobrada deste consultório, definida pelo administrador.
+  /// É o valor da assinatura no Asaas.
+  valorMensalidade Decimal? @db.Decimal(10, 2)
+  /// CPF ou CNPJ de quem paga — o Asaas exige para emitir cobrança e nota.
+  documentoCobranca String?
+  /// Vínculo com o Asaas. O cartão nunca passa pelo Medflow: fica no Asaas,
+  /// e aqui só guardamos os ids para conversar com ele.
+  asaasClienteId    String? @unique
+  asaasAssinaturaId String? @unique
+  /// PIX ou CREDIT_CARD — forma escolhida pelo dono na tela Cobrança.
+  formaCobranca     String?
+
   usuarios         Usuario[]
   pacientes        Paciente[]
   consultas        Consulta[]
@@ -561,11 +573,9 @@ enum StatusFatura {
 
 /// Mensalidade de um consultório.
 ///
-/// O sistema NÃO processa pagamento: não há cartão, adquirente nem meio de
-/// pagamento guardado em lugar nenhum. A fatura só registra quanto, quando
-/// vence e se foi quitada — a transferência acontece por PIX, fora daqui, e
-/// quem confirma o recebimento é o administrador. Assim não existe dado
-/// sensível de pagamento neste banco para proteger.
+/// Duas origens: lançada à mão pelo administrador (PIX manual, baixa manual)
+/// ou gerada pela assinatura no Asaas (baixa automática pelo webhook). Em
+/// nenhum caso há dado de cartão aqui — o checkout é todo no Asaas.
 model Fatura {
   id          String       @id @default(cuid())
   /// Mês de referência no formato AAAA-MM.
@@ -577,6 +587,11 @@ model Fatura {
   pagoEm      DateTime?
   /// Anotação livre de quem confirmou: "PIX recebido dia 03", por exemplo.
   observacao  String?
+  /// Preenchidos quando a fatura nasce de uma cobrança do Asaas: a baixa
+  /// chega pelo webhook, sem confirmação manual.
+  asaasPagamentoId String? @unique
+  linkPagamento    String?
+  formaPagamento   String?
   criadoEm    DateTime     @default(now())
 
   consultorioId String

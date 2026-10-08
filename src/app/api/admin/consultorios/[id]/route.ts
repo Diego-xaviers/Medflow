@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { exigirSuperAdmin } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
+import { atualizarValorAssinatura, cancelarAssinatura } from '@/lib/asaas'
 
 type Params = { params: { id: string } }
 
@@ -20,6 +21,9 @@ const ajusteSchema = z.object({
   /// Dono de outra unidade que passa a administrar esta também.
   vincularDono: z.string().email('E-mail inválido').optional(),
   desvincularDono: z.string().min(1).optional(),
+  /// Mensalidade da assinatura no Asaas; null tira o valor.
+  valorMensalidade: z.coerce.number().positive('Valor deve ser maior que zero').nullable().optional(),
+  cancelarAssinatura: z.literal(true).optional(),
 })
 
 /** Detalhes de um consultório, com a equipe e as faturas. */
@@ -47,6 +51,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
     return {
       ...c,
+      valorMensalidade: c.valorMensalidade ? Number(c.valorMensalidade) : null,
       faturas: c.faturas.map((f) => ({ ...f, valor: Number(f.valor) })),
     }
   })
@@ -79,6 +84,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       })
 
       return { ok: true, redefinida: { nome: alvo.nome, email: alvo.email } }
+    }
+
+    if (dados.cancelarAssinatura) {
+      await cancelarAssinatura(consultorio.id)
+      return { ok: true }
+    }
+
+    if (dados.valorMensalidade !== undefined) {
+      const atual = await prisma.consultorio.findUniqueOrThrow({
+        where: { id: consultorio.id },
+        select: { asaasAssinaturaId: true },
+      })
+      if (atual.asaasAssinaturaId) {
+        if (dados.valorMensalidade === null) throw new ErroDeNegocio('Cancele a assinatura antes de tirar o valor')
+        // Reajuste vale também para a cobrança ainda não paga.
+        await atualizarValorAssinatura(atual.asaasAssinaturaId, dados.valorMensalidade)
+      }
+      await prisma.consultorio.update({
+        where: { id: consultorio.id },
+        data: { valorMensalidade: dados.valorMensalidade },
+      })
+      return { ok: true }
     }
 
     if (dados.vincularDono) {

@@ -333,6 +333,25 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
   }
 
   const [emailDono, setEmailDono] = useState('')
+  const [mensalidade, setMensalidade] = useState('')
+  useEffect(() => { setMensalidade(c?.valorMensalidade ? String(c.valorMensalidade) : '') }, [c?.valorMensalidade])
+
+  async function salvarMensalidade() {
+    setOcupado(true); setErro(null)
+    try {
+      await enviar(`/api/admin/consultorios/${id}`, 'PATCH', { valorMensalidade: mensalidade ? Number(mensalidade) : null })
+      await mutate()
+    } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
+  }
+
+  async function encerrarAssinatura() {
+    if (!confirm('Cancelar a cobrança automática deste consultório no Asaas?\n\nCobranças já pagas continuam registradas.')) return
+    setOcupado(true); setErro(null)
+    try {
+      await enviar(`/api/admin/consultorios/${id}`, 'PATCH', { cancelarAssinatura: true })
+      await mutate()
+    } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
+  }
 
   async function vincularDono(e: React.FormEvent) {
     e.preventDefault()
@@ -505,6 +524,35 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
                     <h3 className="text-[11px] font-semibold tracking-wider text-brand-600 dark:text-brand-400 mb-3">
                       FATURAS
                     </h3>
+
+                    {/* Cobrança automática pelo Asaas */}
+                    <div className="mb-4 p-3 rounded-lg border border-brand-200 dark:border-brand-900 bg-brand-50/40 dark:bg-brand-900/10">
+                      <p className="text-[12.5px] font-medium mb-2">Cobrança automática (Asaas)</p>
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <label className="rotulo">Mensalidade (R$)</label>
+                          <input type="number" step="0.01" min="0" className="campo" placeholder="Ex: 149,90"
+                            value={mensalidade} onChange={(e) => setMensalidade(e.target.value)} />
+                        </div>
+                        <button type="button" onClick={salvarMensalidade} disabled={ocupado}
+                          className="btn-suave !py-2 !px-3 shrink-0 mb-1">
+                          <Check size={13} /> Salvar
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-neutro-500 mt-2">
+                        {c.asaasAssinaturaId
+                          ? `Assinatura ativa · ${c.formaCobranca === 'CREDIT_CARD' ? 'cartão (débito automático)' : 'PIX'}. Mudar o valor reajusta também a cobrança em aberto.`
+                          : c.valorMensalidade
+                          ? 'Valor definido. O dono ativa o pagamento em Cobrança, escolhendo PIX ou cartão.'
+                          : 'Defina o valor para liberar o pagamento online para este consultório.'}
+                      </p>
+                      {c.asaasAssinaturaId && (
+                        <button type="button" onClick={encerrarAssinatura} disabled={ocupado}
+                          className="text-[11.5px] text-red-600 hover:underline mt-2">
+                          Cancelar assinatura
+                        </button>
+                      )}
+                    </div>
 
                     {/* Configuração do dia de vencimento recorrente */}
                     <div className="flex items-end gap-2 mb-4 p-3 rounded-lg bg-neutro-50 dark:bg-neutro-950/40 border border-neutro-200/70 dark:border-neutro-800">

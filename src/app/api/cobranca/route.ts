@@ -1,9 +1,11 @@
+import { NextRequest } from 'next/server'
 import QRCode from 'qrcode'
 import { prisma } from '@/lib/prisma'
 import { exigirSessao } from '@/lib/tenant'
 import { rota } from '@/lib/api'
 import { situacaoDaConta } from '@/lib/cobranca'
 import { gerarBrCode, pixConfigurado } from '@/lib/pix'
+import { asaasConfigurado, pixDoPagamento, sincronizarPagamentos } from '@/lib/asaas'
 
 /**
  * A aba de Cobrança do consultório.
@@ -11,13 +13,17 @@ import { gerarBrCode, pixConfigurado } from '@/lib/pix'
  * Precisa responder mesmo com a conta bloqueada — é a única tela que resolve
  * o bloqueio, então trancá-la seria trancar a saída. Daí o `permitirEmAtraso`.
  *
- * O que sai daqui é informação de cobrança e um código PIX para copiar. Nada
- * de cartão, nada de meio de pagamento: o sistema não recebe dinheiro, só
- * registra que a fatura foi quitada quando o administrador confirma.
+ * Duas formas de pagar convivem: a assinatura no Asaas (checkout e baixa
+ * automáticos) e o PIX manual do administrador, para faturas lançadas à mão.
+ * Dado de cartão nunca passa por aqui.
+ *
+ * `?atualizar=1` puxa os pagamentos direto do Asaas — o botão "Já paguei"
+ * da tela, para o caso de o webhook ainda não ter chegado.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   return rota(async () => {
     const { consultorioId } = await exigirSessao({ permitirEmAtraso: true })
+    if (req.nextUrl.searchParams.get('atualizar')) await sincronizarPagamentos(consultorioId)
 
     const [faturas, situacao, parametros, consultorio] = await Promise.all([
       prisma.fatura.findMany({
@@ -29,7 +35,10 @@ export async function GET() {
       prisma.parametrosSaas.findUnique({ where: { id: 'unico' } }),
       prisma.consultorio.findUniqueOrThrow({
         where: { id: consultorioId },
-        select: { nome: true },
+        select: {
+          nome: true, valorMensalidade: true, formaCobranca: true,
+          asaasAssinaturaId: true, documentoCobranca: true,
+        },
       }),
     ])
 
@@ -41,7 +50,14 @@ export async function GET() {
 
     let pix: { copiaECola: string; qrCode: string; valor: number } | null = null
 
-    if (aPagar && parametros && pixConfigurado(parametros)) {
+    if (aPagar?.asaasPagamentoId) {
+      // Cobrança do Asaas: o PIX é o dele, com baixa automática.
+      if (aPagar.formaPagamento === 'PIX') {
+        try {
+          pix = { ...(await pixDoPagamento(aPagar.asaasPagamentoId)), valor: Number(aPagar.valor) }
+        } catch { /* sem QR, a tela oferece o link da fatura */ }
+      }
+    } else if (aPagar && parametros && pixConfigurado(parametros)) {
       const copiaECola = gerarBrCode({
         chave: parametros.pixChave!,
         beneficiario: parametros.pixBeneficiario!,
@@ -59,8 +75,19 @@ export async function GET() {
       }
     }
 
+    const doc = consultorio.documentoCobranca?.replace(/D/g, '') ?? ''
     return {
       consultorio: consultorio.nome,
+      // Pagamento online disponível quando o Asaas está configurado e o
+      // administrador já definiu o valor deste consultório.
+      online: {
+        disponivel: asaasConfigurado() && Boolean(consultorio.valorMensalidade),
+        ativo: Boolean(consultorio.asaasAssinaturaId),
+        forma: consultorio.formaCobranca,
+        valorMensalidade: consultorio.valorMensalidade ? Number(consultorio.valorMensalidade) : null,
+        // Só o final, para conferência — o documento inteiro não volta para a tela.
+        documentoFinal: doc ? doc.slice(-4) : null,
+      },
       situacao,
       pixDisponivel: Boolean(pix),
       pix,
@@ -71,6 +98,8 @@ export async function GET() {
             valor: Number(aPagar.valor),
             vencimento: aPagar.vencimento,
             descricao: aPagar.descricao,
+            linkPagamento: aPagar.linkPagamento,
+            automatica: Boolean(aPagar.asaasPagamentoId),
           }
         : null,
       faturas: faturas.map((f) => ({
@@ -81,6 +110,7 @@ export async function GET() {
         vencimento: f.vencimento,
         status: f.status,
         pagoEm: f.pagoEm,
+        linkPagamento: f.status === 'ABERTA' ? f.linkPagamento : null,
       })),
     }
   })

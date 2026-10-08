@@ -38,9 +38,14 @@ export async function POST(req: NextRequest) {
 
     const consultorio = await prisma.consultorio.findUnique({
       where: { id: dados.consultorioId },
-      select: { id: true, nome: true },
+      select: { id: true, nome: true, asaasAssinaturaId: true },
     })
     if (!consultorio) throw new ErroDeNegocio('Consultório não encontrado')
+    // Com assinatura ativa a fatura do mês vem do Asaas; lançar outra à mão
+    // cobraria duas vezes.
+    if (consultorio.asaasAssinaturaId) {
+      throw new ErroDeNegocio('Este consultório paga por assinatura automática — as faturas vêm do Asaas.')
+    }
 
     const repetida = await prisma.fatura.findFirst({
       where: {
