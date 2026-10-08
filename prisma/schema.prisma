@@ -55,6 +55,7 @@ model Consultorio {
   receitas         Receita[]
   encaminhamentos  Encaminhamento[]
   ausencias        Ausencia[]
+  acessosExtras    AcessoConsultorio[]
   notificacoes    Notificacao[]
   blocosExpediente BlocoExpediente[]
   faturas          Fatura[]
@@ -94,6 +95,14 @@ model Usuario {
   /// usa CRM, e a via impressa precisa dizer qual é qual.
   conselhoProfissional String?
   registroProfissional String?
+
+  /// Telas que o dono liberou para esta pessoa (em Equipe). Vazio = padrão
+  /// do papel. Só vale para a equipe: o dono nunca é restringido.
+  telas String[] @default([])
+
+  /// Outros consultórios que este dono administra além do próprio — é o
+  /// que permite trocar de unidade e ver o resultado da rede inteira.
+  acessosExtras AcessoConsultorio[]
 
   /// Nulo apenas para o SUPER_ADMIN, que está acima dos consultórios.
   consultorioId String?
@@ -395,6 +404,9 @@ model Encaminhamento {
   dataEmissao  DateTime @default(now())
   pacienteNome String
   texto        String
+  /// Nome do documento impresso no topo: "Encaminhamento", "Atestado",
+  /// "Declaração"... livre, digitado pelo profissional.
+  titulo       String   @default("Encaminhamento")
 
   profissionalId String?
   profissional   Usuario? @relation("ProfissionalDoEncaminhamento", fields: [profissionalId], references: [id], onDelete: SetNull)
@@ -524,6 +536,21 @@ model Ausencia {
 
   @@index([consultorioId, profissionalId, inicio])
   @@map("ausencias")
+}
+
+/// Dono com mais de uma unidade. A pessoa tem UM consultório de origem
+/// (Usuario.consultorioId) e ganha acesso de dono aos listados aqui. O
+/// isolamento não muda: a sessão aponta para um consultório por vez, e toda
+/// query continua filtrando por ele.
+model AcessoConsultorio {
+  usuarioId     String
+  usuario       Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+  criadoEm      DateTime    @default(now())
+
+  @@id([usuarioId, consultorioId])
+  @@map("acessos_consultorio")
 }
 
 enum StatusFatura {

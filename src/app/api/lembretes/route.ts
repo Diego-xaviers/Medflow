@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { exigirPapel } from '@/lib/tenant'
+import { exigirTela } from '@/lib/tenant'
 import { rota } from '@/lib/api'
 import { addDays, subDays, subMonths, startOfDay, endOfDay } from 'date-fns'
 
@@ -15,7 +15,7 @@ const LIMITE = 50
  */
 export async function GET() {
   return rota(async () => {
-    const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE')
+    const { consultorioId } = await exigirTela('/lembretes')
 
     const agora = new Date()
     const daquiADoisDias = endOfDay(addDays(agora, 2))

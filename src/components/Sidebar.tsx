@@ -4,9 +4,11 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { useSession } from 'next-auth/react'
+import useSWR from 'swr'
+import { fetcher } from '@/lib/fetcher'
 import {
   LayoutGrid, CalendarDays, Users, FileText, Receipt, Send, Wallet,
-  Bell, BarChart3, LifeBuoy, Settings, UserCircle, UsersRound, Building2,
+  Bell, BarChart3, LifeBuoy, Settings, UserCircle, UsersRound, Building2, Network,
 } from 'lucide-react'
 import { podeAbrir, type PapelUsuario } from '@/lib/permissoes'
 
@@ -27,6 +29,7 @@ export const operacao = [
 ]
 
 export const admin = [
+  { label: 'Rede', icon: Network, href: '/rede' },
   { label: 'Cobrança', icon: Wallet, href: '/cobranca' },
   { label: 'Consultórios', icon: Building2, href: '/admin' },
   { label: 'Equipe', icon: UsersRound, href: '/equipe' },
@@ -105,7 +108,11 @@ export default function Sidebar({ aoNavegar, variante = 'fixa' }: { aoNavegar?: 
 
   // O menu mostra exatamente o que o papel pode abrir — mesma tabela que o
   // middleware consulta, para o menu nunca prometer uma tela que vai barrar.
-  const visiveis = (itens: any[]) => itens.filter((i) => podeAbrir(papel, i.href))
+  // "Rede" só faz sentido para quem administra mais de uma unidade.
+  const { data: unidades } = useSWR(papel === 'DONO' ? '/api/meus-consultorios' : null, fetcher)
+  const temRede = Array.isArray(unidades) && unidades.length > 1
+  const visiveis = (itens: any[]) => itens.filter((i) =>
+    podeAbrir(papel, i.href, sessao?.user?.telas) && (i.href !== '/rede' || temRede))
 
   const principaisVisiveis = visiveis(principais)
   const operacaoVisiveis = visiveis(operacao)

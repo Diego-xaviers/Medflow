@@ -1,13 +1,13 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { exigirPapel } from '@/lib/tenant'
+import { exigirTela } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { receitaSchema } from '@/lib/schemas'
 import { registrarAuditoria } from '@/lib/auditoria'
 
 export async function GET(req: NextRequest) {
   return rota(async () => {
-    const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE')
+    const { consultorioId } = await exigirTela('/receitas')
     const pacienteId = req.nextUrl.searchParams.get('pacienteId')
 
     return prisma.receita.findMany({
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   return rota(async () => {
-    const { consultorioId, usuarioId } = await exigirPapel('DONO', 'ATENDENTE')
+    const { consultorioId, usuarioId } = await exigirTela('/receitas')
     const dados = receitaSchema.parse(await req.json())
 
     const paciente = await prisma.paciente.findFirst({

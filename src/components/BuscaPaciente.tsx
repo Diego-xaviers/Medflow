@@ -1,11 +1,13 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import { Search, UserRound } from 'lucide-react'
+import { contem } from './CampoBusca'
 
 interface Paciente {
   id: string
   nome: string
   telefone?: string | null
+  cpf?: string | null
 }
 
 interface BuscaPacienteProps {
@@ -26,7 +28,7 @@ export default function BuscaPaciente({ pacientes, valor, aoMudar, placeholder }
   }, [aberto, selecionado?.nome])
 
   const filtrados = busca
-    ? pacientes.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase())).slice(0, 40)
+    ? pacientes.filter(p => contem(busca, p.nome, p.cpf, p.telefone)).slice(0, 40)
     : pacientes.slice(0, 40)
 
   function selecionar(p: Paciente) {
@@ -54,7 +56,7 @@ export default function BuscaPaciente({ pacientes, valor, aoMudar, placeholder }
           value={busca}
           onChange={e => { setBusca(e.target.value); setAberto(true); if (!e.target.value) aoMudar('') }}
           onFocus={() => { setBusca(''); setAberto(true) }}
-          placeholder={placeholder ?? 'Buscar paciente...'}
+          placeholder={placeholder ?? 'Nome, CPF ou telefone...'}
           autoComplete="off"
           className="campo !pl-8"
         />
@@ -72,7 +74,11 @@ export default function BuscaPaciente({ pacientes, valor, aoMudar, placeholder }
                 </div>
                 <div className="min-w-0">
                   <p className="text-[13px] font-medium truncate">{p.nome}</p>
-                  {p.telefone && <p className="text-[11px] text-neutro-400">{p.telefone}</p>}
+                  {(p.telefone || p.cpf) && (
+                    <p className="text-[11px] text-neutro-400 numerico truncate">
+                      {[p.telefone, p.cpf && `CPF ${p.cpf}`].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
                 </div>
               </button>
             ))}

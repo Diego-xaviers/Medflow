@@ -332,6 +332,27 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
     } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
   }
 
+  const [emailDono, setEmailDono] = useState('')
+
+  async function vincularDono(e: React.FormEvent) {
+    e.preventDefault()
+    setOcupado(true); setErro(null)
+    try {
+      await enviar(`/api/admin/consultorios/${id}`, 'PATCH', { vincularDono: emailDono })
+      setEmailDono('')
+      await mutate()
+    } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
+  }
+
+  async function desvincularDono(usuarioId: string) {
+    if (!confirm('Tirar o acesso desta pessoa a este consultório?')) return
+    setOcupado(true); setErro(null)
+    try {
+      await enviar(`/api/admin/consultorios/${id}`, 'PATCH', { desvincularDono: usuarioId })
+      await mutate()
+    } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
+  }
+
   async function alternarAtivo() {
     setOcupado(true); setErro(null)
     try {
@@ -445,6 +466,38 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
                         </div>
                       ))}
                     </div>
+                  </section>
+
+                  {/* Dono de várias unidades */}
+                  <section>
+                    <h3 className="text-[11px] font-semibold tracking-wider text-brand-600 dark:text-brand-400 mb-1">
+                      DONOS DE OUTRAS UNIDADES
+                    </h3>
+                    <p className="text-[11.5px] text-neutro-400 mb-3">
+                      Dono de outro consultório que também administra este. Ele troca de unidade
+                      pelo topo do sistema e vê o resultado de todas em Rede.
+                    </p>
+                    <div className="space-y-2 mb-3">
+                      {c.acessosExtras?.map(({ usuario: u }: any) => (
+                        <div key={u.id} className="flex items-center gap-3 rounded-lg border border-neutro-200/70 dark:border-neutro-800 px-3.5 py-2.5">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[13px] font-medium truncate">{u.nome}</p>
+                            <p className="text-[11.5px] text-neutro-400 truncate">{u.email} · origem: {u.consultorio?.nome}</p>
+                          </div>
+                          <button onClick={() => desvincularDono(u.id)} disabled={ocupado}
+                            title="Remover acesso" className="btn-icone !w-8 !h-8 shrink-0 hover:!text-red-500">
+                            <X size={14} strokeWidth={2} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <form onSubmit={vincularDono} className="flex gap-2">
+                      <input type="email" className="campo !mt-0" required placeholder="E-mail do dono"
+                        value={emailDono} onChange={(e) => setEmailDono(e.target.value)} />
+                      <button type="submit" disabled={ocupado} className="btn-suave !py-2 !px-3 shrink-0">
+                        <Plus size={14} strokeWidth={2.2} /> Vincular
+                      </button>
+                    </form>
                   </section>
 
                   {/* Faturas */}

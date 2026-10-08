@@ -2,6 +2,7 @@ import { getSessao } from './auth'
 import { situacaoDaConta } from './cobranca'
 import { prisma } from './prisma'
 import type { Papel } from '@prisma/client'
+import { podeAbrir } from './permissoes'
 
 /**
  * Esta é a peça mais importante do sistema.
@@ -112,6 +113,23 @@ export async function exigirUsuario(): Promise<{
 
   const { id, name, papel, consultorioId } = sessao.user
   return { usuarioId: id, nome: name ?? '', papel, consultorioId }
+}
+
+/**
+ * Exige acesso a uma tela, respeitando o que o dono liberou para a pessoa em
+ * Equipe. É o par de servidor do menu e do middleware: esconder a tela sem
+ * fechar a API seria teatro. Lê do banco, não do token — a mudança feita pelo
+ * dono vale na hora.
+ */
+export async function exigirTela(tela: string): Promise<Contexto> {
+  const ctx = await exigirSessao()
+  if (ctx.papel === 'DONO') return ctx
+  const usuario = await prisma.usuario.findUnique({
+    where: { id: ctx.usuarioId },
+    select: { telas: true },
+  })
+  if (!podeAbrir(ctx.papel, tela, usuario?.telas)) throw new ErroSemPermissao()
+  return ctx
 }
 
 /** Exige que o usuário logado tenha um dos papéis informados. */

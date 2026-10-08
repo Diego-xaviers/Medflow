@@ -109,7 +109,7 @@ export default function ProntuariosPage() {
   const { data: prontuarios, isLoading, mutate } = useSWR('/api/prontuarios', fetcher)
   const [busca, setBusca] = useState('')
   const filtrados = prontuarios?.filter((p: any) =>
-    contem(busca, p.paciente?.nome, p.diagnostico, data(p.dataExame)))
+    contem(busca, p.paciente?.nome, p.paciente?.cpf, p.paciente?.telefone, p.diagnostico, data(p.dataExame)))
   const { data: pacientes } = useSWR('/api/pacientes', fetcher)
 
   function abrirNovo() {
@@ -182,7 +182,7 @@ export default function ProntuariosPage() {
       </div>
 
       <div className="mb-5">
-        <CampoBusca valor={busca} aoMudar={setBusca} placeholder="Buscar por paciente, diagnóstico ou data..." />
+        <CampoBusca valor={busca} aoMudar={setBusca} placeholder="Buscar por nome, CPF, telefone ou diagnóstico..." />
       </div>
 
       {isLoading ? (
@@ -220,7 +220,11 @@ export default function ProntuariosPage() {
                 <Receipt size={13} strokeWidth={2} /> Emitir receita
               </Link>
 
-              <button onClick={() => excluir(p.id)}
+              <button onClick={() => abrirEditar(p)} title="Editar prontuário"
+                className="btn-icone !w-8 !h-8 hover:!text-brand-600 hover:!bg-brand-50 dark:hover:!bg-brand-900/30 shrink-0">
+                <Pencil size={15} strokeWidth={2} />
+              </button>
+              <button onClick={() => excluir(p.id)} title="Excluir prontuário"
                 className="btn-icone !w-8 !h-8 hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/40 shrink-0">
                 <Trash2 size={16} />
               </button>

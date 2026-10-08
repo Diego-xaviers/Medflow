@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { withAuth } from 'next-auth/middleware'
-import { podeAbrir, TELA_INICIAL, type PapelUsuario } from '@/lib/permissoes'
+import { podeAbrir, telaInicial, type PapelUsuario } from '@/lib/permissoes'
 
 /**
  * Protege as páginas do sistema no nível do roteador: quem não estiver logado
@@ -35,9 +35,10 @@ export default withAuth(
       }
     }
 
-    if (papel && !podeAbrir(papel, caminho)) {
+    const telas = token?.telas as string[] | undefined
+    if (papel && !podeAbrir(papel, caminho, telas)) {
       const destino = req.nextUrl.clone()
-      destino.pathname = TELA_INICIAL[papel] ?? '/'
+      destino.pathname = telaInicial(papel, telas)
       destino.search = ''
       return NextResponse.redirect(destino)
     }

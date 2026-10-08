@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, X, Loader2, ShieldCheck, Stethoscope, CalendarDays, Eye, Ban,
-  UserMinus, RotateCcw, Trash2,
+  UserMinus, RotateCcw, Trash2, LayoutGrid, ToggleLeft, ToggleRight,
 } from 'lucide-react'
+import { TELAS_CONFIGURAVEIS, telasPadrao } from '@/lib/permissoes'
 import Avatar from '@/components/Avatar'
 import { fetcher, enviar } from '@/lib/fetcher'
 
@@ -29,6 +30,7 @@ export default function EquipePage() {
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [ajustando, setAjustando] = useState<string | null>(null)
+  const [editandoTelas, setEditandoTelas] = useState<any | null>(null)
 
   const { data: usuarios, isLoading, mutate } = useSWR('/api/usuarios', fetcher)
 
@@ -126,7 +128,9 @@ export default function EquipePage() {
                 </div>
                 <p className="text-xs text-neutro-400 truncate">{u.email}</p>
                 <p className="text-[11px] text-neutro-400 mt-1 max-w-[520px]">
-                  {alcance[u.papel]}
+                  {u.telas?.length
+                    ? `Acesso personalizado: ${TELAS_CONFIGURAVEIS.filter((t) => u.telas.includes(t.href)).map((t) => t.rotulo).join(', ')}.`
+                    : alcance[u.papel]}
                 </p>
               </div>
 
@@ -152,6 +156,18 @@ export default function EquipePage() {
                     : <Stethoscope size={11} strokeWidth={2} />}
                   {u.atendePacientes ? 'Atende' : 'Não atende'}
                 </button>
+
+                {u.papel !== 'DONO' && u.ativo && (
+                  <button onClick={() => setEditandoTelas(u)}
+                    title="Escolher as telas que esta pessoa acessa"
+                    className={`etiqueta transition-colors ${
+                      u.telas?.length
+                        ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
+                        : 'bg-neutro-100 text-neutro-500 dark:bg-neutro-800 hover:text-neutro-700'
+                    }`}>
+                    <LayoutGrid size={11} strokeWidth={2} /> Telas
+                  </button>
+                )}
 
                 {/* Retirar a licença: desativa e preserva o histórico. Apagar
                     de vez só aparece para quem nunca atendeu. */}
@@ -188,6 +204,9 @@ export default function EquipePage() {
         marcado como <strong className="font-medium">Atende</strong> aparece como
         profissional escolhível pelo paciente.
       </p>
+
+      <ModalTelas usuario={editandoTelas} aoFechar={() => setEditandoTelas(null)}
+        aoSalvar={() => { setEditandoTelas(null); mutate() }} />
 
       <AnimatePresence>
         {modal && (
@@ -260,5 +279,93 @@ export default function EquipePage() {
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+/** O dono liga e desliga as telas de uma pessoa da equipe. */
+function ModalTelas({ usuario, aoFechar, aoSalvar }: { usuario: any; aoFechar: () => void; aoSalvar: () => void }) {
+  const [marcadas, setMarcadas] = useState<string[]>([])
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (usuario) {
+      setMarcadas(usuario.telas?.length ? usuario.telas : telasPadrao(usuario.papel))
+      setErro(null)
+    }
+  }, [usuario])
+
+  const alternar = (href: string) =>
+    setMarcadas((m) => (m.includes(href) ? m.filter((x) => x !== href) : [...m, href]))
+
+  async function salvar(telas: string[]) {
+    setSalvando(true); setErro(null)
+    try {
+      await enviar(`/api/usuarios/${usuario.id}`, 'PATCH', { telas })
+      aoSalvar()
+    } catch (e: any) { setErro(e.message) } finally { setSalvando(false) }
+  }
+
+  // Igual ao padrão do papel = guarda vazio, para seguir o papel se ele mudar.
+  const padrao = usuario ? telasPadrao(usuario.papel) : []
+  const ehPadrao = marcadas.length === padrao.length && padrao.every((t) => marcadas.includes(t))
+
+  return (
+    <AnimatePresence>
+      {usuario && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-neutro-900/30 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.98 }} transition={{ duration: 0.2 }}
+            className="cartao w-full max-w-md p-5 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-[16px] font-semibold">Acesso de {usuario.nome}</h2>
+                <p className="text-[12px] text-neutro-400 mt-0.5">Marque as telas que esta pessoa pode abrir.</p>
+              </div>
+              <button type="button" onClick={aoFechar} className="btn-icone !w-8 !h-8"><X size={18} /></button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {TELAS_CONFIGURAVEIS.map((t) => {
+                const ligada = marcadas.includes(t.href)
+                return (
+                  <button key={t.href} type="button" onClick={() => alternar(t.href)}
+                    className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-[13px] font-medium transition-all active:scale-[0.98] ${
+                      ligada
+                        ? 'border-brand-400 bg-brand-50 text-brand-800 dark:bg-brand-900/20 dark:text-brand-300 dark:border-brand-700'
+                        : 'border-neutro-200 dark:border-neutro-700 text-neutro-500'
+                    }`}>
+                    {t.rotulo}
+                    {ligada
+                      ? <ToggleRight size={18} className="text-brand-500 shrink-0" strokeWidth={2} />
+                      : <ToggleLeft size={18} className="shrink-0" strokeWidth={2} />}
+                  </button>
+                )
+              })}
+            </div>
+
+            <p className="text-[11px] text-neutro-400">
+              Perfil e Suporte ficam sempre liberados. Equipe, Configurações e Cobrança seguem o papel.
+              A mudança vale em até um minuto, sem a pessoa precisar sair do sistema.
+            </p>
+
+            {erro && <p className="text-xs text-red-600">{erro}</p>}
+
+            <div className="flex items-center justify-between gap-3">
+              <button type="button" onClick={() => salvar([])} disabled={salvando || !usuario.telas?.length}
+                className="text-[12px] text-neutro-400 hover:text-neutro-600 disabled:opacity-40 flex items-center gap-1">
+                <RotateCcw size={12} strokeWidth={2} /> Padrão do papel
+              </button>
+              <button type="button" onClick={() => salvar(ehPadrao ? [] : marcadas)}
+                disabled={salvando || marcadas.length === 0} className="btn-primario">
+                {salvando && <Loader2 size={14} className="animate-spin" />} Salvar acesso
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

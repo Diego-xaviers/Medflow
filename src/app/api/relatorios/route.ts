@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { exigirPapel } from '@/lib/tenant'
+import { exigirTela } from '@/lib/tenant'
 import { rota } from '@/lib/api'
 import {
   startOfDay, endOfDay, startOfMonth, endOfMonth,
@@ -25,7 +25,7 @@ function mesRotulo(d: Date) {
  */
 export async function GET(req: NextRequest) {
   return rota(async () => {
-    const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE')
+    const { consultorioId } = await exigirTela('/relatorios')
 
     const hoje = new Date()
     const deParam = req.nextUrl.searchParams.get('de')

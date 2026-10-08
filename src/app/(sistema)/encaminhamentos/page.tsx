@@ -10,7 +10,10 @@ import CampoBusca, { contem } from '@/components/CampoBusca'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { data } from '@/lib/formato'
 
-const vazio = { pacienteNome: '', texto: '' }
+const vazio = { titulo: 'Encaminhamento', pacienteNome: '', texto: '' }
+
+/** Sugestões para o nome do documento; o profissional pode digitar qualquer outro. */
+const TITULOS = ['Encaminhamento', 'Atestado', 'Declaração', 'Laudo', 'Relatório', 'Solicitação de exame']
 
 /** "CBOO 12345", ou nada quando o registro não foi preenchido no Perfil. */
 const registro = (p: any) =>
@@ -26,7 +29,7 @@ export default function EncaminhamentosPage() {
   const { data: encaminhamentos, isLoading, mutate } = useSWR('/api/encaminhamentos', fetcher)
   const [busca, setBusca] = useState('')
   const filtrados = encaminhamentos?.filter((e: any) =>
-    contem(busca, e.pacienteNome, e.texto, e.profissional?.nome, data(e.dataEmissao)))
+    contem(busca, e.titulo, e.pacienteNome, e.texto, e.profissional?.nome, data(e.dataEmissao)))
   const { data: pacientes } = useSWR('/api/pacientes', fetcher)
   // Os dados de quem assina vêm prontos do Perfil — o profissional só escreve.
   const { data: perfil } = useSWR('/api/perfil', fetcher)
@@ -86,7 +89,12 @@ export default function EncaminhamentosPage() {
                 <Send size={16} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{e.pacienteNome}</p>
+                <p className="font-medium truncate">
+                  {e.pacienteNome}
+                  <span className="ml-2 text-[10.5px] font-medium text-neutro-500 bg-neutro-100 dark:bg-neutro-800 px-1.5 py-0.5 rounded align-middle">
+                    {e.titulo}
+                  </span>
+                </p>
                 <p className="text-xs text-neutro-400 truncate">{e.texto}</p>
               </div>
               <div className="text-right shrink-0 hidden sm:block">
@@ -121,7 +129,7 @@ export default function EncaminhamentosPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Send size={18} className="text-brand-500" />
-                  <h2 className="text-[16px] font-semibold">Novo encaminhamento</h2>
+                  <h2 className="text-[16px] font-semibold">Novo documento</h2>
                 </div>
                 <button type="button" onClick={() => setModal(false)} className="text-neutro-400 hover:text-neutro-600"><X size={20} /></button>
               </div>
@@ -141,6 +149,17 @@ export default function EncaminhamentosPage() {
               </div>
 
               <div>
+                <label className="rotulo">Nome do documento</label>
+                <input className="campo" required list="titulos-documento" maxLength={80}
+                  placeholder="Encaminhamento, Atestado..."
+                  value={form.titulo}
+                  onChange={(e) => setForm({ ...form, titulo: e.target.value })} />
+                <datalist id="titulos-documento">
+                  {TITULOS.map((t) => <option key={t} value={t} />)}
+                </datalist>
+              </div>
+
+              <div>
                 <label className="rotulo">Paciente</label>
                 <input className="campo" required list="pacientes-encaminhamento"
                   placeholder="Nome do paciente" autoFocus
@@ -152,7 +171,7 @@ export default function EncaminhamentosPage() {
               </div>
 
               <div>
-                <label className="rotulo">Encaminhamento</label>
+                <label className="rotulo">Texto</label>
                 <textarea className="campo min-h-[260px] leading-relaxed" required
                   placeholder={'Ao(À) Dr(a). ...\n\nEncaminho o(a) paciente para avaliação de ...'}
                   value={form.texto}

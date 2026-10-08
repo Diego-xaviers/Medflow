@@ -16,7 +16,7 @@ export async function GET() {
     const { consultorioId } = await exigirPapel('DONO')
     return prisma.usuario.findMany({
       where: { consultorioId },
-      select: { id: true, nome: true, email: true, papel: true, ativo: true, atendePacientes: true, fotoUrl: true, criadoEm: true },
+      select: { id: true, nome: true, email: true, papel: true, ativo: true, atendePacientes: true, fotoUrl: true, criadoEm: true, telas: true },
       orderBy: { nome: 'asc' },
     })
   })

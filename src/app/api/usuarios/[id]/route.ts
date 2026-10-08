@@ -4,12 +4,16 @@ import { prisma } from '@/lib/prisma'
 import { exigirPapel } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { notificar, equipeDoConsultorio } from '@/lib/notificacoes'
+import { TELAS_CONFIGURAVEIS } from '@/lib/permissoes'
+import { registrarAuditoria } from '@/lib/auditoria'
 
 type Params = { params: { id: string } }
 
 const ajusteSchema = z.object({
   ativo: z.boolean().optional(),
   atendePacientes: z.boolean().optional(),
+  /// Telas liberadas; lista vazia volta ao padrão do papel.
+  telas: z.array(z.string().refine((t) => TELAS_CONFIGURAVEIS.some((c) => c.href === t), 'Tela inválida')).optional(),
 })
 
 /**
@@ -33,15 +37,29 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       select: { id: true, nome: true, papel: true },
     })
     if (!alvo) throw new ErroDeNegocio('Usuário não encontrado')
+    if (dados.telas && alvo.papel === 'DONO') {
+      throw new ErroDeNegocio('O acesso do dono não pode ser restringido')
+    }
 
     const atualizado = await prisma.usuario.update({
       where: { id: alvo.id },
       data: dados,
       select: {
         id: true, nome: true, email: true, papel: true,
-        ativo: true, atendePacientes: true, fotoUrl: true,
+        ativo: true, atendePacientes: true, fotoUrl: true, telas: true,
       },
     })
+
+    if (dados.telas) {
+      registrarAuditoria({
+        acao: 'EDITAR',
+        entidade: 'Usuario',
+        entidadeId: alvo.id,
+        detalhes: `Telas de ${alvo.nome}: ${dados.telas.length ? dados.telas.join(', ') : 'padrão do papel'}`,
+        usuarioId,
+        consultorioId,
+      })
+    }
 
     if (dados.atendePacientes !== undefined) {
       await notificar({

@@ -25,7 +25,8 @@ export default function BuscaGlobal() {
   const [ativo, setAtivo] = useState(0)
   const campo = useRef<HTMLInputElement>(null)
 
-  const vePacientes = podeAbrir(papel, '/pacientes')
+  const telasLiberadas = sessao?.user?.telas
+  const vePacientes = podeAbrir(papel, '/pacientes', telasLiberadas)
   const t = termo.trim()
   const { data: pacientes } = useSWR(
     vePacientes && t.length >= 2 ? `/api/pacientes?busca=${encodeURIComponent(t)}` : null,
@@ -35,7 +36,7 @@ export default function BuscaGlobal() {
 
   const resultados = [
     ...telas
-      .filter((i) => podeAbrir(papel, i.href) && t && contem(t, i.label))
+      .filter((i) => podeAbrir(papel, i.href, telasLiberadas) && t && contem(t, i.label))
       .map((i) => ({ chave: i.href, rotulo: i.label, dica: 'Tela', icone: i.icon, href: i.href, pacienteId: null as string | null })),
     ...(t.length >= 2 ? pacientes ?? [] : []).slice(0, 6).map((p: any) => ({
       chave: p.id, rotulo: p.nome, dica: p.telefone ?? 'Paciente', icone: UserRound,

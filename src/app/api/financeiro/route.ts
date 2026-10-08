@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { exigirPapel } from '@/lib/tenant'
+import { exigirTela } from '@/lib/tenant'
 import { rota } from '@/lib/api'
 import { lancamentoSchema } from '@/lib/schemas'
 
@@ -12,7 +12,7 @@ const filtroSchema = z.object({
 
 export async function GET(req: NextRequest) {
   return rota(async () => {
-    const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE')
+    const { consultorioId } = await exigirTela('/financeiro')
     const filtro = filtroSchema.parse({
       status: req.nextUrl.searchParams.get('status') ?? undefined,
       tipo:   req.nextUrl.searchParams.get('tipo')   ?? undefined,
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   return rota(async () => {
-    const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE')
+    const { consultorioId } = await exigirTela('/financeiro')
     const dados = lancamentoSchema.parse(await req.json())
 
     return prisma.lancamento.create({

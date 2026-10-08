@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
           OR: [
             { nome: { contains: busca, mode: 'insensitive' } },
             { email: { contains: busca, mode: 'insensitive' } },
+            { cpf: { contains: busca } },
+            { telefone: { contains: busca } },
           ],
         }),
       },

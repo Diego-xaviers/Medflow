@@ -75,7 +75,7 @@ export default function ImprimirEncaminhamentoPage() {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-[13px] font-semibold tracking-wide">ENCAMINHAMENTO</p>
+            <p className="text-[13px] font-semibold tracking-wide uppercase">{e.titulo || 'Encaminhamento'}</p>
             <p className="text-[11px] text-neutro-500 numerico">Emitido em {data(e.dataEmissao)}</p>
           </div>
         </header>

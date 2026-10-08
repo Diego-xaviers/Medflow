@@ -29,7 +29,7 @@ const ROTAS: Record<PapelUsuario, string[] | '*'> = {
   DONO: [
     '/', '/agenda', '/pacientes', '/prontuarios', '/receitas', '/encaminhamentos',
     '/financeiro', '/lembretes', '/relatorios', '/suporte',
-    '/equipe', '/configuracoes', '/perfil', '/cobranca',
+    '/equipe', '/configuracoes', '/perfil', '/cobranca', '/rede',
   ],
 
   // A atendente toca a operação inteira, menos a administração da equipe.
@@ -52,15 +52,56 @@ export const TELA_INICIAL: Record<PapelUsuario, string> = {
   VENDEDORA: '/agenda',
 }
 
-export function podeAbrir(papel: PapelUsuario | undefined, caminho: string): boolean {
+/**
+ * Telas que o dono liga e desliga para cada pessoa da equipe (em Equipe).
+ * O que não está aqui — Perfil, Suporte, Cobrança, Equipe, Configurações —
+ * continua seguindo só o papel.
+ */
+export const TELAS_CONFIGURAVEIS = [
+  { href: '/', rotulo: 'Dashboard' },
+  { href: '/agenda', rotulo: 'Agenda' },
+  { href: '/pacientes', rotulo: 'Pacientes' },
+  { href: '/prontuarios', rotulo: 'Prontuários' },
+  { href: '/receitas', rotulo: 'Receitas' },
+  { href: '/encaminhamentos', rotulo: 'Encaminhamentos' },
+  { href: '/financeiro', rotulo: 'Financeiro' },
+  { href: '/lembretes', rotulo: 'Lembretes' },
+  { href: '/relatorios', rotulo: 'Relatórios' },
+]
+
+// A raiz precisa bater exata: com `startsWith`, '/' liberaria o site todo.
+const bate = (rota: string, caminho: string) =>
+  rota === '/' ? caminho === '/' : caminho === rota || caminho.startsWith(`${rota}/`)
+
+/** As telas configuráveis que o papel abre por padrão — o ponto de partida em Equipe. */
+export function telasPadrao(papel: PapelUsuario): string[] {
+  const permitidas = ROTAS[papel]
+  return TELAS_CONFIGURAVEIS
+    .map((t) => t.href)
+    .filter((href) => permitidas === '*' || permitidas.includes(href))
+}
+
+/**
+ * `telas` é a escolha do dono para aquela pessoa; vazio = padrão do papel.
+ * O dono nunca é restringido: ele é quem configura.
+ */
+export function podeAbrir(papel: PapelUsuario | undefined, caminho: string, telas?: string[] | null): boolean {
   if (!papel) return false
 
   const permitidas = ROTAS[papel]
   if (permitidas === '*') return true
   if (!permitidas) return false
 
-  // A raiz precisa bater exata: com `startsWith`, '/' liberaria o site todo.
-  return permitidas.some((rota) =>
-    rota === '/' ? caminho === '/' : caminho === rota || caminho.startsWith(`${rota}/`)
-  )
+  if (telas?.length && papel !== 'DONO') {
+    const configuravel = TELAS_CONFIGURAVEIS.find((t) => bate(t.href, caminho))
+    if (configuravel) return telas.includes(configuravel.href)
+  }
+
+  return permitidas.some((rota) => bate(rota, caminho))
+}
+
+/** Primeira tela que a pessoa pode abrir — para onde vai quem cai numa proibida. */
+export function telaInicial(papel: PapelUsuario, telas?: string[] | null): string {
+  const candidatas = [TELA_INICIAL[papel], ...TELAS_CONFIGURAVEIS.map((t) => t.href), '/perfil']
+  return candidatas.find((c) => podeAbrir(papel, c, telas)) ?? '/perfil'
 }

@@ -168,6 +168,7 @@ export const ausenciaSchema = z.object({
 })
 
 export const encaminhamentoSchema = z.object({
+  titulo: z.string().trim().min(1, 'Informe o nome do documento').max(80).default('Encaminhamento'),
   pacienteNome: z.string().trim().min(1, 'Informe o nome do paciente').max(200),
   texto: z.string().trim().min(1, 'Escreva o encaminhamento').max(10000),
 })

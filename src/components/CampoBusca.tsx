@@ -6,10 +6,18 @@ import { Search, X } from 'lucide-react'
 const normalizar = (t: unknown) =>
   String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
-/** Algum dos textos contém a busca? Busca vazia deixa tudo passar. */
+/**
+ * Algum dos textos contém a busca? Busca vazia deixa tudo passar.
+ * Busca só de números (CPF, telefone) compara apenas os dígitos: "66999"
+ * acha "(66) 99912-3456" e "123.456" acha "123.456.789-00".
+ */
 export function contem(busca: string, ...textos: unknown[]) {
   const alvo = normalizar(busca).trim()
-  return !alvo || textos.some((t) => normalizar(t).includes(alvo))
+  if (!alvo) return true
+  const digitos = alvo.replace(/\D/g, '')
+  const soNumero = digitos.length >= 3 && !/[a-z]/.test(alvo)
+  return textos.some((t) =>
+    normalizar(t).includes(alvo) || (soNumero && String(t ?? '').replace(/\D/g, '').includes(digitos)))
 }
 
 /** Campo de busca das listas — mesmo visual do de Pacientes. */

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { exigirPapel } from '@/lib/tenant'
+import { exigirTela } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { prontuarioSchema } from '@/lib/schemas'
 
@@ -8,7 +8,7 @@ type Params = { params: { id: string } }
 
 export async function GET(_req: NextRequest, { params }: Params) {
   return rota(async () => {
-    const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE')
+    const { consultorioId } = await exigirTela('/prontuarios')
     const p = await prisma.prontuario.findFirst({
       where: { id: params.id, consultorioId },
       include: { paciente: true, receitas: true },
@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PUT(req: NextRequest, { params }: Params) {
   return rota(async () => {
-    const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE')
+    const { consultorioId } = await exigirTela('/prontuarios')
     const dados = prontuarioSchema.parse(await req.json())
 
     const r = await prisma.prontuario.updateMany({
@@ -34,7 +34,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   return rota(async () => {
-    const { consultorioId } = await exigirPapel('DONO', 'ATENDENTE')
+    const { consultorioId } = await exigirTela('/prontuarios')
     const r = await prisma.prontuario.deleteMany({ where: { id: params.id, consultorioId } })
     if (r.count === 0) throw new ErroDeNegocio('Prontuário não encontrado')
     return { ok: true }

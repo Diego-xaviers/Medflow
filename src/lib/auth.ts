@@ -65,6 +65,7 @@ export const authOptions: NextAuthOptions = {
           consultorioId: usuario.consultorioId,
           consultorioNome: usuario.consultorio?.nome ?? null,
           consultorioSlug: usuario.consultorio?.slug ?? null,
+          telas: usuario.telas,
           rememberMe: credentials.rememberMe === 'true',
           loginAt: Math.floor(Date.now() / 1000),
         } as any
@@ -76,38 +77,66 @@ export const authOptions: NextAuthOptions = {
     // O consultorioId entra no token aqui e é a única fonte de verdade sobre
     // "de quem são estes dados". O cliente nunca consegue forjar isso mandando
     // um id no corpo da requisição.
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.papel = (user as any).papel
         token.consultorioId = (user as any).consultorioId
+        token.consultorioOrigem = (user as any).consultorioId
+        token.telas = (user as any).telas ?? []
+        token.sincronizadoEm = Date.now()
         token.consultorioNome = (user as any).consultorioNome
         token.consultorioSlug = (user as any).consultorioSlug
         token.rememberMe = (user as any).rememberMe
         token.loginAt = (user as any).loginAt
       }
 
-      // Disparado por `useSession().update()` — usado quando a pessoa edita o
-      // próprio perfil ou o nome do consultório. Sem isto, o cabeçalho e a
-      // barra lateral seguiriam com o nome antigo até o próximo login.
-      if (trigger === 'update' && token.sub) {
+      // Relê do banco quando:
+      //  - `useSession().update()` é chamado (perfil editado, troca de
+      //    consultório — nesse caso `session.consultorioId` traz o destino);
+      //  - passou um minuto desde a última leitura. É o que faz permissões
+      //    alteradas pelo dono e acessos revogados valerem sem novo login.
+      const vencido = !token.sincronizadoEm || Date.now() - token.sincronizadoEm > 60_000
+      if (token.sub && (trigger === 'update' || vencido)) {
         const atual = await prisma.usuario.findUnique({
           where: { id: token.sub },
           select: {
             nome: true,
             email: true,
             papel: true,
+            ativo: true,
+            telas: true,
             consultorioId: true,
-            consultorio: { select: { nome: true, slug: true } },
+            acessosExtras: { where: { consultorio: { ativo: true } }, select: { consultorioId: true } },
           },
         })
-        if (atual) {
+
+        if (!atual || !atual.ativo) {
+          // Conta desativada: sem consultório, toda rota de dados recusa.
+          token.consultorioId = null
+          token.telas = []
+        } else {
+          const pedido = trigger === 'update' ? (session as any)?.consultorioId : undefined
+          const desejado = pedido ?? token.consultorioId
+          // Só vale consultório de origem ou um vinculado. Qualquer outro id
+          // — forjado ou com acesso revogado — volta para a origem.
+          const permitido = desejado === atual.consultorioId ||
+            atual.acessosExtras.some((a) => a.consultorioId === desejado)
+          const consultorioId = permitido ? desejado : atual.consultorioId
+
+          const consultorio = consultorioId
+            ? await prisma.consultorio.findUnique({ where: { id: consultorioId }, select: { nome: true, slug: true } })
+            : null
+
           token.name = atual.nome
           token.email = atual.email
           token.papel = atual.papel
-          token.consultorioId = atual.consultorioId
-          token.consultorioNome = atual.consultorio?.nome ?? null
-          token.consultorioSlug = atual.consultorio?.slug ?? null
+          token.telas = atual.telas
+          token.consultorioOrigem = atual.consultorioId
+          token.consultorioId = consultorioId
+          token.consultorioNome = consultorio?.nome ?? null
+          token.consultorioSlug = consultorio?.slug ?? null
         }
+        token.sincronizadoEm = Date.now()
       }
 
       return token
@@ -120,6 +149,7 @@ export const authOptions: NextAuthOptions = {
         session.user.consultorioNome = token.consultorioNome as string | null
         session.user.consultorioSlug = token.consultorioSlug as string | null
         session.user.rememberMe = token.rememberMe ?? false
+        session.user.telas = token.telas ?? []
       }
       return session
     },
