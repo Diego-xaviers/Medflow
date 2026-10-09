@@ -4,8 +4,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { useSession } from 'next-auth/react'
-import useSWR from 'swr'
-import { fetcher } from '@/lib/fetcher'
 import {
   LayoutGrid, CalendarDays, Users, FileText, Receipt, Send, Wallet,
   Bell, BarChart3, LifeBuoy, Settings, UserCircle, UsersRound, Building2, Network,
@@ -28,8 +26,13 @@ export const operacao = [
   { label: 'Suporte', icon: LifeBuoy, href: '/suporte' },
 ]
 
+/** Ambiente gestor: a rede inteira, sem trocar de consultório. */
+export const gestor = [
+  { label: 'Painel da rede', icon: Network, href: '/gestor' },
+  { label: 'Equipe da rede', icon: UsersRound, href: '/gestor/equipe' },
+]
+
 export const admin = [
-  { label: 'Rede', icon: Network, href: '/rede' },
   { label: 'Cobrança', icon: Wallet, href: '/cobranca' },
   { label: 'Consultórios', icon: Building2, href: '/admin' },
   { label: 'Equipe', icon: UsersRound, href: '/equipe' },
@@ -39,7 +42,7 @@ export const admin = [
 
 function Item({ label, icon: Icon, href, aoNavegar, variante }: { label: string; icon: any; href: string; aoNavegar?: () => void; variante: string }) {
   const caminho = usePathname()
-  const ativo = href === '/' ? caminho === '/' : caminho.startsWith(href)
+  const ativo = href === '/' || href === '/gestor' ? caminho === href : caminho.startsWith(href)
 
   return (
     <Link href={href} onClick={aoNavegar} className="relative block group">
@@ -108,15 +111,13 @@ export default function Sidebar({ aoNavegar, variante = 'fixa' }: { aoNavegar?: 
 
   // O menu mostra exatamente o que o papel pode abrir — mesma tabela que o
   // middleware consulta, para o menu nunca prometer uma tela que vai barrar.
-  // "Rede" só faz sentido para quem administra mais de uma unidade.
-  const { data: unidades } = useSWR(papel === 'DONO' ? '/api/meus-consultorios' : null, fetcher)
-  const temRede = Array.isArray(unidades) && unidades.length > 1
   const visiveis = (itens: any[]) => itens.filter((i) =>
-    podeAbrir(papel, i.href, sessao?.user?.telas) && (i.href !== '/rede' || temRede))
+    podeAbrir(papel, i.href, sessao?.user?.telas, sessao?.user?.redeId))
 
   const principaisVisiveis = visiveis(principais)
   const operacaoVisiveis = visiveis(operacao)
   const adminVisiveis = visiveis(admin)
+  const gestorVisiveis = visiveis(gestor)
 
   return (
     <aside className="w-[236px] shrink-0 border-r border-neutro-200 dark:border-neutro-800 bg-white dark:bg-neutro-950 h-screen sticky top-0 flex flex-col">
@@ -133,6 +134,7 @@ export default function Sidebar({ aoNavegar, variante = 'fixa' }: { aoNavegar?: 
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+        {gestorVisiveis.length > 0 && <Grupo titulo="Rede" itens={gestorVisiveis} aoNavegar={aoNavegar} variante={variante} />}
         {principaisVisiveis.length > 0 && <Grupo itens={principaisVisiveis} aoNavegar={aoNavegar} variante={variante} />}
         {operacaoVisiveis.length > 0 && <Grupo titulo="Operação" itens={operacaoVisiveis} aoNavegar={aoNavegar} variante={variante} />}
         {adminVisiveis.length > 0 && <Grupo titulo="Admin" itens={adminVisiveis} aoNavegar={aoNavegar} variante={variante} />}
@@ -141,11 +143,13 @@ export default function Sidebar({ aoNavegar, variante = 'fixa' }: { aoNavegar?: 
       <div className="px-3 pb-4">
         <div className="rounded-lg bg-neutro-50 dark:bg-neutro-900 border border-neutro-200 dark:border-neutro-800 px-3 py-2.5">
           <p className="text-[10px] font-semibold tracking-widest text-neutro-400 dark:text-neutro-600 uppercase mb-0.5">
-            {papel === 'SUPER_ADMIN' ? 'Conta' : 'Consultório'}
+            {papel === 'SUPER_ADMIN' || papel === 'GESTOR' ? 'Conta' : 'Consultório'}
           </p>
           <p className="text-[13px] font-semibold truncate text-neutro-800 dark:text-neutro-200" style={{ letterSpacing: '-0.01em' }}>
             {papel === 'SUPER_ADMIN'
               ? 'Administração Medflow'
+              : papel === 'GESTOR'
+              ? 'Gestão da rede'
               : sessao?.user?.consultorioNome ?? '—'}
           </p>
         </div>

@@ -35,8 +35,8 @@ export default withAuth(
       }
     }
 
-    const telas = token?.telas as string[] | undefined
-    if (papel && !podeAbrir(papel, caminho, telas)) {
+    const telas = token?.telas as string[] | null | undefined
+    if (papel && !podeAbrir(papel, caminho, telas, token?.redeId as string | null | undefined)) {
       const destino = req.nextUrl.clone()
       destino.pathname = telaInicial(papel, telas)
       destino.search = ''

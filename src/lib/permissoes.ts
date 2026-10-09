@@ -14,7 +14,7 @@
  * edge e quebra se este módulo arrastar qualquer coisa de servidor.
  */
 
-export type PapelUsuario = 'SUPER_ADMIN' | 'DONO' | 'ATENDENTE' | 'VENDEDORA'
+export type PapelUsuario = 'SUPER_ADMIN' | 'DONO' | 'ATENDENTE' | 'VENDEDORA' | 'GESTOR'
 
 /** Telas liberadas por papel. `'*'` significa "todas". */
 const ROTAS: Record<PapelUsuario, string[] | '*'> = {
@@ -29,7 +29,7 @@ const ROTAS: Record<PapelUsuario, string[] | '*'> = {
   DONO: [
     '/', '/agenda', '/pacientes', '/prontuarios', '/receitas', '/encaminhamentos',
     '/financeiro', '/lembretes', '/relatorios', '/suporte',
-    '/equipe', '/configuracoes', '/perfil', '/cobranca', '/rede',
+    '/equipe', '/configuracoes', '/perfil', '/cobranca',
   ],
 
   // A atendente toca a operação inteira, menos a administração da equipe.
@@ -42,6 +42,10 @@ const ROTAS: Record<PapelUsuario, string[] | '*'> = {
   // A vendedora agenda e acompanha — mas cobrança e dados clínicos não são
   // da função dela. Acesso à fatura da clínica não faz sentido para a vendedora.
   VENDEDORA: ['/agenda', '/suporte', '/perfil'],
+
+  // O gestor tem ambiente próprio, como o super admin: não opera clínica,
+  // vê a rede somada e cuida da equipe das unidades.
+  GESTOR: ['/gestor', '/suporte', '/perfil'],
 }
 
 /** Para onde mandar cada papel quando ele cai numa tela que não pode abrir. */
@@ -50,6 +54,7 @@ export const TELA_INICIAL: Record<PapelUsuario, string> = {
   DONO: '/',
   ATENDENTE: '/',
   VENDEDORA: '/agenda',
+  GESTOR: '/gestor',
 }
 
 /**
@@ -82,17 +87,40 @@ export function telasPadrao(papel: PapelUsuario): string[] {
 }
 
 /**
- * `telas` é a escolha do dono para aquela pessoa; vazio = padrão do papel.
- * O dono nunca é restringido: ele é quem configura.
+ * Telas que a pessoa realmente abre: a escolha do dono (`telasUsuario`,
+ * vazio = padrão do papel) cortada pelo teto que o gestor definiu para o
+ * papel naquela unidade. Devolve null quando não há restrição nenhuma.
  */
-export function podeAbrir(papel: PapelUsuario | undefined, caminho: string, telas?: string[] | null): boolean {
+export function telasEfetivas(
+  papel: PapelUsuario,
+  telasUsuario: string[] | null | undefined,
+  teto: string[] | null | undefined
+): string[] | null {
+  if (papel === 'DONO' || papel === 'SUPER_ADMIN' || papel === 'GESTOR') return null
+  const escolha = telasUsuario?.length ? telasUsuario : null
+  if (!teto) return escolha
+  return (escolha ?? telasPadrao(papel)).filter((t) => teto.includes(t))
+}
+
+/**
+ * `telas` são as telas efetivas (veja `telasEfetivas`); null = padrão do
+ * papel. O dono nunca é restringido. `redeId` libera o ambiente /gestor
+ * para o dono que também gere uma rede.
+ */
+export function podeAbrir(
+  papel: PapelUsuario | undefined,
+  caminho: string,
+  telas?: string[] | null,
+  redeId?: string | null
+): boolean {
   if (!papel) return false
+  if (bate('/gestor', caminho)) return papel === 'GESTOR' || (papel === 'DONO' && Boolean(redeId))
 
   const permitidas = ROTAS[papel]
   if (permitidas === '*') return true
   if (!permitidas) return false
 
-  if (telas?.length && papel !== 'DONO') {
+  if (Array.isArray(telas) && papel !== 'DONO') {
     const configuravel = TELAS_CONFIGURAVEIS.find((t) => bate(t.href, caminho))
     if (configuravel) return telas.includes(configuravel.href)
   }

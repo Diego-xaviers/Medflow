@@ -2,7 +2,7 @@ import { getSessao } from './auth'
 import { situacaoDaConta } from './cobranca'
 import { prisma } from './prisma'
 import type { Papel } from '@prisma/client'
-import { podeAbrir } from './permissoes'
+import { podeAbrir, telasEfetivas } from './permissoes'
 
 /**
  * Esta é a peça mais importante do sistema.
@@ -124,12 +124,75 @@ export async function exigirUsuario(): Promise<{
 export async function exigirTela(tela: string): Promise<Contexto> {
   const ctx = await exigirSessao()
   if (ctx.papel === 'DONO') return ctx
-  const usuario = await prisma.usuario.findUnique({
-    where: { id: ctx.usuarioId },
-    select: { telas: true },
-  })
-  if (!podeAbrir(ctx.papel, tela, usuario?.telas)) throw new ErroSemPermissao()
+  const [usuario, teto] = await Promise.all([
+    prisma.usuario.findUnique({ where: { id: ctx.usuarioId }, select: { telas: true } }),
+    prisma.tetoAcesso.findUnique({
+      where: { consultorioId_papel: { consultorioId: ctx.consultorioId, papel: ctx.papel } },
+      select: { telas: true },
+    }),
+  ])
+  const telas = telasEfetivas(ctx.papel, usuario?.telas, teto?.telas)
+  if (!podeAbrir(ctx.papel, tela, telas)) throw new ErroSemPermissao()
   return ctx
+}
+
+export interface ContextoGestor {
+  usuarioId: string
+  nome: string
+  redeId: string
+  redeNome: string
+  unidades: { id: string; nome: string }[]
+  /** Ids de todas as unidades ativas da rede — o único conjunto que o gestor lê. */
+  todas: string[]
+}
+
+/**
+ * Porta de entrada do ambiente /gestor. É a ÚNICA forma de ler mais de um
+ * consultório: a lista de unidades sai do banco (consultórios da rede da
+ * pessoa), nunca da requisição. Lê a rede a cada chamada — vínculo desfeito
+ * pelo admin vale na hora.
+ */
+export async function exigirGestor(): Promise<ContextoGestor> {
+  const sessao = await getSessao()
+  if (!sessao?.user) throw new ErroNaoAutorizado()
+  const { id, name, papel } = sessao.user
+  if (papel !== 'GESTOR' && papel !== 'DONO') throw new ErroSemPermissao()
+
+  const u = await prisma.usuario.findUnique({
+    where: { id },
+    select: {
+      ativo: true,
+      rede: {
+        select: {
+          id: true,
+          nome: true,
+          consultorios: { where: { ativo: true }, select: { id: true, nome: true }, orderBy: { nome: 'asc' } },
+        },
+      },
+    },
+  })
+  if (!u?.ativo || !u.rede) throw new ErroSemPermissao('Esta conta não gere nenhuma rede')
+
+  return {
+    usuarioId: id,
+    nome: name ?? '',
+    redeId: u.rede.id,
+    redeNome: u.rede.nome,
+    unidades: u.rede.consultorios,
+    todas: u.rede.consultorios.map((c) => c.id),
+  }
+}
+
+/**
+ * Unidades pedidas no filtro (`?unidades=a,b`), sempre recortadas pelas da
+ * rede: o filtro só RESTRINGE, nunca amplia. Vazio ou ausente = todas.
+ */
+export function unidadesDoFiltro(ctx: ContextoGestor, param: string | null): string[] {
+  const pedidas = (param ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  if (pedidas.length === 0) return ctx.todas
+  const validas = pedidas.filter((p) => ctx.todas.includes(p))
+  // Filtro só com ids alheios não pode virar "todas".
+  return validas
 }
 
 /** Exige que o usuário logado tenha um dos papéis informados. */

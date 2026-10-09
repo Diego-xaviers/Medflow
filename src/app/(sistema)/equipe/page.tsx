@@ -297,6 +297,8 @@ function ModalTelas({ usuario, aoFechar, aoSalvar }: { usuario: any; aoFechar: (
 
   const alternar = (href: string) =>
     setMarcadas((m) => (m.includes(href) ? m.filter((x) => x !== href) : [...m, href]))
+  // Telas fora do teto do gestor da rede não podem ser liberadas aqui.
+  const bloqueadas: string[] = usuario?.teto ? TELAS_CONFIGURAVEIS.map((t) => t.href).filter((h) => !usuario.teto.includes(h)) : []
 
   async function salvar(telas: string[]) {
     setSalvando(true); setErro(null)
@@ -329,10 +331,12 @@ function ModalTelas({ usuario, aoFechar, aoSalvar }: { usuario: any; aoFechar: (
 
             <div className="grid grid-cols-2 gap-2">
               {TELAS_CONFIGURAVEIS.map((t) => {
-                const ligada = marcadas.includes(t.href)
+                const travada = bloqueadas.includes(t.href)
+                const ligada = !travada && marcadas.includes(t.href)
                 return (
-                  <button key={t.href} type="button" onClick={() => alternar(t.href)}
-                    className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-[13px] font-medium transition-all active:scale-[0.98] ${
+                  <button key={t.href} type="button" onClick={() => alternar(t.href)} disabled={travada}
+                    title={travada ? 'Bloqueada pelo gestor da rede' : undefined}
+                    className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-[13px] font-medium transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed ${
                       ligada
                         ? 'border-brand-400 bg-brand-50 text-brand-800 dark:bg-brand-900/20 dark:text-brand-300 dark:border-brand-700'
                         : 'border-neutro-200 dark:border-neutro-700 text-neutro-500'
@@ -347,6 +351,7 @@ function ModalTelas({ usuario, aoFechar, aoSalvar }: { usuario: any; aoFechar: (
             </div>
 
             <p className="text-[11px] text-neutro-400">
+              {bloqueadas.length > 0 && 'Telas apagadas foram bloqueadas pelo gestor da rede. '}
               Perfil e Suporte ficam sempre liberados. Equipe, Configurações e Cobrança seguem o papel.
               A mudança vale em até um minuto, sem a pessoa precisar sair do sistema.
             </p>
@@ -358,7 +363,7 @@ function ModalTelas({ usuario, aoFechar, aoSalvar }: { usuario: any; aoFechar: (
                 className="text-[12px] text-neutro-400 hover:text-neutro-600 disabled:opacity-40 flex items-center gap-1">
                 <RotateCcw size={12} strokeWidth={2} /> Padrão do papel
               </button>
-              <button type="button" onClick={() => salvar(ehPadrao ? [] : marcadas)}
+              <button type="button" onClick={() => salvar(ehPadrao ? [] : marcadas.filter((m) => !bloqueadas.includes(m)))}
                 disabled={salvando || marcadas.length === 0} className="btn-primario">
                 {salvando && <Loader2 size={14} className="animate-spin" />} Salvar acesso
               </button>

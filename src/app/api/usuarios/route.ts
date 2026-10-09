@@ -14,11 +14,16 @@ const rotuloPapel: Record<string, string> = {
 export async function GET() {
   return rota(async () => {
     const { consultorioId } = await exigirPapel('DONO')
-    return prisma.usuario.findMany({
-      where: { consultorioId },
-      select: { id: true, nome: true, email: true, papel: true, ativo: true, atendePacientes: true, fotoUrl: true, criadoEm: true, telas: true },
-      orderBy: { nome: 'asc' },
-    })
+    const [usuarios, tetos] = await Promise.all([
+      prisma.usuario.findMany({
+        where: { consultorioId },
+        select: { id: true, nome: true, email: true, papel: true, ativo: true, atendePacientes: true, fotoUrl: true, criadoEm: true, telas: true },
+        orderBy: { nome: 'asc' },
+      }),
+      prisma.tetoAcesso.findMany({ where: { consultorioId } }),
+    ])
+    // `teto`: limite definido pelo gestor da rede para o papel (null = sem limite).
+    return usuarios.map((u) => ({ ...u, teto: tetos.find((t) => t.papel === u.papel)?.telas ?? null }))
   })
 }
 

@@ -68,6 +68,11 @@ model Consultorio {
   encaminhamentos  Encaminhamento[]
   ausencias        Ausencia[]
   acessosExtras    AcessoConsultorio[]
+  tetosAcesso      TetoAcesso[]
+
+  /// Rede de que este consultório faz parte (vínculo criado pelo admin).
+  redeId String?
+  rede   Rede?   @relation(fields: [redeId], references: [id], onDelete: SetNull)
   notificacoes    Notificacao[]
   blocosExpediente BlocoExpediente[]
   faturas          Fatura[]
@@ -82,6 +87,9 @@ enum Papel {
   DONO
   ATENDENTE
   VENDEDORA
+  /// Administra uma Rede de consultórios: vê os dados somados e cuida da
+  /// equipe. Não pertence a consultório nenhum, como o SUPER_ADMIN.
+  GESTOR
 }
 
 model Usuario {
@@ -112,8 +120,13 @@ model Usuario {
   /// do papel. Só vale para a equipe: o dono nunca é restringido.
   telas String[] @default([])
 
-  /// Outros consultórios que este dono administra além do próprio — é o
-  /// que permite trocar de unidade e ver o resultado da rede inteira.
+  /// Rede que esta pessoa gere. Papel GESTOR sempre tem; um DONO pode ter
+  /// também, e aí ganha o ambiente gestor além da própria clínica.
+  redeId String?
+  rede   Rede?   @relation(fields: [redeId], references: [id], onDelete: SetNull)
+
+  /// Modelo antigo de multi-unidade, substituído por Rede. Mantido só até a
+  /// migração dos vínculos existentes.
   acessosExtras AcessoConsultorio[]
 
   /// Nulo apenas para o SUPER_ADMIN, que está acima dos consultórios.
@@ -550,7 +563,33 @@ model Ausencia {
   @@map("ausencias")
 }
 
-/// Dono com mais de uma unidade. A pessoa tem UM consultório de origem
+/// Grupo de consultórios sob um mesmo gestor — franquia, ou as várias
+/// clínicas de um mesmo dono. Criada e montada pelo administrador do SaaS.
+/// O isolamento entre clínicas continua: só o ambiente /gestor lê mais de um
+/// consultório, e sempre pela lista de unidades desta rede, lida do banco.
+model Rede {
+  id           String        @id @default(cuid())
+  nome         String
+  criadoEm     DateTime      @default(now())
+  consultorios Consultorio[]
+  gestores     Usuario[]
+
+  @@map("redes")
+}
+
+/// Máximo de telas que um papel pode abrir numa unidade, definido pelo
+/// gestor. O dono da clínica ajusta cada pessoa só dentro deste limite.
+model TetoAcesso {
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+  papel         Papel
+  telas         String[]
+
+  @@id([consultorioId, papel])
+  @@map("tetos_acesso")
+}
+
+/// (Obsoleto — substituído por Rede.) Dono com mais de uma unidade. A pessoa tem UM consultório de origem
 /// (Usuario.consultorioId) e ganha acesso de dono aos listados aqui. O
 /// isolamento não muda: a sessão aponta para um consultório por vez, e toda
 /// query continua filtrando por ele.

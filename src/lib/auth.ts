@@ -3,6 +3,7 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import { getServerSession } from 'next-auth'
 import bcrypt from 'bcryptjs'
 import { prisma } from './prisma'
+import { telasEfetivas } from './permissoes'
 import type { Papel } from '@prisma/client'
 
 export const authOptions: NextAuthOptions = {
@@ -65,7 +66,6 @@ export const authOptions: NextAuthOptions = {
           consultorioId: usuario.consultorioId,
           consultorioNome: usuario.consultorio?.nome ?? null,
           consultorioSlug: usuario.consultorio?.slug ?? null,
-          telas: usuario.telas,
           rememberMe: credentials.rememberMe === 'true',
           loginAt: Math.floor(Date.now() / 1000),
         } as any
@@ -77,13 +77,12 @@ export const authOptions: NextAuthOptions = {
     // O consultorioId entra no token aqui e é a única fonte de verdade sobre
     // "de quem são estes dados". O cliente nunca consegue forjar isso mandando
     // um id no corpo da requisição.
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.papel = (user as any).papel
         token.consultorioId = (user as any).consultorioId
-        token.consultorioOrigem = (user as any).consultorioId
-        token.telas = (user as any).telas ?? []
-        token.sincronizadoEm = Date.now()
+        // Sem `sincronizadoEm`: o bloco abaixo roda já no login e calcula
+        // telas efetivas (com o teto do gestor) e a rede.
         token.consultorioNome = (user as any).consultorioNome
         token.consultorioSlug = (user as any).consultorioSlug
         token.rememberMe = (user as any).rememberMe
@@ -105,36 +104,29 @@ export const authOptions: NextAuthOptions = {
             papel: true,
             ativo: true,
             telas: true,
+            redeId: true,
             consultorioId: true,
-            acessosExtras: { where: { consultorio: { ativo: true } }, select: { consultorioId: true } },
+            consultorio: {
+              select: { nome: true, slug: true, tetosAcesso: { select: { papel: true, telas: true } } },
+            },
           },
         })
 
         if (!atual || !atual.ativo) {
-          // Conta desativada: sem consultório, toda rota de dados recusa.
+          // Conta desativada: sem consultório nem rede, toda rota de dados recusa.
           token.consultorioId = null
+          token.redeId = null
           token.telas = []
         } else {
-          const pedido = trigger === 'update' ? (session as any)?.consultorioId : undefined
-          const desejado = pedido ?? token.consultorioId
-          // Só vale consultório de origem ou um vinculado. Qualquer outro id
-          // — forjado ou com acesso revogado — volta para a origem.
-          const permitido = desejado === atual.consultorioId ||
-            atual.acessosExtras.some((a) => a.consultorioId === desejado)
-          const consultorioId = permitido ? desejado : atual.consultorioId
-
-          const consultorio = consultorioId
-            ? await prisma.consultorio.findUnique({ where: { id: consultorioId }, select: { nome: true, slug: true } })
-            : null
-
+          const teto = atual.consultorio?.tetosAcesso.find((t) => t.papel === atual.papel)?.telas ?? null
           token.name = atual.nome
           token.email = atual.email
           token.papel = atual.papel
-          token.telas = atual.telas
-          token.consultorioOrigem = atual.consultorioId
-          token.consultorioId = consultorioId
-          token.consultorioNome = consultorio?.nome ?? null
-          token.consultorioSlug = consultorio?.slug ?? null
+          token.telas = telasEfetivas(atual.papel, atual.telas, teto)
+          token.redeId = atual.redeId
+          token.consultorioId = atual.consultorioId
+          token.consultorioNome = atual.consultorio?.nome ?? null
+          token.consultorioSlug = atual.consultorio?.slug ?? null
         }
         token.sincronizadoEm = Date.now()
       }
@@ -149,7 +141,8 @@ export const authOptions: NextAuthOptions = {
         session.user.consultorioNome = token.consultorioNome as string | null
         session.user.consultorioSlug = token.consultorioSlug as string | null
         session.user.rememberMe = token.rememberMe ?? false
-        session.user.telas = token.telas ?? []
+        session.user.telas = token.telas ?? null
+        session.user.redeId = token.redeId ?? null
       }
       return session
     },

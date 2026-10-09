@@ -18,9 +18,6 @@ const ajusteSchema = z.object({
       novaSenha: z.string().min(8, 'A senha deve ter ao menos 8 caracteres'),
     })
     .optional(),
-  /// Dono de outra unidade que passa a administrar esta também.
-  vincularDono: z.string().email('E-mail inválido').optional(),
-  desvincularDono: z.string().min(1).optional(),
   /// Mensalidade da assinatura no Asaas; null tira o valor.
   valorMensalidade: z.coerce.number().positive('Valor deve ser maior que zero').nullable().optional(),
   cancelarAssinatura: z.literal(true).optional(),
@@ -39,9 +36,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
           orderBy: { papel: 'asc' },
         },
         faturas: { orderBy: { vencimento: 'desc' }, take: 12 },
-        acessosExtras: {
-          select: { usuario: { select: { id: true, nome: true, email: true, consultorio: { select: { nome: true } } } } },
-        },
         _count: {
           select: { pacientes: true, consultas: true, prontuarios: true, receitas: true },
         },
@@ -104,29 +98,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       await prisma.consultorio.update({
         where: { id: consultorio.id },
         data: { valorMensalidade: dados.valorMensalidade },
-      })
-      return { ok: true }
-    }
-
-    if (dados.vincularDono) {
-      const dono = await prisma.usuario.findUnique({
-        where: { email: dados.vincularDono.toLowerCase().trim() },
-        select: { id: true, nome: true, papel: true, consultorioId: true },
-      })
-      if (!dono || dono.papel !== 'DONO') throw new ErroDeNegocio('Nenhum dono de consultório com esse e-mail')
-      if (dono.consultorioId === consultorio.id) throw new ErroDeNegocio('Essa pessoa já é dona deste consultório')
-
-      await prisma.acessoConsultorio.upsert({
-        where: { usuarioId_consultorioId: { usuarioId: dono.id, consultorioId: consultorio.id } },
-        create: { usuarioId: dono.id, consultorioId: consultorio.id },
-        update: {},
-      })
-      return { ok: true }
-    }
-
-    if (dados.desvincularDono) {
-      await prisma.acessoConsultorio.deleteMany({
-        where: { usuarioId: dados.desvincularDono, consultorioId: consultorio.id },
       })
       return { ok: true }
     }

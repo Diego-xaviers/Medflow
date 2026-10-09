@@ -14,7 +14,9 @@ declare module 'next-auth' {
       consultorioNome: string | null
       consultorioSlug: string | null
       rememberMe: boolean
-      telas: string[]
+      /** Telas efetivas; null = padrão do papel. */
+      telas: string[] | null
+      redeId: string | null
     }
   }
 }
@@ -27,9 +29,8 @@ declare module 'next-auth/jwt' {
     consultorioSlug?: string | null
     rememberMe?: boolean
     loginAt?: number
-    telas?: string[]
-    /// Consultório de cadastro; o `consultorioId` pode ser outra unidade do dono.
-    consultorioOrigem?: string | null
+    telas?: string[] | null
+    redeId?: string | null
     sincronizadoEm?: number
   }
 }
