@@ -7,30 +7,34 @@ import useSWR from 'swr'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Receipt, Trash2, X, Loader2, Glasses, FileText, Wand2, Link2,
-  Printer, MessageCircle, PhoneOff,
+  Printer, MessageCircle, PhoneOff, Pencil,
 } from 'lucide-react'
 import CampoBusca, { contem } from '@/components/CampoBusca'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { data } from '@/lib/formato'
-import { herdarDoProntuario, resumoRefracao, textoDaReceita } from '@/lib/prescricao'
+import { herdarDoProntuario, resumoRefracao, resumoGrauAtual, textoDaReceita } from '@/lib/prescricao'
 import { linkWhatsApp } from '@/lib/whatsapp'
 
-/** Validade padrão: 1 ano a partir de hoje, que é a prática usual. */
-function daquiUmAno() {
-  const d = new Date()
-  d.setFullYear(d.getFullYear() + 1)
-  return d.toISOString().slice(0, 10)
+/** "AAAA-MM-DD" no fuso do navegador — `toISOString` daria o dia seguinte depois das 21h. */
+const diaLocal = (d: Date) => d.toLocaleDateString('en-CA')
+
+/** Validade padrão: 1 ano a partir da emissão, que é a prática usual. */
+function umAnoDepois(dia: string) {
+  const [a, m, d] = dia.split('-').map(Number)
+  return diaLocal(new Date(a + 1, m - 1, d))
 }
 
+const hoje = diaLocal(new Date())
+
 const vazio: any = {
-  pacienteId: '', prontuarioId: '', validadeAte: daquiUmAno(),
+  pacienteId: '', prontuarioId: '', dataEmissao: hoje, validadeAte: umAnoDepois(hoje),
   tipoReceita: 'OPTOMETRICA',
   longeEsfericoOD: '', longeCilindricoOD: '', longeEixoOD: '',
   longeEsfericoOE: '', longeCilindricoOE: '', longeEixoOE: '',
   pertoEsfericoOD: '', pertoCilindricoOD: '', pertoEixoOD: '',
   pertoEsfericoOE: '', pertoCilindricoOE: '', pertoEixoOE: '',
   adicaoOD: '', adicaoOE: '',
-  avCorrigidaOD: '', avCorrigidaOE: '',
+  avCorrigidaOD: '', avCorrigidaOE: '', avPertoOD: '', avPertoOE: '',
   dpLongeOD: '', dpLongeOE: '', dpPerto: '', alturaOD: '', alturaOE: '',
   prismaOD: '', baseprismaOD: '', prismaOE: '', baseprismaOE: '',
   tipoLente: 'MONOFOCAL', materialLente: '', tratamentos: '', orientacoesUso: '',
@@ -123,6 +127,9 @@ function ParOlhos({ rotulo, campoOD, campoOE, form, setForm, placeholder, herdad
 export default function ReceitasPage() {
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState<any>(vazio)
+  /** Id da receita aberta no lápis; nulo quando o formulário é de receita nova. */
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [emissaoOriginal, setEmissaoOriginal] = useState<string | null>(null)
   const [herdados, setHerdados] = useState<string[]>([])
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -171,19 +178,46 @@ export default function ReceitasPage() {
   }
 
   // Assim que o prontuário vinculado é conhecido, o grau encontrado entra
-  // como ponto de partida da prescrição.
+  // como ponto de partida da prescrição. Na edição não: o campo que ficou
+  // vazio numa receita já emitida ficou vazio de propósito, e completá-lo
+  // sozinho mudaria a prescrição sem ninguém pedir. "Copiar do exame" segue
+  // disponível para quem quiser.
   useEffect(() => {
-    if (prontuarioAtual) aplicarProntuario(prontuarioAtual)
+    if (prontuarioAtual && !editandoId) aplicarProntuario(prontuarioAtual)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prontuarioAtual?.id])
+
+  function novaReceita() {
+    setEditandoId(null)
+    setForm(vazio); setHerdados([]); setErro(null)
+    setModal(true)
+  }
+
+  /** Abre o formulário com a receita como foi emitida. Nulo vira campo vazio. */
+  function editar(r: any) {
+    const valores: any = {}
+    for (const chave of Object.keys(vazio)) valores[chave] = r[chave] ?? ''
+    valores.validadeAte = String(r.validadeAte).slice(0, 10)
+    valores.dataEmissao = diaLocal(new Date(r.dataEmissao))
+    setEmissaoOriginal(valores.dataEmissao)
+    setEditandoId(r.id)
+    setForm(valores); setHerdados([]); setErro(null)
+    setModal(true)
+  }
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
     setSalvando(true)
     setErro(null)
     try {
-      await enviar('/api/receitas', 'POST', { ...form, prontuarioId: form.prontuarioId || null })
+      const corpo = { ...form, prontuarioId: form.prontuarioId || null }
+      // Data intocada na edição não vai: mandar o mesmo dia trocaria a hora
+      // original da emissão por meio-dia.
+      if (editandoId && form.dataEmissao === emissaoOriginal) delete corpo.dataEmissao
+      if (editandoId) await enviar(`/api/receitas/${editandoId}`, 'PUT', corpo)
+      else await enviar('/api/receitas', 'POST', corpo)
       setModal(false)
+      setEditandoId(null)
       setForm(vazio); setHerdados([])
       mutate()
     } catch (e: any) {
@@ -216,7 +250,7 @@ export default function ReceitasPage() {
           <h1 className="titulo-pagina">Receitas</h1>
           <p className="subtitulo">Prescrições emitidas</p>
         </div>
-        <button onClick={() => { setForm(vazio); setHerdados([]); setModal(true) }}
+        <button onClick={novaReceita}
           className="btn-primario">
           <Plus size={16} /> Nova receita
         </button>
@@ -257,6 +291,11 @@ export default function ReceitasPage() {
                   impressa/PDF pelo diálogo do navegador. */}
               <EntregaDaReceita receita={r} consultorio={consultorio} />
 
+              <button onClick={() => editar(r)} title="Editar receita"
+                className="btn-icone !w-8 !h-8 hover:!text-brand-600 hover:!bg-brand-50 dark:hover:!bg-brand-900/30 shrink-0">
+                <Pencil size={15} strokeWidth={2} />
+              </button>
+
               <button onClick={() => excluir(r.id)} title="Excluir receita"
                 className="btn-icone !w-8 !h-8 hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/40 shrink-0">
                 <Trash2 size={16} />
@@ -280,7 +319,7 @@ export default function ReceitasPage() {
               <div className="flex items-center justify-between sticky top-0 bg-white dark:bg-neutro-900 pb-2">
                 <div className="flex items-center gap-2">
                   <Glasses size={18} className="text-brand-500" />
-                  <h2 className="text-[16px] font-semibold">Nova receita</h2>
+                  <h2 className="text-[16px] font-semibold">{editandoId ? 'Editar receita' : 'Nova receita'}</h2>
                 </div>
                 <button type="button" onClick={() => setModal(false)} className="text-neutro-400 hover:text-neutro-600"><X size={20} /></button>
               </div>
@@ -307,14 +346,24 @@ export default function ReceitasPage() {
                 ))}
               </div>
 
+              <div>
+                <label className="rotulo">Paciente</label>
+                <select className="campo" required value={form.pacienteId}
+                  onChange={(e) => { setForm({ ...form, pacienteId: e.target.value, prontuarioId: '' }); setHerdados([]) }}>
+                  <option value="">Selecione</option>
+                  {pacientes?.map((p: any) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="rotulo">Paciente</label>
-                  <select className="campo" required value={form.pacienteId}
-                    onChange={(e) => { setForm({ ...form, pacienteId: e.target.value, prontuarioId: '' }); setHerdados([]) }}>
-                    <option value="">Selecione</option>
-                    {pacientes?.map((p: any) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                  </select>
+                  <label className="rotulo">Emitida em</label>
+                  <input type="date" className="campo" required max={hoje} value={form.dataEmissao}
+                    onChange={(e) => {
+                      const dia = e.target.value
+                      // Na receita nova, a validade acompanha a emissão.
+                      setForm({ ...form, dataEmissao: dia, ...(!editandoId && dia && { validadeAte: umAnoDepois(dia) }) })
+                    }} />
                 </div>
                 <div>
                   <label className="rotulo">Válida até</label>
@@ -322,6 +371,11 @@ export default function ReceitasPage() {
                     onChange={(e) => setForm({ ...form, validadeAte: e.target.value })} />
                 </div>
               </div>
+              {form.dataEmissao && form.dataEmissao < hoje && (
+                <p className="text-[11px] text-amber-600 -mt-2">
+                  Data retroativa — use para cadastrar receitas emitidas antes de usar o sistema.
+                </p>
+              )}
 
               {form.pacienteId && (
                 <div>
@@ -360,6 +414,11 @@ export default function ReceitasPage() {
                       <p className="text-[11.5px] text-neutro-500 mt-1">
                         Refração encontrada: {resumoRefracao(prontuarioAtual)}
                       </p>
+                      {resumoGrauAtual(prontuarioAtual) && (
+                        <p className="text-[11.5px] text-neutro-500 mt-0.5">
+                          Óculos atual: {resumoGrauAtual(prontuarioAtual)}
+                        </p>
+                      )}
                       {prontuarioAtual.diagnostico && (
                         <p className="text-[11.5px] text-neutro-500 mt-0.5 truncate">
                           Diagnóstico: {prontuarioAtual.diagnostico}
@@ -401,7 +460,7 @@ export default function ReceitasPage() {
 
               <Secao titulo="ADIÇÃO (PRESBIOPIA)">
                 <ParOlhos rotulo="Adição" campoOD="adicaoOD" campoOE="adicaoOE"
-                  form={form} setForm={setForm} placeholder="+2.00" />
+                  form={form} setForm={setForm} placeholder="+2.00" herdados={herdados} />
               </Secao>
 
               <Secao titulo="ACUIDADE VISUAL COM A CORREÇÃO PRESCRITA">
@@ -421,8 +480,10 @@ export default function ReceitasPage() {
                     </div>
                   </div>
                 )}
-                <ParOlhos rotulo="Visão alcançada" campoOD="avCorrigidaOD" campoOE="avCorrigidaOE"
+                <ParOlhos rotulo="Visão alcançada para longe" campoOD="avCorrigidaOD" campoOE="avCorrigidaOE"
                   form={form} setForm={setForm} placeholder="20/20" />
+                <ParOlhos rotulo="Visão alcançada para perto" campoOD="avPertoOD" campoOE="avPertoOE"
+                  form={form} setForm={setForm} placeholder="J1" />
               </Secao>
 
               <Secao titulo="MEDIDAS DE MONTAGEM">
@@ -464,7 +525,8 @@ export default function ReceitasPage() {
                 </button>
                 <button type="submit" disabled={salvando}
                   className="btn-primario">
-                  {salvando && <Loader2 size={14} className="animate-spin" />} Emitir receita
+                  {salvando && <Loader2 size={14} className="animate-spin" />}
+                  {editandoId ? 'Salvar alterações' : 'Emitir receita'}
                 </button>
               </div>
             </motion.form>

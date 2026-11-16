@@ -6,12 +6,16 @@ import { notificar, equipeDoConsultorio } from '@/lib/notificacoes'
 import { dataHora as fmtDataHora } from '@/lib/formato'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { exigirSemAusencia } from '@/lib/ausencias'
+import { sincronizarLancamentoDaConsulta, removerLancamentoPendenteDaConsulta } from '@/lib/financeiro'
+import { formaPagamentoSchema } from '@/lib/schemas'
 import { z } from 'zod'
 
 type Params = { params: { id: string } }
 
 const statusSchema = z.object({
   status: z.enum(['AGENDADA', 'CONCLUIDA', 'FALTA', 'CANCELADA']),
+  /// Perguntada ao concluir, quando a consulta tem valor e ainda não tem forma.
+  formaPagamento: formaPagamentoSchema.optional(),
 })
 
 const editSchema = z.object({
@@ -21,6 +25,8 @@ const editSchema = z.object({
   valor: z.number().nullable().optional(),
   observacoes: z.string().nullable().optional(),
   criadoPorId: z.string().min(1).optional(),
+  campanhaId: z.string().nullable().optional(),
+  formaPagamento: formaPagamentoSchema.nullable().optional(),
 })
 
 const rotuloStatus: Record<string, string> = {
@@ -84,6 +90,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         await exigirSemAusencia(consultorioId, profissional.id, dados.dataHora, duracaoConsultaMin)
       }
 
+      if (dados.campanhaId) {
+        const campanha = await prisma.campanha.findFirst({
+          where: { id: dados.campanhaId, consultorioId }, select: { id: true },
+        })
+        if (!campanha) throw new ErroDeNegocio('Campanha não encontrada')
+      }
+
       const resultado = await prisma.consulta.updateMany({
         where: filtro,
         data: {
@@ -92,10 +105,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           profissionalId: dados.profissionalId,
           valor: dados.valor ?? null,
           observacoes: dados.observacoes ?? null,
+          // Ausente = não mexe (telas antigas não mandam o campo).
+          ...(dados.campanhaId !== undefined && { campanhaId: dados.campanhaId || null }),
+          ...(dados.formaPagamento !== undefined && { formaPagamento: dados.formaPagamento }),
           ...(trocaCriador && { criadoPorId: dados.criadoPorId }),
         },
       })
       if (resultado.count === 0) throw new ErroDeNegocio('Consulta não encontrada')
+      await sincronizarLancamentoDaConsulta(params.id)
 
       if (trocaCriador) {
         registrarAuditoria({
@@ -127,6 +144,44 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       })
     }
 
+    // Venda fechada na ótica (consulta de campanha com valor de referência).
+    // Quem marca: o dono ou o optometrista que atendeu — é a palavra de um
+    // dos dois que vale no acerto do mês.
+    if ('vendaFechada' in corpo) {
+      const { vendaFechada } = z.object({ vendaFechada: z.boolean() }).parse(corpo)
+      const c = await prisma.consulta.findFirst({
+        where: { id: params.id, consultorioId },
+        select: {
+          status: true, profissionalId: true,
+          paciente: { select: { nome: true } },
+          campanha: { select: { nome: true, valorReferencia: true } },
+        },
+      })
+      if (!c) throw new ErroDeNegocio('Consulta não encontrada')
+      if (papel !== 'DONO' && c.profissionalId !== usuarioId) {
+        throw new ErroDeNegocio('Só o dono ou o optometrista da consulta marca a venda')
+      }
+      if (vendaFechada && (c.status !== 'CONCLUIDA' || !c.campanha?.valorReferencia)) {
+        throw new ErroDeNegocio('Só consulta concluída de campanha com valor de referência')
+      }
+
+      await prisma.consulta.update({
+        where: { id: params.id },
+        data: { vendaFechada, vendaFechadaEm: vendaFechada ? new Date() : null },
+      })
+      await sincronizarLancamentoDaConsulta(params.id)
+
+      registrarAuditoria({
+        acao: 'EDITAR',
+        entidade: 'Consulta',
+        entidadeId: params.id,
+        detalhes: `${vendaFechada ? 'Venda fechada' : 'Venda desmarcada'} na ótica · ${c.paciente.nome} · ${c.campanha?.nome ?? ''}`,
+        usuarioId,
+        consultorioId,
+      })
+      return { ok: true }
+    }
+
     // Ajuste de valor isolado
     if ('valor' in corpo && !('dataHora' in corpo)) {
       const { valor } = z.object({ valor: z.number().nullable() }).parse(corpo)
@@ -135,6 +190,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         data: { valor: valor ?? null },
       })
       if (resultado.count === 0) throw new ErroDeNegocio('Consulta não encontrada')
+      await sincronizarLancamentoDaConsulta(params.id)
       return prisma.consulta.findUnique({
         where: { id: params.id },
         include: {
@@ -146,9 +202,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     // Mudança de status (comportamento original)
-    const { status } = statusSchema.parse(corpo)
-    const resultado = await prisma.consulta.updateMany({ where: filtro, data: { status } })
+    const { status, formaPagamento } = statusSchema.parse(corpo)
+    const resultado = await prisma.consulta.updateMany({
+      where: filtro,
+      data: { status, ...(formaPagamento && { formaPagamento }) },
+    })
     if (resultado.count === 0) throw new ErroDeNegocio('Consulta não encontrada')
+    await sincronizarLancamentoDaConsulta(params.id)
 
     const consulta = await prisma.consulta.findUnique({
       where: { id: params.id },
@@ -193,6 +253,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     })
     if (!consulta) throw new ErroDeNegocio('Consulta não encontrada')
 
+    await removerLancamentoPendenteDaConsulta(consulta.id)
     await prisma.consulta.deleteMany({ where: filtroLeitura })
 
     await notificar({

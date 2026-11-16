@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { exigirTela } from '@/lib/tenant'
 import { rota } from '@/lib/api'
+import { conciliarAgenda } from '@/lib/financeiro'
 import {
   startOfDay, endOfDay, startOfMonth, endOfMonth,
   startOfWeek, addDays, subMonths, format,
@@ -15,6 +16,9 @@ import { ptBR } from 'date-fns/locale'
 export async function GET() {
   return rota(async () => {
     const { consultorioId } = await exigirTela('/')
+    // A receita do painel sai dos lançamentos; consulta que ainda não virou
+    // lançamento (inclusive as antigas) entra antes de somar.
+    await conciliarAgenda(consultorioId)
 
     const agora = new Date()
     const inicioHoje = startOfDay(agora)

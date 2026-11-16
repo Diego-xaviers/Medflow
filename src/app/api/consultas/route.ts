@@ -8,6 +8,7 @@ import { diaLocal } from '@/lib/agenda'
 import { notificar, equipeDoConsultorio } from '@/lib/notificacoes'
 import { dataHora as fmtDataHora } from '@/lib/formato'
 import { exigirSemAusencia } from '@/lib/ausencias'
+import { sincronizarLancamentoDaConsulta } from '@/lib/financeiro'
 
 /**
  * Leitura liberada para toda a equipe — inclusive a vendedora, que precisa
@@ -47,6 +48,7 @@ export async function GET(req: NextRequest) {
         paciente: { select: { id: true, nome: true, telefone: true } },
         profissional: { select: { id: true, nome: true, fotoUrl: true } },
         criadoPor: { select: { id: true, nome: true } },
+        campanha: { select: { id: true, nome: true, valorReferencia: true } },
       },
       orderBy: { dataHora: 'asc' },
     })
@@ -87,13 +89,21 @@ export async function POST(req: NextRequest) {
     })
     await exigirSemAusencia(consultorioId, profissional.id, dados.dataHora, duracaoConsultaMin)
 
+    if (dados.campanhaId) {
+      const campanha = await prisma.campanha.findFirst({
+        where: { id: dados.campanhaId, consultorioId }, select: { id: true },
+      })
+      if (!campanha) throw new ErroDeNegocio('Campanha não encontrada')
+    }
+
     const consulta = await prisma.consulta.create({
-      data: { ...dados, consultorioId, criadoPorId: usuarioId },
+      data: { ...dados, campanhaId: dados.campanhaId || null, consultorioId, criadoPorId: usuarioId },
       include: {
         paciente: { select: { id: true, nome: true } },
         profissional: { select: { id: true, nome: true } },
       },
     })
+    await sincronizarLancamentoDaConsulta(consulta.id)
 
     await notificar({
       usuarioIds: await equipeDoConsultorio(consultorioId, { exceto: usuarioId }),

@@ -7,11 +7,16 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Link2, Check, Trash2, Loader2, Globe, UserRound, Phone,
   CalendarPlus, CalendarOff, X, Clock, Stethoscope, ToggleLeft, ToggleRight, MessageCircle, Pencil,
+  ShoppingBag,
 } from 'lucide-react'
 import { format, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import CalendarioMes from '@/components/CalendarioMes'
 import BuscaPaciente from '@/components/BuscaPaciente'
+import SeletorCampanha from '@/components/SeletorCampanha'
+import ModalFormaPagamento from '@/components/ModalFormaPagamento'
+import { valorComOferta } from '@/lib/campanhas'
+import { FORMAS_PAGAMENTO, rotuloForma } from '@/lib/pagamento'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { hora, moeda, data as fmtData } from '@/lib/formato'
 import { linkWhatsApp } from '@/lib/whatsapp'
@@ -83,6 +88,8 @@ function AgendaCompleta() {
   const [somenteMeus, setSomenteMeus] = useState(false)
   const [desfazerFalta, setDesfazerFalta] = useState<string | null>(null)
   const [ajustandoValor, setAjustandoValor] = useState<any | null>(null)
+  /** Consulta com valor sendo concluída sem forma de pagamento: pergunta antes. */
+  const [concluindo, setConcluindo] = useState<any | null>(null)
 
   const chaveMes = `/api/consultas?mes=${format(mesRef, 'yyyy-MM')}`
   const { data: doMes, isLoading, mutate } = useSWR(chaveMes, fetcher, {
@@ -120,8 +127,24 @@ function AgendaCompleta() {
     .filter((c: any) => !somenteMeus || ehMinha(c))
     .sort((a: any, b: any) => a.dataHora.localeCompare(b.dataHora))
 
-  async function mudarStatus(id: string, status: string) {
-    await enviar(`/api/consultas/${id}`, 'PATCH', { status })
+  async function mudarStatus(id: string, status: string, formaPagamento?: string) {
+    await enviar(`/api/consultas/${id}`, 'PATCH', { status, ...(formaPagamento && { formaPagamento }) })
+    mutate()
+  }
+
+  /** Concluir dá baixa no Financeiro: com valor e sem forma, pergunta como foi pago. */
+  function concluir(c: any) {
+    if (Number(c.valor) > 0 && !c.formaPagamento) setConcluindo(c)
+    else mudarStatus(c.id, 'CONCLUIDA')
+  }
+
+  /** Consulta de campanha com valor de referência: a venda na ótica gera a diferença. */
+  const podeMarcarVenda = (c: any) =>
+    c.status === 'CONCLUIDA' && c.campanha?.valorReferencia != null &&
+    (papel === 'DONO' || c.profissionalId === meuId)
+
+  async function alternarVenda(c: any) {
+    await enviar(`/api/consultas/${c.id}`, 'PATCH', { vendaFechada: !c.vendaFechada })
     mutate()
   }
 
@@ -353,6 +376,9 @@ function AgendaCompleta() {
                           <p className="text-[13px] font-medium numerico">
                             {c.valor ? moeda(Number(c.valor)) : <span className="text-neutro-300 dark:text-neutro-600">—</span>}
                           </p>
+                          {c.formaPagamento && (
+                            <span className="text-[10.5px] text-neutro-400">· {rotuloForma(c.formaPagamento)}</span>
+                          )}
                           <button
                             onClick={(e) => { e.stopPropagation(); setAjustandoValor(c) }}
                             title="Ajustar valor"
@@ -360,6 +386,20 @@ function AgendaCompleta() {
                             <Pencil size={11} strokeWidth={2} />
                           </button>
                         </div>
+
+                        {podeMarcarVenda(c) && (
+                          <button onClick={() => alternarVenda(c)}
+                            title={c.vendaFechada
+                              ? 'Venda na ótica registrada — clique para desfazer'
+                              : 'Marcar que o paciente fechou compra na ótica'}
+                            className={`shrink-0 flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full border transition-all active:scale-[0.97] ${
+                              c.vendaFechada
+                                ? 'bg-brand-600 border-brand-600 text-white'
+                                : 'border-neutro-200 dark:border-neutro-700 text-neutro-500 hover:border-brand-400 hover:text-brand-600'}`}>
+                            <ShoppingBag size={12} strokeWidth={2.2} />
+                            {c.vendaFechada ? 'Vendeu' : 'Fechou venda?'}
+                          </button>
+                        )}
 
                         <span className={`etiqueta shrink-0 hidden sm:flex ${estilo.etiqueta}`}>{estilo.texto}</span>
 
@@ -397,7 +437,7 @@ function AgendaCompleta() {
                           <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                             {c.status === 'AGENDADA' && (
                               <>
-                                <button onClick={() => mudarStatus(c.id, 'CONCLUIDA')} title="Concluir"
+                                <button onClick={() => concluir(c)} title="Concluir"
                                   className="btn-icone !w-8 !h-8 hover:!text-brand-600 hover:!bg-brand-50 dark:hover:!bg-brand-900/30">
                                   <Check size={15} strokeWidth={2.2} />
                                 </button>
@@ -444,6 +484,9 @@ function AgendaCompleta() {
       <ModalAjustarValor consulta={ajustandoValor} aoFechar={() => setAjustandoValor(null)}
         aoSalvar={() => { setAjustandoValor(null); mutate() }} />
 
+      <ModalFormaPagamento consulta={concluindo} aoFechar={() => setConcluindo(null)}
+        aoEscolher={async (forma) => { const c = concluindo; setConcluindo(null); await mudarStatus(c.id, 'CONCLUIDA', forma) }} />
+
 
       <AnimatePresence>
         {desfazerFalta && (
@@ -472,7 +515,7 @@ function ModalNovoAgendamento({ aberto, aoFechar, diaPadrao, duracao, horaAbertu
   const [avulso, setAvulso] = useState(false)
   const [form, setForm] = useState<any>({
     pacienteId: '', nomeAvulso: '', telefoneAvulso: '',
-    profissionalId: '', horario: horarioInicial, valor: '', observacoes: '',
+    profissionalId: '', horario: horarioInicial, valor: '', observacoes: '', campanhaId: '', formaPagamento: '',
   })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -486,7 +529,7 @@ function ModalNovoAgendamento({ aberto, aoFechar, diaPadrao, duracao, horaAbertu
   useEffect(() => {
     if (aberto) {
       setAvulso(false)
-      setForm({ pacienteId: '', nomeAvulso: '', telefoneAvulso: '', profissionalId: '', horario: horarioInicial, valor: '', observacoes: '' })
+      setForm({ pacienteId: '', nomeAvulso: '', telefoneAvulso: '', profissionalId: '', horario: horarioInicial, valor: '', observacoes: '', campanhaId: '', formaPagamento: '' })
       setErro(null)
     }
   }, [aberto, horarioInicial])
@@ -519,6 +562,8 @@ function ModalNovoAgendamento({ aberto, aoFechar, diaPadrao, duracao, horaAbertu
         dataHora: dataHora.toISOString(),
         valor: form.valor ? Number(form.valor) : null,
         observacoes: form.observacoes,
+        campanhaId: form.campanhaId || null,
+        formaPagamento: form.formaPagamento || null,
       })
 
       aoSalvar()
@@ -609,6 +654,21 @@ function ModalNovoAgendamento({ aberto, aoFechar, diaPadrao, duracao, horaAbertu
                 <input type="number" step="0.01" className="campo" placeholder="0,00" value={form.valor}
                   onChange={(e) => setForm({ ...form, valor: e.target.value })} />
               </div>
+            </div>
+
+            <SeletorCampanha valor={form.campanhaId}
+              aoMudar={(id, c) => setForm((f: any) => {
+                const novo = c ? valorComOferta(c, f.valor ? Number(f.valor) : null) : null
+                return { ...f, campanhaId: id, ...(novo != null && { valor: String(novo) }) }
+              })} />
+
+            <div>
+              <label className="rotulo">Forma de pagamento</label>
+              <select className="campo" value={form.formaPagamento}
+                onChange={(e) => setForm({ ...form, formaPagamento: e.target.value })}>
+                <option value="">Ainda não informada</option>
+                {FORMAS_PAGAMENTO.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+              </select>
             </div>
 
             <div>
@@ -835,7 +895,7 @@ function ModalEditarAgendamento({ consulta, meuId, aoFechar, aoSalvar }: { consu
   const { data: equipe } = useSWR(podeTrocarCriador ? '/api/profissionais?equipe=1' : null, fetcher)
   const { data: profissionais } = useSWR(consulta ? '/api/profissionais' : null, fetcher)
   const [form, setForm] = useState<any>({
-    pacienteId: '', profissionalId: '', data: '', horario: '', valor: '', observacoes: '', criadoPorId: '',
+    pacienteId: '', profissionalId: '', data: '', horario: '', valor: '', observacoes: '', criadoPorId: '', campanhaId: '', formaPagamento: '',
   })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -851,6 +911,8 @@ function ModalEditarAgendamento({ consulta, meuId, aoFechar, aoSalvar }: { consu
         valor: consulta.valor ? String(Number(consulta.valor)) : '',
         observacoes: consulta.observacoes ?? '',
         criadoPorId: consulta.criadoPor?.id ?? '',
+        campanhaId: consulta.campanhaId ?? '',
+        formaPagamento: consulta.formaPagamento ?? '',
       })
       setErro(null)
     }
@@ -867,6 +929,8 @@ function ModalEditarAgendamento({ consulta, meuId, aoFechar, aoSalvar }: { consu
         profissionalId: form.profissionalId,
         valor: form.valor ? Number(form.valor) : null,
         observacoes: form.observacoes || null,
+        campanhaId: form.campanhaId || null,
+        formaPagamento: form.formaPagamento || null,
         ...(podeTrocarCriador && form.criadoPorId && { criadoPorId: form.criadoPorId }),
       })
       aoSalvar()
@@ -945,6 +1009,21 @@ function ModalEditarAgendamento({ consulta, meuId, aoFechar, aoSalvar }: { consu
                 <input className="campo" value={form.observacoes}
                   onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
               </div>
+            </div>
+
+            <SeletorCampanha valor={form.campanhaId} atualId={consulta?.campanhaId}
+              aoMudar={(id, c) => setForm((f: any) => {
+                const novo = c ? valorComOferta(c, f.valor ? Number(f.valor) : null) : null
+                return { ...f, campanhaId: id, ...(novo != null && { valor: String(novo) }) }
+              })} />
+
+            <div>
+              <label className="rotulo">Forma de pagamento</label>
+              <select className="campo" value={form.formaPagamento}
+                onChange={(e) => setForm({ ...form, formaPagamento: e.target.value })}>
+                <option value="">Ainda não informada</option>
+                {FORMAS_PAGAMENTO.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+              </select>
             </div>
 
             {erro && <p className="text-[12px] text-red-600">{erro}</p>}

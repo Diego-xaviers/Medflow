@@ -1,11 +1,25 @@
 import { z } from 'zod'
 import { FUSOS_BR, NOMES_DIAS } from './agenda'
+import { CODIGOS_FORMA } from './pagamento'
+
+/**
+ * Data sem horário (nascimento, vencimento, validade). "1990-05-10" vira
+ * meio-dia UTC: `z.coerce.date()` gravaria meia-noite UTC, que no Brasil é
+ * 21h do dia ANTERIOR — e a ficha mostraria 09/05. Meio-dia cai no mesmo dia
+ * em qualquer fuso do país. Valor com horário passa direto.
+ */
+export const dataSemHora = z.preprocess(
+  (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T12:00:00Z` : v),
+  z.coerce.date()
+)
+
+export const formaPagamentoSchema = z.enum(CODIGOS_FORMA)
 
 export const pacienteSchema = z.object({
   nome: z.string().min(2, 'Informe o nome do paciente'),
   email: z.string().email('E-mail inválido').optional().nullable().or(z.literal('')),
   telefone: z.string().optional().nullable(),
-  dataNascimento: z.coerce.date().optional().nullable(),
+  dataNascimento: dataSemHora.optional().nullable(),
   ativo: z.boolean().default(true),
 
   cpf: z.string().optional().nullable(),
@@ -32,6 +46,44 @@ export const consultaSchema = z.object({
   dataHora: z.coerce.date(),
   valor: z.coerce.number().nonnegative().optional().nullable(),
   observacoes: z.string().optional(),
+  campanhaId: z.string().optional().nullable(),
+  formaPagamento: formaPagamentoSchema.optional().nullable(),
+})
+
+/** Dia no formato AAAA-MM-DD. */
+const diaSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida')
+
+export const campanhaSchema = z
+  .object({
+    nome: z.string().trim().min(2, 'Dê um nome à campanha').max(80),
+    descricao: z.string().trim().max(300).optional().nullable(),
+    inicio: diaSchema,
+    fim: diaSchema,
+    precoPromocional: z.coerce.number().positive('O preço deve ser maior que zero').optional().nullable(),
+    descontoPercentual: z.coerce.number().int().min(1, 'Desconto mínimo de 1%').max(100).optional().nullable(),
+    metaVendas: z.coerce.number().int().positive('A meta deve ser maior que zero').optional().nullable(),
+    valorReferencia: z.coerce.number().positive('O valor de referência deve ser maior que zero').optional().nullable(),
+    quemPagaDiferenca: z.enum(['CLINICA_PAGA', 'PARCEIRO_PAGA']).optional().nullable(),
+    parceiroNome: z.string().trim().max(80).optional().nullable(),
+  })
+  .refine((c) => !c.valorReferencia || c.quemPagaDiferenca, {
+    message: 'Diga quem paga a diferença quando a venda fechar',
+    path: ['quemPagaDiferenca'],
+  })
+  .refine((c) => !c.valorReferencia || !c.precoPromocional || c.valorReferencia > c.precoPromocional, {
+    message: 'O valor de referência precisa ser maior que o preço promocional',
+    path: ['valorReferencia'],
+  })
+  .refine((c) => c.fim >= c.inicio, { message: 'O fim não pode ser antes do início', path: ['fim'] })
+  .refine((c) => !(c.precoPromocional && c.descontoPercentual), {
+    message: 'Escolha preço promocional OU desconto, não os dois',
+    path: ['descontoPercentual'],
+  })
+
+export const metaFinanceiraSchema = z.object({
+  competencia: z.string().regex(/^\d{4}-\d{2}$/, 'Use o formato AAAA-MM'),
+  /// Nulo apaga a meta do mês.
+  valor: z.coerce.number().positive('A meta deve ser maior que zero').nullable(),
 })
 
 export const lancamentoSchema = z.object({
@@ -39,8 +91,9 @@ export const lancamentoSchema = z.object({
   valor: z.coerce.number().positive('O valor deve ser maior que zero'),
   tipo: z.enum(['RECEITA', 'DESPESA']),
   status: z.enum(['PAGO', 'PENDENTE']).default('PENDENTE'),
-  data: z.coerce.date(),
+  data: dataSemHora,
   pacienteId: z.string().optional().nullable(),
+  formaPagamento: formaPagamentoSchema.optional().nullable(),
 })
 
 /** Agendamento público: só o mínimo, sem login. */
@@ -90,6 +143,9 @@ export const novoUsuarioSchema = z.object({
 export const prontuarioSchema = z.object({
   pacienteId: z.string().min(1, 'Selecione o paciente'),
   consultaId: z.string().optional().nullable(),
+  /// Dia do exame. Ausente = hoje na criação, sem mudança na edição.
+  /// Existe para a clínica migrar o histórico de exames antigos.
+  dataExame: diaSchema.optional(),
 
   queixaPrincipal: z.string().optional(),
   historicoOcular: z.string().optional(),
@@ -97,6 +153,19 @@ export const prontuarioSchema = z.object({
   medicamentosEmUso: z.string().optional(),
   usaCorrecaoAtual: z.boolean().default(false),
   tempoUltimoExame: z.string().optional(),
+  necessidadeUso: z.string().optional(),
+
+  grauAtualEsfericoOD: z.string().optional(),
+  grauAtualCilindricoOD: z.string().optional(),
+  grauAtualEixoOD: z.string().optional(),
+  grauAtualEsfericoOE: z.string().optional(),
+  grauAtualCilindricoOE: z.string().optional(),
+  grauAtualEixoOE: z.string().optional(),
+  grauAtualAdicaoOD: z.string().optional(),
+  grauAtualAdicaoOE: z.string().optional(),
+  /// Vazio no formulário vira nulo: o tipo é escolhido só para quem usa óculos.
+  tipoLenteAtual: z.preprocess((v) => (v === '' ? null : v),
+    z.enum(['MONOFOCAL', 'BIFOCAL', 'MULTIFOCAL', 'OCUPACIONAL', 'CONTATO']).nullable().optional()),
 
   avSemCorrecaoOD: z.string().optional(),
   avSemCorrecaoOE: z.string().optional(),
@@ -132,7 +201,9 @@ export const receitaSchema = z.object({
   /// Quem assina. Se não vier, a rota usa quem está logado.
   profissionalId: z.string().optional().nullable(),
   prontuarioId: z.string().optional().nullable(),
-  validadeAte: z.coerce.date(),
+  /// Dia da emissão. Ausente = hoje na criação, sem mudança na edição.
+  dataEmissao: diaSchema.optional(),
+  validadeAte: dataSemHora,
 
   longeEsfericoOD: z.string().optional(),
   longeCilindricoOD: z.string().optional(),
@@ -155,6 +226,8 @@ export const receitaSchema = z.object({
   /// medida do estado atual (essa fica no prontuário).
   avCorrigidaOD: z.string().optional(),
   avCorrigidaOE: z.string().optional(),
+  avPertoOD: z.string().optional(),
+  avPertoOE: z.string().optional(),
 
   dpLongeOD: z.string().optional(),
   dpLongeOE: z.string().optional(),

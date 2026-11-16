@@ -20,6 +20,10 @@ const DE_PARA: Record<string, string> = {
   longeEsfericoOE: 'refracaoEsfericoOE',
   longeCilindricoOE: 'refracaoCilindricoOE',
   longeEixoOE: 'refracaoEixoOE',
+  adicaoOD: 'adicaoOD',
+  adicaoOE: 'adicaoOE',
+  // A necessidade de uso anotada no exame vira a orientação de uso da receita.
+  orientacoesUso: 'necessidadeUso',
 }
 
 export const CAMPOS_HERDAVEIS = Object.keys(DE_PARA)
@@ -119,7 +123,8 @@ export function textoDaReceita(r: any): string {
       { esf: r.pertoEsfericoOE, cil: r.pertoCilindricoOE, eixo: r.pertoEixoOE }
     ) ?? 'Não prescrito',
     parSimples('Adição', r.adicaoOD, r.adicaoOE),
-    parSimples('Visão esperada com o óculos', r.avCorrigidaOD, r.avCorrigidaOE),
+    parSimples('Visão esperada para longe', r.avCorrigidaOD, r.avCorrigidaOE),
+    parSimples('Visão esperada para perto', r.avPertoOD, r.avPertoOE),
     '',
     '*Medidas de montagem*',
     parSimples('DP para longe', r.dpLongeOD, r.dpLongeOE),
@@ -147,6 +152,18 @@ export function textoDaReceita(r: any): string {
 }
 
 /** Resumo curto do grau encontrado, para identificar o exame numa lista. */
+/** O grau dos óculos que o paciente já usa, no mesmo formato. Nulo sem grau. */
+export function resumoGrauAtual(p: any): string | null {
+  if (!p?.usaCorrecaoAtual) return null
+  const r = resumoRefracao({
+    refracaoEsfericoOD: p.grauAtualEsfericoOD, refracaoCilindricoOD: p.grauAtualCilindricoOD, refracaoEixoOD: p.grauAtualEixoOD,
+    refracaoEsfericoOE: p.grauAtualEsfericoOE, refracaoCilindricoOE: p.grauAtualCilindricoOE, refracaoEixoOE: p.grauAtualEixoOE,
+  })
+  const tipo = TIPO_LENTE[p.tipoLenteAtual]
+  if (r === 'Sem refração registrada') return tipo ?? null
+  return tipo ? `${r} (${tipo})` : r
+}
+
 export function resumoRefracao(p: any): string {
   const olho = (esf: string, cil: string, eixo: string) => {
     if (vazio(esf) && vazio(cil)) return null

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { exigirTela } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { prontuarioSchema } from '@/lib/schemas'
+import { dataRetroativa } from '@/lib/datas'
 
 type Params = { params: { id: string } }
 
@@ -21,11 +22,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PUT(req: NextRequest, { params }: Params) {
   return rota(async () => {
     const { consultorioId } = await exigirTela('/prontuarios')
-    const dados = prontuarioSchema.parse(await req.json())
+    const { dataExame, ...dados } = prontuarioSchema.parse(await req.json())
 
     const r = await prisma.prontuario.updateMany({
       where: { id: params.id, consultorioId },
-      data: { ...dados, consultaId: dados.consultaId || null },
+      data: {
+        ...dados,
+        consultaId: dados.consultaId || null,
+        ...(dataExame && { dataExame: await dataRetroativa(consultorioId, dataExame) }),
+      },
     })
     if (r.count === 0) throw new ErroDeNegocio('Prontuário não encontrado')
     return prisma.prontuario.findUnique({ where: { id: params.id } })
