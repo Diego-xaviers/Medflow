@@ -9,7 +9,11 @@
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "check:planos": "tsx src/lib/planos.check.ts",
+    "check:rotas": "tsx src/lib/rotas.check.ts",
+    "check:cadastro": "tsx src/lib/cadastro.check.ts",
+    "check": "npm run check:planos && npm run check:rotas && npm run check:cadastro"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

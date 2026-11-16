@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { appUrl } from '@/lib/rotas'
 import useSWR from 'swr'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
@@ -214,7 +215,7 @@ export default function ProntuariosPage() {
 
               <p className="text-xs text-neutro-400 shrink-0">{data(p.dataExame)}</p>
 
-              <Link href={`/receitas?paciente=${p.paciente.id}&prontuario=${p.id}`}
+              <Link href={appUrl(`/receitas?paciente=${p.paciente.id}&prontuario=${p.id}`)}
                 title="Emitir receita a partir deste exame"
                 className="btn-suave !py-1.5 !px-2.5 !text-[11.5px] shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Receipt size={13} strokeWidth={2} /> Emitir receita
@@ -404,7 +405,7 @@ function PainelExame({ id, aoFechar, aoEditar }: { id: string | null; aoFechar: 
                       className="btn-suave !py-2 !px-3 !text-[12px]">
                       <Pencil size={13} strokeWidth={2} /> Editar
                     </button>
-                    <Link href={`/receitas?paciente=${p.paciente?.id}&prontuario=${p.id}`}
+                    <Link href={appUrl(`/receitas?paciente=${p.paciente?.id}&prontuario=${p.id}`)}
                       className="btn-primario !py-2 !px-3 !text-[12px]">
                       <Receipt size={13} strokeWidth={2.2} /> Emitir receita
                     </Link>

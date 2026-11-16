@@ -107,7 +107,7 @@ export const authOptions: NextAuthOptions = {
             redeId: true,
             consultorioId: true,
             consultorio: {
-              select: { nome: true, slug: true, tetosAcesso: { select: { papel: true, telas: true } } },
+              select: { nome: true, slug: true, plano: true, tetosAcesso: { select: { papel: true, telas: true } } },
             },
           },
         })
@@ -116,6 +116,7 @@ export const authOptions: NextAuthOptions = {
           // Conta desativada: sem consultório nem rede, toda rota de dados recusa.
           token.consultorioId = null
           token.redeId = null
+          token.plano = null
           token.telas = []
         } else {
           const teto = atual.consultorio?.tetosAcesso.find((t) => t.papel === atual.papel)?.telas ?? null
@@ -127,6 +128,7 @@ export const authOptions: NextAuthOptions = {
           token.consultorioId = atual.consultorioId
           token.consultorioNome = atual.consultorio?.nome ?? null
           token.consultorioSlug = atual.consultorio?.slug ?? null
+          token.plano = atual.consultorio?.plano ?? null
         }
         token.sincronizadoEm = Date.now()
       }
@@ -143,6 +145,7 @@ export const authOptions: NextAuthOptions = {
         session.user.rememberMe = token.rememberMe ?? false
         session.user.telas = token.telas ?? null
         session.user.redeId = token.redeId ?? null
+        session.user.plano = token.plano ?? null
       }
       return session
     },

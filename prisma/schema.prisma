@@ -47,6 +47,13 @@ model Consultorio {
   /// inadimplência. Útil quando o admin decide dar carência extra.
   acessoLiberado Boolean @default(false)
 
+  /// Plano contratado. Define o que o consultório enxerga; o preço de tabela
+  /// vive em `src/lib/planos.ts` e serve só para exibir.
+  ///
+  /// BASICO por padrão para que consultório novo nasça no menor plano — nunca
+  /// entregando feature paga por omissão.
+  plano Plano @default(BASICO)
+
   /// Mensalidade cobrada deste consultório, definida pelo administrador.
   /// É o valor da assinatura no Asaas.
   valorMensalidade Decimal? @db.Decimal(10, 2)
@@ -80,6 +87,17 @@ model Consultorio {
   logsAuditoria    LogAuditoria[]
 
   @@map("consultorios")
+}
+
+/// Os três planos comerciais do Medflow.
+///
+/// O enum governa FEATURES. Quem governa DINHEIRO continua sendo
+/// `valorMensalidade`, que o administrador digita e o Asaas cobra — e é isso
+/// que permite preço negociado e desconto de rede sem regra no código.
+enum Plano {
+  BASICO
+  PRO
+  ULTRA
 }
 
 enum Papel {

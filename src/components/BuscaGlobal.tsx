@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react'
 import useSWR from 'swr'
 import { Search, UserRound, CornerDownLeft } from 'lucide-react'
 import { fetcher } from '@/lib/fetcher'
+import { appUrl } from '@/lib/rotas'
 import { podeAbrir, type PapelUsuario } from '@/lib/permissoes'
 import { contem } from './CampoBusca'
 import { principais, operacao, admin } from './Sidebar'
@@ -58,7 +59,7 @@ export default function BuscaGlobal() {
   useEffect(() => setAtivo(0), [termo])
 
   function ir(r: (typeof resultados)[number]) {
-    router.push(r.href)
+    router.push(appUrl(r.href))
     // Já estando em Pacientes, a página não remonta: avisa para abrir a ficha.
     if (r.pacienteId) window.dispatchEvent(new CustomEvent('medflow:abrir-paciente', { detail: r.pacienteId }))
     setTermo('')

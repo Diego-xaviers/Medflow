@@ -9,6 +9,8 @@ import {
   Bell, BarChart3, LifeBuoy, Settings, UserCircle, UsersRound, Building2, Network,
 } from 'lucide-react'
 import { podeAbrir, type PapelUsuario } from '@/lib/permissoes'
+import { planoLibera, type PlanoNome } from '@/lib/planos'
+import { appUrl, telaDaUrl } from '@/lib/rotas'
 
 export const principais = [
   { label: 'Dashboard', icon: LayoutGrid, href: '/' },
@@ -41,11 +43,14 @@ export const admin = [
 ]
 
 function Item({ label, icon: Icon, href, aoNavegar, variante }: { label: string; icon: any; href: string; aoNavegar?: () => void; variante: string }) {
-  const caminho = usePathname()
+  // `href` aqui é a CHAVE da tela (`/agenda`), igual à de permissoes.ts — o
+  // prefixo `/app` entra só no Link. Por isso o caminho da URL volta para
+  // chave antes de comparar: senão `/app/agenda` nunca bateria com `/agenda`.
+  const caminho = telaDaUrl(usePathname())
   const ativo = href === '/' || href === '/gestor' ? caminho === href : caminho.startsWith(href)
 
   return (
-    <Link href={href} onClick={aoNavegar} className="relative block group">
+    <Link href={appUrl(href)} onClick={aoNavegar} className="relative block group">
       {/* O fundo do item ativo desliza de um item para o outro em vez de
           piscar — é o detalhe que dá sensação de produto polido. */}
       {ativo && (
@@ -109,10 +114,13 @@ export default function Sidebar({ aoNavegar, variante = 'fixa' }: { aoNavegar?: 
   const { data: sessao } = useSession()
   const papel = sessao?.user?.papel as PapelUsuario | undefined
 
-  // O menu mostra exatamente o que o papel pode abrir — mesma tabela que o
-  // middleware consulta, para o menu nunca prometer uma tela que vai barrar.
+  // O menu mostra exatamente o que o papel pode abrir E o plano paga — as
+  // mesmas duas funções que o middleware consulta, para o menu nunca prometer
+  // uma tela que vai barrar.
+  const plano = sessao?.user?.plano as PlanoNome | undefined
   const visiveis = (itens: any[]) => itens.filter((i) =>
-    podeAbrir(papel, i.href, sessao?.user?.telas, sessao?.user?.redeId))
+    podeAbrir(papel, i.href, sessao?.user?.telas, sessao?.user?.redeId) &&
+    planoLibera(plano, i.href))
 
   const principaisVisiveis = visiveis(principais)
   const operacaoVisiveis = visiveis(operacao)

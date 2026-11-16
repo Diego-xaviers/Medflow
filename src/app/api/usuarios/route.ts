@@ -5,6 +5,7 @@ import { exigirPapel } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { novoUsuarioSchema } from '@/lib/schemas'
 import { notificar, equipeDoConsultorio } from '@/lib/notificacoes'
+import { cabeMaisUsuario, TETO_USUARIOS, ROTULO, type PlanoNome } from '@/lib/planos'
 
 const rotuloPapel: Record<string, string> = {
   DONO: 'Dono', ATENDENTE: 'Atendente', VENDEDORA: 'Vendedora',
@@ -29,8 +30,20 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   return rota(async () => {
-    const { consultorioId, usuarioId, nome: quemCriou } = await exigirPapel('DONO')
+    const { consultorioId, usuarioId, nome: quemCriou, plano } = await exigirPapel('DONO')
     const dados = novoUsuarioSchema.parse(await req.json())
+
+    // Teto de usuários do plano. Conta ATIVOS: quem foi desativado liberou a
+    // vaga, senão desativar e contratar no lugar ficaria impossível sem subir
+    // de plano — o que seria cobrar pelo fantasma.
+    const ativos = await prisma.usuario.count({ where: { consultorioId, ativo: true } })
+    if (!cabeMaisUsuario(plano as PlanoNome, ativos)) {
+      const teto = TETO_USUARIOS[plano as PlanoNome]
+      throw new ErroDeNegocio(
+        `O plano ${ROTULO[plano as PlanoNome]} permite ${teto} ${teto === 1 ? 'usuário' : 'usuários'}. ` +
+          'Suba de plano em Cobrança para adicionar mais gente.'
+      )
+    }
 
     const email = dados.email.toLowerCase().trim()
     const jaExiste = await prisma.usuario.findUnique({ where: { email }, select: { id: true } })

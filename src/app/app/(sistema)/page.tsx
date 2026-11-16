@@ -2,6 +2,7 @@
 
 import useSWR from 'swr'
 import Link from 'next/link'
+import { appUrl } from '@/lib/rotas'
 import { useSession } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import {
@@ -60,7 +61,7 @@ export default function DashboardPage() {
         </div>
         {/* Leva para a Agenda já com o formulário aberto: agendar é sempre
             olhar a agenda antes, então não faz sentido duplicar o modal aqui. */}
-        <Link href="/agenda?novo=1" className="btn-primario">
+        <Link href={appUrl("/agenda?novo=1")} className="btn-primario">
           <Plus size={16} strokeWidth={2.2} /> Nova consulta
         </Link>
       </motion.div>

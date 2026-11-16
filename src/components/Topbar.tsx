@@ -11,6 +11,7 @@ import Avatar from './Avatar'
 import Notificacoes from './Notificacoes'
 import BuscaGlobal from './BuscaGlobal'
 import { fetcher } from '@/lib/fetcher'
+import { appUrl } from '@/lib/rotas'
 
 const rotuloPapel: Record<string, string> = {
   SUPER_ADMIN: 'Administrador', DONO: 'Optometrista',
@@ -92,11 +93,11 @@ export default function Topbar({ aoAbrirMenu }: { aoAbrirMenu?: () => void } = {
                     </div>
                   </div>
 
-                  <Link href="/perfil" onClick={() => setMenuAberto(false)}
+                  <Link href={appUrl("/perfil")} onClick={() => setMenuAberto(false)}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium hover:bg-neutro-100 dark:hover:bg-neutro-800 transition-colors">
                     <UserRound size={15} strokeWidth={1.9} className="text-neutro-400" /> Meu perfil
                   </Link>
-                  <Link href="/perfil?editar=1" onClick={() => setMenuAberto(false)}
+                  <Link href={appUrl("/perfil?editar=1")} onClick={() => setMenuAberto(false)}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium hover:bg-neutro-100 dark:hover:bg-neutro-800 transition-colors">
                     <Pencil size={15} strokeWidth={1.9} className="text-neutro-400" /> Editar perfil
                   </Link>

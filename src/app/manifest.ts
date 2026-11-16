@@ -8,14 +8,16 @@ import type { MetadataRoute } from 'next'
  * e faz o sistema parecer um app em vez de um site.
  *
  * `start_url` aponta para a agenda: é a única tela do papel dela, e abrir
- * direto nela evita um redirecionamento visível a cada abertura.
+ * direto nela evita um redirecionamento visível a cada abertura. Com o
+ * prefixo `/app`, porque a raiz do domínio agora é a página de apresentação —
+ * quem já instalou o atalho antes dessa mudança precisa reinstalar.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Medflow — Gestão Clínica',
     short_name: 'Medflow',
     description: 'Agenda, prontuários e receitas da sua clínica',
-    start_url: '/agenda',
+    start_url: '/app/agenda',
     display: 'standalone',
     background_color: '#ffffff',
     theme_color: '#2b9878',

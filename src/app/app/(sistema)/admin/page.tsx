@@ -338,6 +338,17 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
   const [mensalidade, setMensalidade] = useState('')
   useEffect(() => { setMensalidade(c?.valorMensalidade ? String(c.valorMensalidade) : '') }, [c?.valorMensalidade])
 
+  // Plano salva no onChange, sem botão: é um enum de três opções, não tem o
+  // que revisar antes de confirmar. O valor cobrado continua no campo abaixo,
+  // com botão próprio — porque ali um dígito errado vira cobrança errada.
+  async function trocarPlano(novo: string) {
+    setOcupado(true); setErro(null)
+    try {
+      await enviar(`/api/admin/consultorios/${id}`, 'PATCH', { plano: novo })
+      await mutate(); aoMudar()
+    } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
+  }
+
   async function salvarMensalidade() {
     setOcupado(true); setErro(null)
     try {
@@ -477,6 +488,21 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
                     </h3>
 
                     {/* Cobrança automática pelo Asaas */}
+                    <div className="mb-4 p-3 rounded-lg bg-neutro-50 dark:bg-neutro-950/40 border border-neutro-200/70 dark:border-neutro-800">
+                      <label className="rotulo">Plano contratado</label>
+                      <select className="campo" value={c.plano ?? 'BASICO'} disabled={ocupado}
+                        onChange={(e) => trocarPlano(e.target.value)}>
+                        <option value="BASICO">Básico — R$ 197 de tabela · 1 usuário</option>
+                        <option value="PRO">Pro — R$ 397 de tabela · 5 usuários</option>
+                        <option value="ULTRA">Ultra — R$ 897 de tabela · usuários ilimitados</option>
+                      </select>
+                      <p className="text-[11px] text-neutro-500 mt-2">
+                        O plano define o que o consultório enxerga. O valor cobrado é o campo
+                        abaixo, e pode ser diferente do preço de tabela — é assim que preço
+                        negociado, desconto de rede e cliente fundador funcionam.
+                      </p>
+                    </div>
+
                     <div className="mb-4 p-3 rounded-lg border border-brand-200 dark:border-brand-900 bg-brand-50/40 dark:bg-brand-900/10">
                       <p className="text-[12.5px] font-medium mb-2">Cobrança automática (Asaas)</p>
                       <div className="flex items-end gap-2">

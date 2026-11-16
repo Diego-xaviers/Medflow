@@ -75,7 +75,7 @@ export const TELAS_CONFIGURAVEIS = [
 ]
 
 // A raiz precisa bater exata: com `startsWith`, '/' liberaria o site todo.
-const bate = (rota: string, caminho: string) =>
+export const rotaBate = (rota: string, caminho: string) =>
   rota === '/' ? caminho === '/' : caminho === rota || caminho.startsWith(`${rota}/`)
 
 /** As telas configuráveis que o papel abre por padrão — o ponto de partida em Equipe. */
@@ -114,18 +114,18 @@ export function podeAbrir(
   redeId?: string | null
 ): boolean {
   if (!papel) return false
-  if (bate('/gestor', caminho)) return papel === 'GESTOR' || (papel === 'DONO' && Boolean(redeId))
+  if (rotaBate('/gestor', caminho)) return papel === 'GESTOR' || (papel === 'DONO' && Boolean(redeId))
 
   const permitidas = ROTAS[papel]
   if (permitidas === '*') return true
   if (!permitidas) return false
 
   if (Array.isArray(telas) && papel !== 'DONO') {
-    const configuravel = TELAS_CONFIGURAVEIS.find((t) => bate(t.href, caminho))
+    const configuravel = TELAS_CONFIGURAVEIS.find((t) => rotaBate(t.href, caminho))
     if (configuravel) return telas.includes(configuravel.href)
   }
 
-  return permitidas.some((rota) => bate(rota, caminho))
+  return permitidas.some((rota) => rotaBate(rota, caminho))
 }
 
 /** Primeira tela que a pessoa pode abrir — para onde vai quem cai numa proibida. */

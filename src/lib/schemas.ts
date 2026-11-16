@@ -61,6 +61,22 @@ export const novoConsultorioSchema = z.object({
   senhaDono: z.string().min(8, 'A senha deve ter ao menos 8 caracteres'),
 })
 
+/**
+ * Cadastro feito pela própria pessoa na vitrine.
+ *
+ * É o `novoConsultorioSchema` com duas coisas que só existem quando não há
+ * administrador na frente: o plano que ela escolheu no card e o aceite dos
+ * termos, que precisa ser um ato dela — por isso `literal(true)`, e não
+ * `boolean`: um `false` que passasse viraria consentimento registrado sem
+ * consentimento dado.
+ */
+export const cadastroSchema = novoConsultorioSchema.extend({
+  plano: z.enum(['BASICO', 'PRO', 'ULTRA']),
+  aceiteTermos: z.literal(true, {
+    errorMap: () => ({ message: 'É preciso aceitar os termos de uso' }),
+  }),
+})
+
 export const novoUsuarioSchema = z.object({
   nome: z.string().min(2, 'Informe o nome'),
   email: z.string().email('E-mail inválido'),

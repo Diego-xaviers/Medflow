@@ -4,6 +4,7 @@ import { rota, ErroDeNegocio } from '@/lib/api'
 import { isBefore } from 'date-fns'
 import { gerarHorariosDoDia, partesDaData, instanteNoFuso, FUSO_PADRAO } from '@/lib/agenda'
 import { cruzaAusencia } from '@/lib/ausencias'
+import { temRecurso, type PlanoNome } from '@/lib/planos'
 
 type Params = { params: { slug: string } }
 
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     const consultorio = await prisma.consultorio.findFirst({
       where: { slug: params.slug, ativo: true },
       select: {
+        plano: true,
         id: true,
         duracaoConsultaMin: true,
         fusoHorario: true,
@@ -34,6 +36,11 @@ export async function GET(req: NextRequest, { params }: Params) {
       },
     })
     if (!consultorio) throw new ErroDeNegocio('Link de agendamento inválido')
+    // Mesmo gate das outras duas rotas públicas: horário livre de clínica que
+    // não paga o recurso não sai daqui.
+    if (!temRecurso(consultorio.plano as PlanoNome, 'agendamentoPublico')) {
+      throw new ErroDeNegocio('Link de agendamento inválido')
+    }
 
     // O profissional precisa ser deste consultório e atender pacientes —
     // senão daria para sondar a agenda de qualquer usuário passando o id.

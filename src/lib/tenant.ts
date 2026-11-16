@@ -1,8 +1,9 @@
 import { getSessao } from './auth'
 import { situacaoDaConta } from './cobranca'
 import { prisma } from './prisma'
-import type { Papel } from '@prisma/client'
+import type { Papel, Plano } from '@prisma/client'
 import { podeAbrir, telasEfetivas } from './permissoes'
+import { planoLibera, planoNecessario, ROTULO, type PlanoNome } from './planos'
 
 /**
  * Esta é a peça mais importante do sistema.
@@ -47,11 +48,27 @@ export class ErroPagamentoPendente extends Error {
   }
 }
 
+/**
+ * Tela que existe, mas não está no plano contratado.
+ *
+ * 402 como `ErroPagamentoPendente`, e pelo mesmo motivo: também se resolve
+ * pagando. O que muda é a mensagem, que precisa dizer QUAL plano abre — senão
+ * a pessoa não sabe o que comprar.
+ */
+export class ErroPlanoInsuficiente extends Error {
+  status = 402
+  constructor(msg: string) {
+    super(msg)
+  }
+}
+
 export interface Contexto {
   usuarioId: string
   nome: string
   papel: Papel
   consultorioId: string
+  /** Plano do consultório, para as rotas checarem recurso sem ir ao banco. */
+  plano: Plano
 }
 
 /**
@@ -73,7 +90,7 @@ export async function exigirSessao(
 
   if (!sessao?.user) throw new ErroNaoAutorizado()
 
-  const { id, name, papel, consultorioId } = sessao.user
+  const { id, name, papel, consultorioId, plano } = sessao.user
 
   // SUPER_ADMIN não pertence a consultório algum, então não pode usar as
   // rotas normais do sistema — só a área /api/admin.
@@ -91,6 +108,8 @@ export async function exigirSessao(
     nome: name ?? '',
     papel,
     consultorioId,
+    // Sessão antiga, de antes dos planos, cai no menor plano em vez de quebrar.
+    plano: plano ?? 'BASICO',
   }
 }
 
@@ -123,6 +142,20 @@ export async function exigirUsuario(): Promise<{
  */
 export async function exigirTela(tela: string): Promise<Contexto> {
   const ctx = await exigirSessao()
+
+  // Plano primeiro, e ANTES do atalho do DONO abaixo: o plano limita o
+  // consultório inteiro, dono incluído. Ele é quem paga — é quem mais tem que
+  // ver a trava. Esconder a tela e deixar a API aberta seria o teatro que o
+  // comentário acima promete não fazer.
+  if (!planoLibera(ctx.plano as PlanoNome, tela)) {
+    const minimo = planoNecessario(tela)
+    throw new ErroPlanoInsuficiente(
+      minimo
+        ? `Esta tela faz parte do plano ${ROTULO[minimo]}. Veja os planos em Cobrança.`
+        : 'Esta tela não faz parte do seu plano.'
+    )
+  }
+
   if (ctx.papel === 'DONO') return ctx
   const [usuario, teto] = await Promise.all([
     prisma.usuario.findUnique({ where: { id: ctx.usuarioId }, select: { telas: true } }),

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { diasAtendidos, resumoExpediente } from '@/lib/agenda'
+import { temRecurso, type PlanoNome } from '@/lib/planos'
 
 type Params = { params: { slug: string } }
 
@@ -19,6 +20,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const consultorio = await prisma.consultorio.findFirst({
       where: { slug: params.slug, ativo: true },
       select: {
+        plano: true,
         nome: true,
         telefone: true,
         endereco: true,
@@ -39,6 +41,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
       },
     })
     if (!consultorio) throw new ErroDeNegocio('Link de agendamento inválido')
+
+    // Agendamento público é recurso do PRO. Lê o plano do BANCO porque aqui
+    // não existe sessão — é página aberta. E devolve a mesma mensagem de link
+    // inválido de propósito: quem está de fora não precisa saber que a clínica
+    // existe e está num plano menor.
+    if (!temRecurso(consultorio.plano as PlanoNome, 'agendamentoPublico')) {
+      throw new ErroDeNegocio('Link de agendamento inválido')
+    }
 
     return {
       nome: consultorio.nome,

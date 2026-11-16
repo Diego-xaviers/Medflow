@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import { motion } from 'framer-motion'
@@ -19,10 +20,12 @@ import { moeda, data as fmtData } from '@/lib/formato'
  * administrador. Em nenhum caso esta tela coleta dado de cartão: ele é
  * digitado na página do Asaas.
  */
-export default function CobrancaPage() {
+function Cobranca() {
   const { data, isLoading, mutate } = useSWR('/api/cobranca', fetcher, { refreshInterval: 60_000 })
   const [copiado, setCopiado] = useState(false)
   const [conferindo, setConferindo] = useState(false)
+  // Quem chegou aqui barrado pelo plano traz a tela na URL — o middleware põe.
+  const bloqueado = useSearchParams().get('bloqueado')
 
   /** "Já paguei": consulta o Asaas na hora, sem esperar o webhook. */
   async function conferirPagamento() {
@@ -55,6 +58,8 @@ export default function CobrancaPage() {
         </div>
       ) : (
         <div className="space-y-5">
+          <MeuPlano plano={data?.plano} bloqueado={bloqueado} />
+
           <Situacao situacao={situacao} />
 
           <PagamentoOnline online={data?.online} aoMudar={() => conferirPagamento()} />
@@ -152,6 +157,76 @@ export default function CobrancaPage() {
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * O plano contratado, o que ele inclui e o que viria no de cima.
+ *
+ * É também a tela onde cai quem tentou abrir algo fora do plano — o
+ * middleware redireciona para cá com `?bloqueado=/a-tela`. Mandar para o
+ * Dashboard esconderia a causa; aqui a pessoa vê o que tem, o que falta e
+ * para quem falar. Não existe botão de upgrade: com a base atual, subir de
+ * plano é conversa, e conversa fecha melhor que checkout.
+ */
+function MeuPlano({ plano, bloqueado }: { plano: any; bloqueado: string | null }) {
+  if (!plano) return null
+
+  const proximo = plano.superiores?.[0]
+
+  return (
+    <section className="cartao p-5 sm:p-6">
+      {bloqueado && (
+        <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 px-4 py-3 mb-5">
+          <p className="text-[12.5px] text-amber-800 dark:text-amber-300">
+            A tela <strong className="font-semibold">{bloqueado}</strong> não faz parte do
+            plano {plano.rotulo}. Veja abaixo o que o plano de cima inclui.
+          </p>
+        </div>
+      )}
+
+      <div className="flex items-start gap-2 mb-1">
+        <Sparkles size={16} className="text-brand-600 shrink-0 mt-0.5" strokeWidth={2} />
+        <div className="flex-1 min-w-0">
+          <h2 className="titulo-secao">Plano {plano.rotulo}</h2>
+          <p className="text-[12px] text-neutro-400 mt-0.5">
+            {plano.tetoUsuarios === null
+              ? 'Usuários ilimitados'
+              : `${plano.tetoUsuarios} ${plano.tetoUsuarios === 1 ? 'usuário' : 'usuários'}`}
+          </p>
+        </div>
+      </div>
+
+      <ul className="mt-4 grid sm:grid-cols-2 gap-x-6 gap-y-1.5">
+        {plano.inclui.map((item: string) => (
+          <li key={item} className="flex items-center gap-2 text-[12.5px] text-neutro-600 dark:text-neutro-300">
+            <CircleCheck size={13} className="text-brand-600 shrink-0" strokeWidth={2.2} />
+            {item}
+          </li>
+        ))}
+      </ul>
+
+      {proximo && (
+        <div className="mt-5 pt-5 border-t border-neutro-200/70 dark:border-neutro-800">
+          <p className="text-[12.5px] font-semibold">
+            No plano {proximo.rotulo} você também tem
+          </p>
+          <ul className="mt-2 grid sm:grid-cols-2 gap-x-6 gap-y-1.5">
+            {proximo.inclui
+              .filter((item: string) => !item.startsWith('Tudo do'))
+              .map((item: string) => (
+                <li key={item} className="flex items-center gap-2 text-[12.5px] text-neutro-500">
+                  <CircleCheck size={13} className="text-neutro-300 dark:text-neutro-600 shrink-0" strokeWidth={2.2} />
+                  {item}
+                </li>
+              ))}
+          </ul>
+          <p className="text-[11px] text-neutro-400 mt-3">
+            Para subir de plano, fale com a gente pelo Suporte.
+          </p>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -372,5 +447,22 @@ function PagamentoOnline({ online, aoMudar }: { online: any; aoMudar: () => void
         </div>
       </div>
     </motion.form>
+  )
+}
+
+/**
+ * `useSearchParams` exige uma fronteira de Suspense: sem ela o Next tenta
+ * prerenderizar esta tela durante a build, não encontra query nenhuma e aborta
+ * o export com `missing-suspense-with-csr-bailout`.
+ *
+ * O fallback é vazio de propósito — a própria tela já desenha o esqueleto de
+ * carregamento enquanto o SWR não responde, e um segundo esqueleto por cima
+ * dele só pisca.
+ */
+export default function CobrancaPage() {
+  return (
+    <Suspense>
+      <Cobranca />
+    </Suspense>
   )
 }

@@ -6,6 +6,7 @@ import { dentroDoExpediente } from '@/lib/agenda'
 import { exigirSemAusencia } from '@/lib/ausencias'
 import { notificar, equipeDoConsultorio } from '@/lib/notificacoes'
 import { dataHora as fmtDataHora } from '@/lib/formato'
+import { temRecurso, type PlanoNome } from '@/lib/planos'
 
 type Params = { params: { slug: string } }
 
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       where: { slug: params.slug, ativo: true },
       select: {
         id: true,
+        plano: true,
         nome: true,
         duracaoConsultaMin: true,
         fusoHorario: true,
@@ -29,6 +31,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
     })
     if (!consultorio) throw new ErroDeNegocio('Link de agendamento inválido')
+
+    // A vitrine já barra pelo plano, mas esta é a rota que ESCREVE — e rota
+    // que escreve não confia na tela. Sem isto, um POST direto criaria
+    // paciente e consulta num consultório que não paga pelo recurso.
+    if (!temRecurso(consultorio.plano as PlanoNome, 'agendamentoPublico')) {
+      throw new ErroDeNegocio('Link de agendamento inválido')
+    }
 
     // O profissional escolhido tem que ser deste consultório e atender
     // pacientes. Sem esta checagem, um id de outro consultório coloraria

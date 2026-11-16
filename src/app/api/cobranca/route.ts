@@ -6,6 +6,7 @@ import { rota } from '@/lib/api'
 import { situacaoDaConta } from '@/lib/cobranca'
 import { gerarBrCode, pixConfigurado } from '@/lib/pix'
 import { asaasConfigurado, pixDoPagamento, sincronizarPagamentos } from '@/lib/asaas'
+import { INCLUI, ORDEM_PLANOS, PRECO_TABELA, ROTULO, TETO_USUARIOS, type PlanoNome } from '@/lib/planos'
 
 /**
  * A aba de Cobrança do consultório.
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
       prisma.consultorio.findUniqueOrThrow({
         where: { id: consultorioId },
         select: {
-          nome: true, valorMensalidade: true, formaCobranca: true,
+          nome: true, plano: true, valorMensalidade: true, formaCobranca: true,
           asaasAssinaturaId: true, documentoCobranca: true,
         },
       }),
@@ -76,8 +77,27 @@ export async function GET(req: NextRequest) {
     }
 
     const doc = consultorio.documentoCobranca?.replace(/D/g, '') ?? ''
+    const plano = consultorio.plano as PlanoNome
     return {
       consultorio: consultorio.nome,
+      // O plano e o que ele inclui. `precoTabela` é só vitrine: o que o
+      // cliente paga é `online.valorMensalidade`, e os dois podem divergir
+      // de propósito (preço negociado, desconto de rede, cliente fundador).
+      plano: {
+        nome: plano,
+        rotulo: ROTULO[plano],
+        inclui: INCLUI[plano],
+        precoTabela: PRECO_TABELA[plano],
+        tetoUsuarios: TETO_USUARIOS[plano],
+        superiores: ORDEM_PLANOS
+          .filter((outro) => PRECO_TABELA[outro] > PRECO_TABELA[plano])
+          .map((outro) => ({
+            nome: outro,
+            rotulo: ROTULO[outro],
+            precoTabela: PRECO_TABELA[outro],
+            inclui: INCLUI[outro],
+          })),
+      },
       // Pagamento online disponível quando o Asaas está configurado e o
       // administrador já definiu o valor deste consultório.
       online: {

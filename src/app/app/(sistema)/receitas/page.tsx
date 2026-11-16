@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { appUrl } from '@/lib/rotas'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -71,7 +72,7 @@ function EntregaDaReceita({ receita, consultorio }: { receita: any; consultorio:
         </span>
       )}
 
-      <Link href={`/receitas/${receita.id}/imprimir`} target="_blank"
+      <Link href={appUrl(`/receitas/${receita.id}/imprimir`)} target="_blank"
         title="Imprimir ou salvar em PDF"
         className="btn-icone !w-8 !h-8 hover:!text-neutro-700 dark:hover:!text-neutro-200">
         <Printer size={16} strokeWidth={2} />

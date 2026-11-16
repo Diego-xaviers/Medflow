@@ -18,6 +18,8 @@ const ajusteSchema = z.object({
       novaSenha: z.string().min(8, 'A senha deve ter ao menos 8 caracteres'),
     })
     .optional(),
+  /// Plano contratado. Governa features; não mexe no valor cobrado.
+  plano: z.enum(['BASICO', 'PRO', 'ULTRA']).optional(),
   /// Mensalidade da assinatura no Asaas; null tira o valor.
   valorMensalidade: z.coerce.number().positive('Valor deve ser maior que zero').nullable().optional(),
   cancelarAssinatura: z.literal(true).optional(),
@@ -103,6 +105,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const atualizacao: Record<string, any> = {}
+    if (dados.plano !== undefined) atualizacao.plano = dados.plano
     if (dados.ativo !== undefined) atualizacao.ativo = dados.ativo
     if (dados.acessoLiberado !== undefined) atualizacao.acessoLiberado = dados.acessoLiberado
     if (dados.diaVencimento !== undefined) atualizacao.diaVencimento = dados.diaVencimento

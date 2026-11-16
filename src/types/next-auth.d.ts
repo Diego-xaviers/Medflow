@@ -1,4 +1,4 @@
-import type { Papel } from '@prisma/client'
+import type { Papel, Plano } from '@prisma/client'
 import 'next-auth'
 
 // Estende os tipos do NextAuth para que session.user.consultorioId
@@ -17,6 +17,8 @@ declare module 'next-auth' {
       /** Telas efetivas; null = padrão do papel. */
       telas: string[] | null
       redeId: string | null
+      /** Plano do consultório da sessão; null para super admin e gestor. */
+      plano: Plano | null
     }
   }
 }
@@ -31,6 +33,7 @@ declare module 'next-auth/jwt' {
     loginAt?: number
     telas?: string[] | null
     redeId?: string | null
+    plano?: Plano | null
     sincronizadoEm?: number
   }
 }

@@ -8,6 +8,7 @@ import { motion } from 'framer-motion'
 import { Eye, EyeOff, Loader2, LogIn } from 'lucide-react'
 import { CHAVE_BOAS_VINDAS } from '@/components/BoasVindas'
 import { CHAVE_SESSAO_ATIVA } from '@/components/Moldura'
+import { BASE_APP } from '@/lib/rotas'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -110,7 +111,9 @@ export function SignInMedflow({ depoimentos = [] }: SignInMedflowProps) {
     }
 
     sessionStorage.setItem(CHAVE_BOAS_VINDAS, '1')
-    router.push('/')
+    // O sistema mora embaixo de /app; a raiz do domínio é a apresentação.
+    // Mandar para '/' aqui jogaria o recém-logado de volta na vitrine.
+    router.push(BASE_APP)
     router.refresh()
   }
 
@@ -222,7 +225,11 @@ export function SignInMedflow({ depoimentos = [] }: SignInMedflowProps) {
           {/* Rodapé */}
           <div className="space-y-2">
             <p className="text-center text-[11px] text-neutro-400">
-              Acesso restrito. As contas são criadas pelo administrador.
+              Ainda não tem conta?{" "}
+              <Link href="/cadastro" className="text-brand-600 hover:text-brand-500 transition-colors underline underline-offset-2">
+                Crie a da sua clínica
+              </Link>
+              .
             </p>
             <p className="text-center text-[11px] text-neutro-400 space-x-2">
               <Link href="/politica-de-privacidade" className="hover:text-brand-500 transition-colors underline underline-offset-2">

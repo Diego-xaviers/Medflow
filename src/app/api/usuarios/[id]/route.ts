@@ -6,6 +6,7 @@ import { rota, ErroDeNegocio } from '@/lib/api'
 import { notificar, equipeDoConsultorio } from '@/lib/notificacoes'
 import { TELAS_CONFIGURAVEIS } from '@/lib/permissoes'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { cabeMaisUsuario, TETO_USUARIOS, ROTULO, type PlanoNome } from '@/lib/planos'
 
 type Params = { params: { id: string } }
 
@@ -23,9 +24,24 @@ const ajusteSchema = z.object({
  * consultório mexer em usuário de outro chutando o id — o resultado seria
  * zero linhas afetadas em vez de alteração indevida.
  */
+// Reativar também ocupa vaga: sem esta checagem o teto do plano vazaria por
+// aqui — desativa cinco, reativa os cinco, e o BASICO de 1 usuário fica com 5.
+async function exigirVagaParaAtivar(consultorioId: string, plano: string, alvoId: string) {
+  const ativos = await prisma.usuario.count({
+    where: { consultorioId, ativo: true, id: { not: alvoId } },
+  })
+  if (!cabeMaisUsuario(plano as PlanoNome, ativos)) {
+    const teto = TETO_USUARIOS[plano as PlanoNome]
+    throw new ErroDeNegocio(
+      `O plano ${ROTULO[plano as PlanoNome]} permite ${teto} ${teto === 1 ? 'usuário' : 'usuários'}. ` +
+        'Suba de plano em Cobrança para reativar esta conta.'
+    )
+  }
+}
+
 export async function PATCH(req: NextRequest, { params }: Params) {
   return rota(async () => {
-    const { consultorioId, usuarioId, nome } = await exigirPapel('DONO')
+    const { consultorioId, usuarioId, nome, plano } = await exigirPapel('DONO')
     const dados = ajusteSchema.parse(await req.json())
 
     if (params.id === usuarioId && dados.ativo === false) {
@@ -40,6 +56,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (dados.telas && alvo.papel === 'DONO') {
       throw new ErroDeNegocio('O acesso do dono não pode ser restringido')
     }
+    if (dados.ativo === true) await exigirVagaParaAtivar(consultorioId, plano, alvo.id)
 
     const atualizado = await prisma.usuario.update({
       where: { id: alvo.id },

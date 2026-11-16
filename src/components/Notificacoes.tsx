@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { appUrl } from '@/lib/rotas'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -59,7 +60,9 @@ export default function Notificacoes() {
       await enviar('/api/notificacoes', 'PATCH', { id: item.id })
       mutate()
     }
-    if (item.link) router.push(item.link)
+    // O link do aviso é gravado no banco como chave de tela (`/agenda?x`), sem
+    // o prefixo — assim os avisos antigos continuam valendo depois da mudança.
+    if (item.link) router.push(appUrl(item.link))
   }
 
   async function marcarTodas() {

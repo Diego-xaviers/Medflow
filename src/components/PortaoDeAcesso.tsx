@@ -7,6 +7,7 @@ import { Lock, Wallet, ArrowRight } from 'lucide-react'
 import { fetcher } from '@/lib/fetcher'
 import { liberadaNoBloqueio } from '@/lib/cobranca'
 import { moeda } from '@/lib/formato'
+import { appUrl, telaDaUrl } from '@/lib/rotas'
 
 /**
  * A trava de inadimplência, do lado da tela.
@@ -21,7 +22,7 @@ import { moeda } from '@/lib/formato'
  * quem tem um problema de cobrança sem ninguém para falar.
  */
 export default function PortaoDeAcesso({ children }: { children: React.ReactNode }) {
-  const caminho = usePathname()
+  const caminho = telaDaUrl(usePathname())
 
   // Esta rota responde mesmo com a conta bloqueada — é por ela que a tela
   // descobre a situação.
@@ -54,7 +55,7 @@ export default function PortaoDeAcesso({ children }: { children: React.ReactNode
           </div>
         )}
 
-        <Link href="/cobranca" className="btn-primario w-full mt-5">
+        <Link href={appUrl("/cobranca")} className="btn-primario w-full mt-5">
           <Wallet size={16} strokeWidth={2.2} /> Ver como pagar
           <ArrowRight size={15} strokeWidth={2.2} />
         </Link>

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { withAuth } from 'next-auth/middleware'
 import { podeAbrir, telaInicial, type PapelUsuario } from '@/lib/permissoes'
+import { planoLibera, type PlanoNome } from '@/lib/planos'
+import { appUrl, telaDaUrl } from '@/lib/rotas'
 
 /**
  * Protege as páginas do sistema no nível do roteador: quem não estiver logado
@@ -10,8 +12,11 @@ import { podeAbrir, telaInicial, type PapelUsuario } from '@/lib/permissoes'
  * Precisa morar em src/ — com o app/ dentro de src/, um middleware.ts na raiz
  * do projeto é silenciosamente ignorado pelo Next.
  *
- * Repare no que fica de FORA do matcher: /login, /agendar/* (a página pública
- * de agendamento) e TODO o /api. As rotas de API se defendem sozinhas com
+ * O matcher agora cobre só `/app/*`: o sistema inteiro mora lá embaixo para
+ * que a raiz do domínio seja a página de apresentação, que é pública. Todo o
+ * resto (/, /login, /cadastro, /agendar/*, /termos, /api) fica de fora.
+ *
+ * As rotas de API continuam fora de propósito: elas se defendem sozinhas com
  * `exigirSessao()`/`exigirPapel()`, que respondem 401 e 403 em JSON — se o
  * middleware entrasse na frente, o fetch do navegador receberia o HTML de uma
  * tela de login e a mensagem de erro exibida ao usuário viraria lixo.
@@ -22,7 +27,11 @@ export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token
     const papel = token?.papel as PapelUsuario | undefined
-    const caminho = req.nextUrl.pathname
+
+    // A URL traz o prefixo (`/app/agenda`); as tabelas de permissão falam em
+    // chave de tela (`/agenda`). A tradução acontece aqui e em lugar nenhum
+    // mais — veja o comentário de `src/lib/rotas.ts`.
+    const caminho = telaDaUrl(req.nextUrl.pathname)
 
     // Sessão sem "lembrar de mim": expira após 24h como fallback server-side.
     // A proteção primária é o check de sessionStorage no Moldura (client).
@@ -38,8 +47,18 @@ export default withAuth(
     const telas = token?.telas as string[] | null | undefined
     if (papel && !podeAbrir(papel, caminho, telas, token?.redeId as string | null | undefined)) {
       const destino = req.nextUrl.clone()
-      destino.pathname = telaInicial(papel, telas)
+      destino.pathname = appUrl(telaInicial(papel, telas))
       destino.search = ''
+      return NextResponse.redirect(destino)
+    }
+
+    // Barrado por PLANO vai para Cobrança, não para a tela inicial: lá está o
+    // plano atual, o que cada um inclui e como subir. Mandar para o Dashboard
+    // esconderia a causa, e a pessoa tentaria de novo achando que é bug.
+    if (!planoLibera(token?.plano as PlanoNome | undefined, caminho)) {
+      const destino = req.nextUrl.clone()
+      destino.pathname = appUrl('/cobranca')
+      destino.search = `?bloqueado=${encodeURIComponent(caminho)}`
       return NextResponse.redirect(destino)
     }
 
@@ -49,11 +68,12 @@ export default withAuth(
 )
 
 export const config = {
-  matcher: [
-    // O manifesto e o ícone precisam ficar de fora: o celular os busca ANTES
-    // de existir sessão, na hora de instalar o app na tela inicial. Exigindo
-    // login, o navegador recebia um 307 para /login no lugar do arquivo e a
-    // instalação simplesmente não acontecia.
-    '/((?!login|agendar|politica-de-privacidade|termos|api|manifest.webmanifest|icone.svg|_next/static|_next/image|favicon.ico).*)',
-  ],
+  // Só o sistema. A apresentação, o cadastro e as páginas públicas não passam
+  // por aqui — e o manifesto e o ícone, que o celular busca ANTES de existir
+  // sessão para instalar o app, também não: exigindo login, o navegador
+  // recebia um 307 para /login no lugar do arquivo e a instalação não
+  // acontecia.
+  // '/app' e '/app/*': o primeiro é o Dashboard, que sem a entrada própria
+  // dependeria de `:path*` casar com vazio — barato demais para apostar.
+  matcher: ['/app', '/app/:path*'],
 }

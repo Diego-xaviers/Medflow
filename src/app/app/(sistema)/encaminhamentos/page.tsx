@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { appUrl } from '@/lib/rotas'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
@@ -44,7 +45,7 @@ export default function EncaminhamentosPage() {
       setModal(false)
       setForm(vazio)
       mutate()
-      router.push(`/encaminhamentos/${novo.id}/imprimir`)
+      router.push(appUrl(`/encaminhamentos/${novo.id}/imprimir`))
     } catch (e: any) {
       setErro(e.message)
     } finally {
@@ -101,7 +102,7 @@ export default function EncaminhamentosPage() {
                 <p className="text-xs text-neutro-400">Emitido {data(e.dataEmissao)}</p>
                 {e.profissional?.nome && <p className="text-[11px] text-neutro-400">{e.profissional.nome}</p>}
               </div>
-              <Link href={`/encaminhamentos/${e.id}/imprimir`} target="_blank"
+              <Link href={appUrl(`/encaminhamentos/${e.id}/imprimir`)} target="_blank"
                 title="Imprimir ou salvar em PDF"
                 className="btn-icone !w-8 !h-8 hover:!text-neutro-700 dark:hover:!text-neutro-200 shrink-0">
                 <Printer size={16} strokeWidth={2} />
@@ -143,7 +144,7 @@ export default function EncaminhamentosPage() {
                 </p>
                 {perfil && !perfil.registroProfissional && (
                   <p className="text-[11px] text-amber-600 mt-1">
-                    Registro profissional não preenchido. <Link href="/perfil" className="underline">Informe em Perfil</Link>.
+                    Registro profissional não preenchido. <Link href={appUrl("/perfil")} className="underline">Informe em Perfil</Link>.
                   </p>
                 )}
               </div>

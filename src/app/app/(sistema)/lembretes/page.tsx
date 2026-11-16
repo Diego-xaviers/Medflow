@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { appUrl } from '@/lib/rotas'
 import useSWR from 'swr'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -464,7 +465,7 @@ export default function LembretesPage() {
                     <Avatar nome={selecionado.paciente} tamanho={34} />
                     <div className="min-w-0 flex-1">
                       {selecionado.pacienteId ? (
-                        <Link href={`/pacientes?paciente=${selecionado.pacienteId}`}
+                        <Link href={appUrl(`/pacientes?paciente=${selecionado.pacienteId}`)}
                           className="block text-[13px] font-medium truncate hover:text-brand-600 transition-colors">
                           {selecionado.paciente}
                         </Link>
