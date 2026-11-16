@@ -158,13 +158,21 @@ export default function ImprimirReceitaPage() {
         </section>
 
         {/* Acuidade alcançada — o número que o paciente quer saber */}
-        {(temValor(r.avCorrigidaOD) || temValor(r.avCorrigidaOE)) && (
+        {[r.avCorrigidaOD, r.avCorrigidaOE, r.avPertoOD, r.avPertoOE].some(temValor) && (
           <section className="pb-5">
             <Titulo>Acuidade visual com esta correção</Titulo>
-            <div className="flex gap-8 mt-2 numerico text-[12.5px]">
-              <Dado rotulo="OD" valor={r.avCorrigidaOD || '—'} />
-              <Dado rotulo="OE" valor={r.avCorrigidaOE || '—'} />
-            </div>
+            {(temValor(r.avCorrigidaOD) || temValor(r.avCorrigidaOE)) && (
+              <div className="flex gap-8 mt-2 numerico text-[12.5px]">
+                <Dado rotulo="Longe OD" valor={r.avCorrigidaOD || '—'} />
+                <Dado rotulo="Longe OE" valor={r.avCorrigidaOE || '—'} />
+              </div>
+            )}
+            {(temValor(r.avPertoOD) || temValor(r.avPertoOE)) && (
+              <div className="flex gap-8 mt-2 numerico text-[12.5px]">
+                <Dado rotulo="Perto OD" valor={r.avPertoOD || '—'} />
+                <Dado rotulo="Perto OE" valor={r.avPertoOE || '—'} />
+              </div>
+            )}
           </section>
         )}
 

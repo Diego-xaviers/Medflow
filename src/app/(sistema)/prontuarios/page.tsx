@@ -15,13 +15,26 @@ import TagsInput from '@/components/TagsInput'
 import BuscaPaciente from '@/components/BuscaPaciente'
 import {
   QUEIXA_PRINCIPAL, HISTORICO_OCULAR, HISTORICO_SISTEMICO,
-  MEDICAMENTOS, TEMPO_ULTIMO_EXAME,
+  MEDICAMENTOS, TEMPO_ULTIMO_EXAME, NECESSIDADE_USO,
 } from '@/lib/opcoesClinicas'
+
+const TIPOS_LENTE = [
+  ['MONOFOCAL', 'Monofocal'],
+  ['BIFOCAL', 'Bifocal'],
+  ['MULTIFOCAL', 'Multifocal'],
+  ['OCUPACIONAL', 'Ocupacional'],
+  ['CONTATO', 'Lente de contato'],
+] as const
+
+const rotuloLente = (v?: string | null) => TIPOS_LENTE.find(([k]) => k === v)?.[1] ?? null
 
 const vazio: any = {
   pacienteId: '',
   queixaPrincipal: '', historicoOcular: '', historicoSistemico: '',
-  medicamentosEmUso: '', usaCorrecaoAtual: false, tempoUltimoExame: '',
+  medicamentosEmUso: '', usaCorrecaoAtual: false, tempoUltimoExame: '', necessidadeUso: '',
+  grauAtualEsfericoOD: '', grauAtualCilindricoOD: '', grauAtualEixoOD: '',
+  grauAtualEsfericoOE: '', grauAtualCilindricoOE: '', grauAtualEixoOE: '',
+  grauAtualAdicaoOD: '', grauAtualAdicaoOE: '', tipoLenteAtual: '',
   avSemCorrecaoOD: '', avSemCorrecaoOE: '', avComCorrecaoOD: '', avComCorrecaoOE: '',
   refracaoEsfericoOD: '', refracaoCilindricoOD: '', refracaoEixoOD: '',
   refracaoEsfericoOE: '', refracaoCilindricoOE: '', refracaoEixoOE: '',
@@ -31,8 +44,12 @@ const vazio: any = {
   diagnostico: '', conduta: '', observacoes: '',
 }
 
+/** "AAAA-MM-DD" no fuso do navegador — `toISOString` daria o dia seguinte depois das 21h. */
+const diaLocal = (d: Date) => d.toLocaleDateString('en-CA')
+
 function formDoProntuario(p: any): any {
   return {
+    dataExame: diaLocal(new Date(p.dataExame)),
     pacienteId: p.pacienteId ?? '',
     consultaId: p.consultaId ?? '',
     queixaPrincipal: p.queixaPrincipal ?? '',
@@ -41,6 +58,16 @@ function formDoProntuario(p: any): any {
     medicamentosEmUso: p.medicamentosEmUso ?? '',
     usaCorrecaoAtual: p.usaCorrecaoAtual ?? false,
     tempoUltimoExame: p.tempoUltimoExame ?? '',
+    necessidadeUso: p.necessidadeUso ?? '',
+    grauAtualEsfericoOD: p.grauAtualEsfericoOD ?? '',
+    grauAtualCilindricoOD: p.grauAtualCilindricoOD ?? '',
+    grauAtualEixoOD: p.grauAtualEixoOD ?? '',
+    grauAtualEsfericoOE: p.grauAtualEsfericoOE ?? '',
+    grauAtualCilindricoOE: p.grauAtualCilindricoOE ?? '',
+    grauAtualEixoOE: p.grauAtualEixoOE ?? '',
+    grauAtualAdicaoOD: p.grauAtualAdicaoOD ?? '',
+    grauAtualAdicaoOE: p.grauAtualAdicaoOE ?? '',
+    tipoLenteAtual: p.tipoLenteAtual ?? '',
     avSemCorrecaoOD: p.avSemCorrecaoOD ?? '',
     avSemCorrecaoOE: p.avSemCorrecaoOE ?? '',
     avComCorrecaoOD: p.avComCorrecaoOD ?? '',
@@ -101,6 +128,7 @@ function ParOlhos({ rotulo, campoOD, campoOE, form, setForm, placeholder }: any)
 export default function ProntuariosPage() {
   const [modal, setModal] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [dataOriginal, setDataOriginal] = useState<string | null>(null)
   const [detalheId, setDetalheId] = useState<string | null>(null)
   const [form, setForm] = useState<any>(vazio)
   const [salvando, setSalvando] = useState(false)
@@ -113,13 +141,15 @@ export default function ProntuariosPage() {
   const { data: pacientes } = useSWR('/api/pacientes', fetcher)
 
   function abrirNovo() {
-    setForm(vazio)
+    setForm({ ...vazio, dataExame: diaLocal(new Date()) })
     setEditandoId(null)
     setModal(true)
   }
 
   function abrirEditar(p: any) {
-    setForm(formDoProntuario(p))
+    const valores = formDoProntuario(p)
+    setForm(valores)
+    setDataOriginal(valores.dataExame)
     setEditandoId(p.id)
     setDetalheId(null)
     setModal(true)
@@ -132,7 +162,11 @@ export default function ProntuariosPage() {
     setErro(null)
     try {
       if (editandoId) {
-        await enviar(`/api/prontuarios/${editandoId}`, 'PUT', form)
+        // Data intocada não vai: o mesmo dia reenviado trocaria a hora
+        // original do exame por meio-dia.
+        const corpo = { ...form }
+        if (corpo.dataExame === dataOriginal) delete corpo.dataExame
+        await enviar(`/api/prontuarios/${editandoId}`, 'PUT', corpo)
       } else {
         await enviar('/api/prontuarios', 'POST', form)
       }
@@ -255,14 +289,28 @@ export default function ProntuariosPage() {
                 <button type="button" onClick={() => setModal(false)} className="text-neutro-400 hover:text-neutro-600"><X size={20} /></button>
               </div>
 
-              <div>
-                <label className="rotulo">Paciente</label>
-                <BuscaPaciente
-                  pacientes={pacientes ?? []}
-                  valor={form.pacienteId}
-                  aoMudar={(id) => setForm({ ...form, pacienteId: id })}
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_170px] gap-3">
+                <div>
+                  <label className="rotulo">Paciente</label>
+                  <BuscaPaciente
+                    pacientes={pacientes ?? []}
+                    valor={form.pacienteId}
+                    aoMudar={(id) => setForm({ ...form, pacienteId: id })}
+                  />
+                </div>
+                <div>
+                  <label className="rotulo">Data do exame</label>
+                  <input type="date" className="campo" required max={diaLocal(new Date())}
+                    value={form.dataExame ?? ''}
+                    onChange={(e) => setForm({ ...form, dataExame: e.target.value })} />
+                </div>
               </div>
+              {form.dataExame && form.dataExame < diaLocal(new Date()) && (
+                <p className="text-[11px] text-amber-600 -mt-2">
+                  Data retroativa — use para cadastrar exames feitos antes de usar o sistema.
+                  Eles contam para o lembrete de retorno anual.
+                </p>
+              )}
 
               <Secao titulo="ANAMNESE">
                 <TagsInput
@@ -300,12 +348,42 @@ export default function ProntuariosPage() {
                   aoMudar={(v) => setForm({ ...form, tempoUltimoExame: v })}
                   placeholder="Primeira consulta, há 1 ano..."
                 />
+                <TagsInput
+                  rotulo="Necessidade de uso"
+                  sugestoes={NECESSIDADE_USO}
+                  valor={form.necessidadeUso}
+                  aoMudar={(v) => setForm({ ...form, necessidadeUso: v })}
+                  placeholder="Uso contínuo, leitura, computador..."
+                />
                 <label className="flex items-center gap-2 text-sm text-neutro-600 dark:text-neutro-400">
                   <input type="checkbox" checked={form.usaCorrecaoAtual}
                     onChange={(e) => setForm({ ...form, usaCorrecaoAtual: e.target.checked })} />
                   Já usa correção
                 </label>
               </Secao>
+
+              {/* O óculos que o paciente traz: comparar com a refração nova e
+                  entender a acuidade "com correção atual". */}
+              {form.usaCorrecaoAtual && (
+                <Secao titulo="GRAU ATUAL (ÓCULOS QUE JÁ USA)">
+                  <ParOlhos rotulo="Esférico" campoOD="grauAtualEsfericoOD" campoOE="grauAtualEsfericoOE"
+                    form={form} setForm={setForm} placeholder="-1.50" />
+                  <ParOlhos rotulo="Cilíndrico" campoOD="grauAtualCilindricoOD" campoOE="grauAtualCilindricoOE"
+                    form={form} setForm={setForm} placeholder="-0.50" />
+                  <ParOlhos rotulo="Eixo" campoOD="grauAtualEixoOD" campoOE="grauAtualEixoOE"
+                    form={form} setForm={setForm} placeholder="180" />
+                  <ParOlhos rotulo="Adição" campoOD="grauAtualAdicaoOD" campoOE="grauAtualAdicaoOE"
+                    form={form} setForm={setForm} placeholder="+1.50" />
+                  <div>
+                    <label className="rotulo">Tipo da lente atual</label>
+                    <select className="campo" value={form.tipoLenteAtual}
+                      onChange={(e) => setForm({ ...form, tipoLenteAtual: e.target.value })}>
+                      <option value="">Não informado</option>
+                      {TIPOS_LENTE.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+                    </select>
+                  </div>
+                </Secao>
+              )}
 
               <Secao titulo="ACUIDADE VISUAL">
                 <ParOlhos rotulo="Sem correção" campoOD="avSemCorrecaoOD" campoOE="avSemCorrecaoOE"
@@ -421,8 +499,23 @@ function PainelExame({ id, aoFechar, aoEditar }: { id: string | null; aoFechar: 
                     ['Histórico sistêmico', p.historicoSistemico],
                     ['Medicamentos em uso', p.medicamentosEmUso],
                     ['Último exame', p.tempoUltimoExame],
+                    ['Necessidade de uso', p.necessidadeUso],
                     ['Já usa correção', p.usaCorrecaoAtual ? 'Sim' : 'Não'],
                   ]} />
+
+                  {p.usaCorrecaoAtual && (
+                    <Grupo titulo="Grau atual (óculos que já usa)" itens={[
+                      ['Esférico — OD', p.grauAtualEsfericoOD],
+                      ['Cilíndrico — OD', p.grauAtualCilindricoOD],
+                      ['Eixo — OD', p.grauAtualEixoOD],
+                      ['Esférico — OE', p.grauAtualEsfericoOE],
+                      ['Cilíndrico — OE', p.grauAtualCilindricoOE],
+                      ['Eixo — OE', p.grauAtualEixoOE],
+                      ['Adição — OD', p.grauAtualAdicaoOD],
+                      ['Adição — OE', p.grauAtualAdicaoOE],
+                      ['Tipo da lente', rotuloLente(p.tipoLenteAtual)],
+                    ]} />
+                  )}
 
                   <Grupo titulo="Acuidade visual" itens={[
                     ['Sem correção — OD', p.avSemCorrecaoOD],

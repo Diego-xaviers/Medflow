@@ -61,13 +61,18 @@ export async function GET() {
         take: LIMITE,
       }),
 
-      // 4. Retorno anual: tem histórico, mas nada marcado no último ano.
-      //    O `none` cobre o futuro também — quem já remarcou não aparece.
+      // 4. Retorno anual: tem histórico, mas nada no último ano.
+      //    Histórico é consulta OU exame — exames antigos migrados para o
+      //    Prontuário (com data retroativa) não têm consulta na agenda e
+      //    ficariam de fora. O `none` cobre o futuro também — quem já
+      //    remarcou não aparece.
       prisma.paciente.findMany({
         where: {
           consultorioId,
           ativo: true,
-          consultas: { some: {}, none: { dataHora: { gte: umAnoAtras } } },
+          OR: [{ consultas: { some: {} } }, { prontuarios: { some: {} } }],
+          consultas: { none: { dataHora: { gte: umAnoAtras } } },
+          prontuarios: { none: { dataExame: { gte: umAnoAtras } } },
         },
         select: {
           id: true,
@@ -76,6 +81,11 @@ export async function GET() {
           consultas: {
             select: { dataHora: true },
             orderBy: { dataHora: 'desc' },
+            take: 1,
+          },
+          prontuarios: {
+            select: { dataExame: true },
+            orderBy: { dataExame: 'desc' },
             take: 1,
           },
         },
@@ -149,13 +159,17 @@ export async function GET() {
       vencida: r.validadeAte < startOfDay(agora),
     }))
 
-    const retornosAnuais = retornos.map((p) => ({
-      id: p.id,
-      pacienteId: p.id,
-      paciente: p.nome,
-      telefone: p.telefone,
-      ultimaConsulta: p.consultas[0]?.dataHora ?? null,
-    }))
+    const retornosAnuais = retornos.map((p) => {
+      // O mais recente entre a última consulta e o último exame.
+      const datas = [p.consultas[0]?.dataHora, p.prontuarios[0]?.dataExame].filter(Boolean) as Date[]
+      return {
+        id: p.id,
+        pacienteId: p.id,
+        paciente: p.nome,
+        telefone: p.telefone,
+        ultimaConsulta: datas.length ? new Date(Math.max(...datas.map((d) => d.getTime()))) : null,
+      }
+    })
 
     const financeiro = pendencias.map((l) => ({
       id: l.id,

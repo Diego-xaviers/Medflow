@@ -3,17 +3,21 @@ import { prisma } from '@/lib/prisma'
 import { exigirTela } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { z } from 'zod'
+import { formaPagamentoSchema } from '@/lib/schemas'
 
 type Params = { params: { id: string } }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   return rota(async () => {
     const { consultorioId } = await exigirTela('/financeiro')
-    const { status } = z.object({ status: z.enum(['PAGO', 'PENDENTE']) }).parse(await req.json())
+    const dados = z.object({
+      status: z.enum(['PAGO', 'PENDENTE']).optional(),
+      formaPagamento: formaPagamentoSchema.nullable().optional(),
+    }).parse(await req.json())
 
     const r = await prisma.lancamento.updateMany({
       where: { id: params.id, consultorioId },
-      data: { status },
+      data: dados,
     })
     if (r.count === 0) throw new ErroDeNegocio('Lançamento não encontrado')
     return prisma.lancamento.findUnique({ where: { id: params.id } })

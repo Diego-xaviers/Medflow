@@ -4,6 +4,7 @@ import { exigirTela } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { prontuarioSchema } from '@/lib/schemas'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { dataRetroativa } from '@/lib/datas'
 
 export async function GET(req: NextRequest) {
   return rota(async () => {
@@ -29,8 +30,14 @@ export async function POST(req: NextRequest) {
     })
     if (!paciente) throw new ErroDeNegocio('Paciente não encontrado')
 
+    const { dataExame, ...resto } = dados
     const prontuario = await prisma.prontuario.create({
-      data: { ...dados, consultaId: dados.consultaId || null, consultorioId },
+      data: {
+        ...resto,
+        consultaId: dados.consultaId || null,
+        consultorioId,
+        ...(dataExame && { dataExame: await dataRetroativa(consultorioId, dataExame) }),
+      },
       include: { paciente: { select: { id: true, nome: true, cpf: true, telefone: true } } },
     })
 

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Send, Trash2, X, Loader2, Printer } from 'lucide-react'
+import { Plus, Send, Trash2, X, Loader2, Printer, Pencil } from 'lucide-react'
 import CampoBusca, { contem } from '@/components/CampoBusca'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { data } from '@/lib/formato'
@@ -23,6 +23,8 @@ export default function EncaminhamentosPage() {
   const router = useRouter()
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState(vazio)
+  /** Id do encaminhamento aberto no lápis; nulo quando é um novo. */
+  const [editandoId, setEditandoId] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -40,6 +42,16 @@ export default function EncaminhamentosPage() {
     setSalvando(true)
     setErro(null)
     try {
+      if (editandoId) {
+        // Corrigir não é emitir de novo: fica na lista, e a impressão está
+        // a um clique no ícone da impressora.
+        await enviar(`/api/encaminhamentos/${editandoId}`, 'PUT', form)
+        setModal(false)
+        setEditandoId(null)
+        setForm(vazio)
+        mutate()
+        return
+      }
       const novo = await enviar('/api/encaminhamentos', 'POST', form)
       setModal(false)
       setForm(vazio)
@@ -65,7 +77,7 @@ export default function EncaminhamentosPage() {
           <h1 className="titulo-pagina">Encaminhamentos</h1>
           <p className="subtitulo">Encaminhamentos emitidos</p>
         </div>
-        <button onClick={() => { setForm(vazio); setErro(null); setModal(true) }} className="btn-primario">
+        <button onClick={() => { setEditandoId(null); setForm(vazio); setErro(null); setModal(true) }} className="btn-primario">
           <Plus size={16} /> Novo encaminhamento
         </button>
       </div>
@@ -106,6 +118,16 @@ export default function EncaminhamentosPage() {
                 className="btn-icone !w-8 !h-8 hover:!text-neutro-700 dark:hover:!text-neutro-200 shrink-0">
                 <Printer size={16} strokeWidth={2} />
               </Link>
+              <button title="Editar documento"
+                onClick={() => {
+                  setEditandoId(e.id)
+                  setForm({ titulo: e.titulo || vazio.titulo, pacienteNome: e.pacienteNome, texto: e.texto })
+                  setErro(null)
+                  setModal(true)
+                }}
+                className="btn-icone !w-8 !h-8 hover:!text-brand-600 hover:!bg-brand-50 dark:hover:!bg-brand-900/30 shrink-0">
+                <Pencil size={15} strokeWidth={2} />
+              </button>
               <button onClick={() => excluir(e.id)} title="Excluir encaminhamento"
                 className="btn-icone !w-8 !h-8 hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/40 shrink-0">
                 <Trash2 size={16} />
@@ -129,7 +151,7 @@ export default function EncaminhamentosPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Send size={18} className="text-brand-500" />
-                  <h2 className="text-[16px] font-semibold">Novo documento</h2>
+                  <h2 className="text-[16px] font-semibold">{editandoId ? 'Editar documento' : 'Novo documento'}</h2>
                 </div>
                 <button type="button" onClick={() => setModal(false)} className="text-neutro-400 hover:text-neutro-600"><X size={20} /></button>
               </div>
@@ -195,7 +217,8 @@ export default function EncaminhamentosPage() {
                   Cancelar
                 </button>
                 <button type="submit" disabled={salvando} className="btn-primario">
-                  {salvando && <Loader2 size={14} className="animate-spin" />} Emitir e imprimir
+                  {salvando && <Loader2 size={14} className="animate-spin" />}
+                  {editandoId ? 'Salvar alterações' : 'Emitir e imprimir'}
                 </button>
               </div>
             </motion.form>

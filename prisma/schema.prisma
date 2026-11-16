@@ -78,6 +78,8 @@ model Consultorio {
   faturas          Fatura[]
   chamados         Chamado[]
   logsAuditoria    LogAuditoria[]
+  campanhas        Campanha[]
+  metasFinanceiras MetaFinanceira[]
 
   @@map("consultorios")
 }
@@ -200,6 +202,7 @@ model Consulta {
   dataHora    DateTime
   status      StatusConsulta @default(AGENDADA)
   valor       Decimal?       @db.Decimal(10, 2)
+  formaPagamento FormaPagamento?
   observacoes String?
 
   /// Preenchidos quando a consulta nasce do link público de agendamento.
@@ -227,11 +230,41 @@ model Consulta {
 
   prontuario Prontuario?
 
+  /// Receita que esta consulta gerou no Financeiro. Quem mantém é
+  /// src/lib/financeiro.ts — nenhuma rota grava esse lançamento por conta.
+  lancamento Lancamento? @relation("ReceitaDaConsulta")
+
+  /// O paciente desta consulta de campanha fechou compra na ótica. Marcado
+  /// pelo dono ou pelo optometrista; gera o complemento abaixo.
+  vendaFechada   Boolean   @default(false)
+  vendaFechadaEm DateTime?
+  /// Diferença até o valor de referência da campanha (100 − 59,90), devida
+  /// quando a venda fecha. Mantido por src/lib/financeiro.ts.
+  complemento Lancamento? @relation("ComplementoDaConsulta")
+
+  /// Campanha que trouxe esta consulta. Anulável: a maioria não vem de uma.
+  campanhaId String?
+  campanha   Campanha? @relation(fields: [campanhaId], references: [id], onDelete: SetNull)
+
   /// Impede dois agendamentos no mesmo horário COM O MESMO PROFISSIONAL —
   /// a trava real é aqui no banco, não só na validação da aplicação.
   @@unique([consultorioId, profissionalId, dataHora])
   @@index([consultorioId, dataHora])
+  @@index([campanhaId])
   @@map("consultas")
+}
+
+/// Como o paciente pagou. Fica na consulta e passa para o lançamento que
+/// ela gera, para o Financeiro saber quanto entrou por cada meio.
+enum FormaPagamento {
+  DINHEIRO
+  PIX
+  CARTAO_DEBITO
+  CARTAO_CREDITO
+  CHEQUE
+  BOLETO
+  CONVENIO
+  OUTRO
 }
 
 enum TipoLancamento {
@@ -251,15 +284,84 @@ model Lancamento {
   tipo      TipoLancamento
   status    StatusPagamento @default(PENDENTE)
   data      DateTime
+  formaPagamento FormaPagamento?
 
   pacienteId String?
   paciente   Paciente? @relation(fields: [pacienteId], references: [id], onDelete: SetNull)
+
+  /// Preenchido quando o lançamento nasceu de uma consulta com valor. Único:
+  /// uma consulta gera no máximo uma receita, por mais vezes que seja editada.
+  consultaId String?   @unique
+  consulta   Consulta? @relation("ReceitaDaConsulta", fields: [consultaId], references: [id], onDelete: SetNull)
+
+  /// Preenchido no lançamento da diferença de campanha (venda fechada na
+  /// ótica). Receita quando a ótica parceira paga; despesa quando a clínica
+  /// paga ao optometrista.
+  complementoDeId String?   @unique
+  complementoDe   Consulta? @relation("ComplementoDaConsulta", fields: [complementoDeId], references: [id], onDelete: SetNull)
 
   consultorioId String
   consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
 
   @@index([consultorioId, data])
   @@map("lancamentos")
+}
+
+/// Quem cobre a diferença até o valor de referência quando a venda fecha.
+enum QuemPagaDiferenca {
+  /// A clínica/ótica que usa o Medflow paga ao optometrista: despesa.
+  CLINICA_PAGA
+  /// A ótica parceira paga ao consultório que usa o Medflow: receita.
+  PARCEIRO_PAGA
+}
+
+/// Campanha de venda: "Exame + armação com 20% off até 31/10". Uma venda é
+/// uma consulta CONCLUÍDA ligada à campanha — o resultado sai da agenda e
+/// nunca precisa ser digitado. Aqui só ficam a oferta e a meta.
+model Campanha {
+  id        String   @id @default(cuid())
+  nome      String
+  /// O que está sendo oferecido, em texto livre.
+  descricao String?
+  /// Dias inteiros, ancorados ao meio-dia: "ativa" é hoje entre os dois.
+  inicio    DateTime
+  fim       DateTime
+  /// A oferta: preço fechado OU desconto sobre o valor de tabela. Os dois
+  /// vazios = campanha sem condição de preço (ex.: "brinde na compra").
+  precoPromocional   Decimal? @db.Decimal(10, 2)
+  descontoPercentual Int?
+  /// Quantas vendas a campanha precisa fechar.
+  metaVendas Int?
+
+  /// Valor cheio da consulta (ex.: 100). Com ele, a consulta que fechar
+  /// venda na ótica gera a diferença até este valor.
+  valorReferencia   Decimal?           @db.Decimal(10, 2)
+  quemPagaDiferenca QuemPagaDiferenca?
+  /// Ótica parceira que paga a diferença (quando é ela quem paga).
+  parceiroNome      String?
+  criadoEm  DateTime @default(now())
+
+  consultas Consulta[]
+
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+
+  @@index([consultorioId, inicio])
+  @@map("campanhas")
+}
+
+/// Meta de faturamento de um mês. Uma por mês por consultório.
+model MetaFinanceira {
+  id          String  @id @default(cuid())
+  /// Mês no formato AAAA-MM.
+  competencia String
+  valor       Decimal @db.Decimal(10, 2)
+
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+
+  @@unique([consultorioId, competencia])
+  @@map("metas_financeiras")
 }
 
 /// PRONTUÁRIO — registro do EXAME.
@@ -276,6 +378,21 @@ model Prontuario {
   medicamentosEmUso  String?
   usaCorrecaoAtual   Boolean @default(false)
   tempoUltimoExame   String?
+  /// Para que o paciente precisa da correção: uso contínuo, leitura,
+  /// computador, dirigir... Orienta o tipo de lente e vai para a receita.
+  necessidadeUso     String?
+
+  /// Grau dos óculos que o paciente JÁ USA (o antigo). Serve de comparação
+  /// com a refração encontrada e explica a acuidade "com correção atual".
+  grauAtualEsfericoOD   String?
+  grauAtualCilindricoOD String?
+  grauAtualEixoOD       String?
+  grauAtualEsfericoOE   String?
+  grauAtualCilindricoOE String?
+  grauAtualEixoOE       String?
+  grauAtualAdicaoOD     String?
+  grauAtualAdicaoOE     String?
+  tipoLenteAtual        TipoLente?
 
   // Acuidade visual SEM correção
   avSemCorrecaoOD String?
@@ -380,6 +497,12 @@ model Receita {
   /// que todo paciente faz: "com esse óculos eu vou enxergar quanto?".
   avCorrigidaOD String?
   avCorrigidaOE String?
+
+  /// Mesma ideia da AV acima, medida para perto (tabela de leitura: J1,
+  /// 0.4M...). A de cima é a de longe; as duas juntas respondem por leitura e
+  /// por rua, que é o que importa em quem usa multifocal ou óculos de perto.
+  avPertoOD String?
+  avPertoOE String?
 
   // Distância pupilar e altura de montagem
   dpLongeOD String?

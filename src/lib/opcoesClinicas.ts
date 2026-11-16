@@ -82,6 +82,17 @@ export const TEMPO_ULTIMO_EXAME: string[] = [
   'Não lembra',
 ]
 
+/** Para que o paciente precisa enxergar melhor. Orienta o tipo de lente. */
+export const NECESSIDADE_USO: string[] = [
+  'Uso contínuo',
+  'Longe',
+  'Perto / leitura',
+  'Computador',
+  'Dirigir',
+  'Trabalho',
+  'Esporte',
+]
+
 const PREFIXO_OUTRO = 'Outro: '
 
 /** Como o texto guardado se decompõe de volta em seleções + campo livre. */

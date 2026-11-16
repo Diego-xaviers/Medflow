@@ -4,6 +4,7 @@ import { exigirTela } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { receitaSchema } from '@/lib/schemas'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { dataRetroativa } from '@/lib/datas'
 
 export async function GET(req: NextRequest) {
   return rota(async () => {
@@ -31,13 +32,15 @@ export async function POST(req: NextRequest) {
     })
     if (!paciente) throw new ErroDeNegocio('Paciente não encontrado')
 
+    const { dataEmissao, ...resto } = dados
     const receita = await prisma.receita.create({
       data: {
-        ...dados,
+        ...resto,
         prontuarioId: dados.prontuarioId || null,
         // Sem escolha explícita, quem assina é quem está emitindo.
         profissionalId: dados.profissionalId || usuarioId,
         consultorioId,
+        ...(dataEmissao && { dataEmissao: await dataRetroativa(consultorioId, dataEmissao) }),
       },
       include: { paciente: { select: { id: true, nome: true } } },
     })

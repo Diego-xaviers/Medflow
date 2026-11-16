@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { exigirSuperAdmin } from '@/lib/tenant'
 import { rota, ErroDeNegocio } from '@/lib/api'
+import { dataSemHora } from '@/lib/schemas'
 import { notificar, equipeDoConsultorio } from '@/lib/notificacoes'
 import { moeda, data as fmtData } from '@/lib/formato'
 
@@ -11,7 +12,7 @@ const novaFaturaSchema = z.object({
   competencia: z.string().regex(/^\d{4}-\d{2}$/, 'Use o formato AAAA-MM'),
   descricao: z.string().max(120).optional(),
   valor: z.coerce.number().positive('O valor deve ser maior que zero'),
-  vencimento: z.coerce.date(),
+  vencimento: dataSemHora,
 })
 
 /** Faturas de todos os consultórios, para a área do administrador. */

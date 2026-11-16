@@ -1,16 +1,2 @@
-node_modules
-.next
-.vercel
-.DS_Store
-*.log
-
-# Todo e qualquer .env fica de fora — inclusive variações como .env.producao
-# ou .env.staging que alguém venha a criar. A regra é ampla de propósito: um
-# segredo comitado por engano continua no histórico do Git mesmo depois de
-# apagado do arquivo.
-.env
-.env.*
-!.env.example
-
 .vercel
 .env*
