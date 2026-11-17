@@ -13,12 +13,15 @@
     "check:planos": "tsx src/lib/planos.check.ts",
     "check:rotas": "tsx src/lib/rotas.check.ts",
     "check:cadastro": "tsx src/lib/cadastro.check.ts",
-    "check": "npm run check:planos && npm run check:rotas && npm run check:cadastro"
+    "check:cobranca": "tsx src/lib/cobranca.check.ts",
+    "check:ia": "tsx src/lib/ia.check.ts",
+    "check": "npm run check:planos && npm run check:rotas && npm run check:cadastro && npm run check:cobranca && npm run check:ia"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.9.0",
     "@auth/prisma-adapter": "^2.7.0",
     "@prisma/client": "^5.20.0",
     "bcryptjs": "^2.4.3",

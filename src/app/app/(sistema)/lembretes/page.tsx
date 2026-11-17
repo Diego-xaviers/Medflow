@@ -7,9 +7,9 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   CalendarCheck, CalendarX2, Receipt, RefreshCw, Wallet, Send, Check, CheckCheck,
-  PhoneOff, Globe, RotateCcw, MessageCircle, Undo2, Sparkles,
+  PhoneOff, Globe, RotateCcw, MessageCircle, Undo2, Sparkles, Wand2, Loader2,
 } from 'lucide-react'
-import { fetcher } from '@/lib/fetcher'
+import { fetcher, enviar } from '@/lib/fetcher'
 import { data, hora, moeda } from '@/lib/formato'
 import { linkWhatsApp } from '@/lib/whatsapp'
 import Avatar from '@/components/Avatar'
@@ -29,6 +29,27 @@ import CampoBusca, { contem } from '@/components/CampoBusca'
  */
 
 type Chave = 'confirmacoes' | 'remarcar' | 'receitasVencendo' | 'retornos' | 'financeiro'
+
+/** Uma sugestão da IA para um contato da fila. */
+type Sugestao = { id: string; prioridade: 'alta' | 'media' | 'baixa'; motivo: string; mensagem: string }
+
+/** O nome da fila aqui, o nome do motivo lá em `src/lib/ia.ts`. */
+const MOTIVO_DA_FILA: Record<Chave, string> = {
+  confirmacoes: 'confirmacao',
+  remarcar: 'remarcar',
+  receitasVencendo: 'receita',
+  retornos: 'retorno',
+  financeiro: 'financeiro',
+}
+
+/** Mesmo teto do servidor (`TETO_POR_CHAMADA`), para o botão não pedir demais. */
+const TETO_IA = 15
+
+const COR_PRIORIDADE: Record<Sugestao['prioridade'], string> = {
+  alta: 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400',
+  media: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400',
+  baixa: 'bg-neutro-100 text-neutro-500 dark:bg-neutro-800 dark:text-neutro-400',
+}
 
 const primeiroNome = (nome?: string | null) => (nome ?? '').trim().split(/\s+/)[0] || 'tudo bem'
 
@@ -162,6 +183,13 @@ export default function LembretesPage() {
   const [modelos, setModelos] = useState<Record<string, string>>({})
   const previa = useRef<HTMLDivElement>(null)
 
+  // Sugestões da IA, por item. Vivem só nesta visita: são para a conversa de
+  // hoje, e guardar texto gerado sobre paciente é dado clínico parado no
+  // navegador sem ninguém precisar dele amanhã.
+  const [sugestoes, setSugestoes] = useState<Record<string, Sugestao>>({})
+  const [gerando, setGerando] = useState(false)
+  const [erroIA, setErroIA] = useState<string | null>(null)
+
   // Lê do navegador só no cliente, e já descarta envios antigos.
   useEffect(() => {
     const agora = Date.now()
@@ -191,8 +219,12 @@ export default function LembretesPage() {
   const selecionado = itensDaFila.find((i) => i.id === selecionadoId) ?? visiveis[0] ?? null
 
   const modelo = modelos[filaAtiva] ?? fila.modelo
+  // A sugestão da IA, quando existe, vence o modelo: ela foi escrita para
+  // ESTA pessoa, e o modelo é o mesmo texto para a fila inteira.
+  const sugestaoAtual = selecionado ? sugestoes[chaveItem(filaAtiva, selecionado)] : undefined
   const mensagem = selecionado
-    ? preencher(modelo, {
+    ? sugestaoAtual?.mensagem ??
+      preencher(modelo, {
         nome: primeiroNome(selecionado.paciente),
         clinica: consultorio?.nome ?? 'clínica',
         ...fila.valores(selecionado),
@@ -254,6 +286,35 @@ export default function LembretesPage() {
       gravar(CHAVE_MODELOS, resto)
       return resto
     })
+  }
+
+  /**
+   * Manda a fila visível para a IA priorizar e escrever.
+   *
+   * Vai só `{ id, motivo }`: o servidor relê nome e data do banco. Nome que
+   * sai do navegador é texto que o navegador escolheu, e ele entra num prompt.
+   */
+  async function gerarComIA() {
+    const alvos = visiveis.filter((i) => i.telefone && !foiEnviado(filaAtiva, i)).slice(0, TETO_IA)
+    if (alvos.length === 0 || gerando) return
+
+    setGerando(true)
+    setErroIA(null)
+    try {
+      const { sugestoes: novas } = await enviar('/api/ia/pos-venda', 'POST', {
+        itens: alvos.map((i) => ({ id: i.id, motivo: MOTIVO_DA_FILA[filaAtiva] })),
+      })
+      setSugestoes((atual) => ({
+        ...atual,
+        ...Object.fromEntries(
+          (novas as Sugestao[]).map((s) => [chaveItem(filaAtiva, { id: s.id }), s])
+        ),
+      }))
+    } catch (e) {
+      setErroIA(e instanceof Error ? e.message : 'Não consegui gerar as mensagens agora.')
+    } finally {
+      setGerando(false)
+    }
   }
 
   function escolher(item: any) {
@@ -359,6 +420,19 @@ export default function LembretesPage() {
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <CampoBusca valor={busca} aoMudar={setBusca} placeholder="Buscar contato..." />
+                <button
+                  onClick={gerarComIA}
+                  disabled={gerando}
+                  title="A IA ordena quem falar primeiro e escreve a mensagem de cada um. Você revisa antes de enviar."
+                  className="btn-suave text-[12px] px-2.5 py-1.5 gap-1.5"
+                >
+                  {gerando ? (
+                    <Loader2 size={14} className="animate-spin" strokeWidth={2.2} />
+                  ) : (
+                    <Wand2 size={14} strokeWidth={2.2} />
+                  )}
+                  {gerando ? 'Escrevendo…' : 'Escrever com IA'}
+                </button>
                 <div className="flex items-center p-0.5 rounded-lg bg-neutro-100 dark:bg-neutro-800">
                   {(['pendentes', 'enviados', 'todos'] as const).map((v) => (
                     <button key={v} onClick={() => setVisao(v)}
@@ -372,6 +446,12 @@ export default function LembretesPage() {
                   ))}
                 </div>
               </div>
+
+              {erroIA && (
+                <p className="text-[11.5px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-lg px-3 py-2">
+                  {erroIA}
+                </p>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto divide-y divide-neutro-100 dark:divide-neutro-800">
@@ -416,6 +496,17 @@ export default function LembretesPage() {
                           {selo && selo !== 'Online' && (
                             <span className="text-[10px] font-medium text-neutro-500 bg-neutro-100 dark:bg-neutro-800 px-1.5 py-0.5 rounded numerico shrink-0">
                               {selo}
+                            </span>
+                          )}
+                          {sugestoes[chaveItem(filaAtiva, item)] && (
+                            <span
+                              title={sugestoes[chaveItem(filaAtiva, item)].motivo}
+                              className={`flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
+                                COR_PRIORIDADE[sugestoes[chaveItem(filaAtiva, item)].prioridade]
+                              }`}
+                            >
+                              <Wand2 size={10} strokeWidth={2.2} />
+                              {sugestoes[chaveItem(filaAtiva, item)].prioridade}
                             </span>
                           )}
                         </div>
