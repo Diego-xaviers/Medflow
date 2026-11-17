@@ -5,6 +5,8 @@ import { criarConsultorioComDono } from '@/lib/consultorio'
 import { tentativaPermitida, registrarTentativa } from '@/lib/rateLimit'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { PRECO_TABELA } from '@/lib/planos'
+import { asaasConfigurado } from '@/lib/asaas'
+import { WHATSAPP_CONTATO, temWhatsApp } from '@/lib/contato'
 
 /**
  * Cadastro feito pela própria pessoa, sem login e sem administrador.
@@ -18,14 +20,33 @@ import { PRECO_TABELA } from '@/lib/planos'
  * últimos 15 minutos — e uma tabela separada só para isto teria que ser
  * limpa, monitorada e lembrada por quem mexesse no outro freio depois.
  *
- * A conta nasce sem fatura, e `situacaoDaConta` só bloqueia com fatura
- * vencida além da carência — então a pessoa entra e usa o sistema na hora.
- * A primeira cobrança é gerada quando o administrador define a mensalidade
- * (veja `src/lib/asaas.ts`): o plano escolhido aqui é o que ela ENXERGA, não
- * o que ela paga, e essas duas coisas vivem separadas no Medflow inteiro.
+ * A conta nasce TRANCADA (`exigePagamentoInicial`), e só abre quando a
+ * primeira mensalidade é confirmada pelo webhook do Asaas. O caminho da
+ * pessoa é: cadastra → cai em Cobrança → escolhe PIX ou cartão → paga → usa.
+ * Enquanto não paga, sobram Cobrança, Perfil e Suporte, que é o mínimo para
+ * pagar e pedir ajuda.
+ *
+ * Por isso a rota recusa cadastro quando o Asaas não está configurado: sem
+ * gateway, a conta nasceria trancada sem nenhuma forma de destravar, e a
+ * pessoa ficaria com login, dados e nada para fazer.
+ *
+ * O plano escolhido aqui é o que ela ENXERGA; o valor que ela paga é o preço
+ * de tabela desse plano, e as duas coisas seguem separadas no Medflow — o
+ * admin pode negociar outro valor depois sem mexer no plano.
  */
 export async function POST(req: NextRequest) {
   return rota(async () => {
+    // A mensagem muda conforme exista canal de contato: mandar falar no
+    // WhatsApp sem número configurado é beco sem saída para quem está do
+    // outro lado tentando virar cliente.
+    if (!asaasConfigurado()) {
+      throw new ErroDeNegocio(
+        temWhatsApp()
+          ? `O cadastro online está temporariamente indisponível. Fale com a gente no WhatsApp ${WHATSAPP_CONTATO} e abrimos sua conta.`
+          : 'O cadastro online está temporariamente indisponível. Tente novamente mais tarde.'
+      )
+    }
+
     const dados = cadastroSchema.parse(await req.json())
 
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'desconhecido'
@@ -40,6 +61,8 @@ export async function POST(req: NextRequest) {
       // Preço de tabela do plano escolhido: é o que destrava a assinatura na
       // tela de Cobrança sem precisar de administrador no meio.
       valorMensalidade: PRECO_TABELA[dados.plano],
+      // Paga para entrar.
+      exigePagamentoInicial: true,
     })
 
     // Conta no freio só depois de criar: tentativa que morreu na validação do

@@ -23,15 +23,53 @@ export interface SituacaoConta {
   quantidadeEmAberto: number
   vencimentoMaisAntigo: Date | null
   diasCarencia: number
+  /**
+   * Conta que entrou pelo cadastro público e ainda não pagou a primeira
+   * mensalidade. Bloqueia na hora, sem carência: aqui não há relação para
+   * honrar ainda, e a carência existe para proteger quem já é cliente.
+   */
+  primeiroPagamentoPendente: boolean
+}
+
+/**
+ * A regra de bloqueio, isolada do banco para poder ser testada —
+ * `npm run check:cobranca`. Quem decide é só esta função.
+ *
+ * `acessoLiberado` vence tudo: é a chave que o admin usa para destravar um
+ * caso específico sem mexer em fatura (cliente fundador, cortesia, erro de
+ * cobrança que vai ser resolvido depois).
+ */
+export function decidirBloqueio(c: {
+  acessoLiberado: boolean
+  exigePagamentoInicial: boolean
+  jaPagouAlgumaVez: boolean
+  diasDeAtraso: number
+  diasCarencia: number
+}): { bloqueado: boolean; primeiroPagamentoPendente: boolean } {
+  const primeiroPagamentoPendente = c.exigePagamentoInicial && !c.jaPagouAlgumaVez
+
+  if (c.acessoLiberado) return { bloqueado: false, primeiroPagamentoPendente }
+
+  return {
+    bloqueado: primeiroPagamentoPendente || c.diasDeAtraso > c.diasCarencia,
+    primeiroPagamentoPendente,
+  }
 }
 
 /** Só um lugar decide se a conta está bloqueada — este. */
 export async function situacaoDaConta(consultorioId: string): Promise<SituacaoConta> {
-  const [parametros, consultorio] = await Promise.all([
+  const [parametros, consultorio, pagaAlguma] = await Promise.all([
     prisma.parametrosSaas.findUnique({ where: { id: 'unico' } }),
     prisma.consultorio.findUnique({
       where: { id: consultorioId },
-      select: { acessoLiberado: true },
+      select: { acessoLiberado: true, exigePagamentoInicial: true },
+    }),
+    // Alguma fatura PAGA em qualquer momento da vida da conta. É o que diz se
+    // o primeiro pagamento já aconteceu — e serve para o cadastro público,
+    // onde a assinatura do Asaas gera a primeira fatura na hora da adesão.
+    prisma.fatura.findFirst({
+      where: { consultorioId, status: 'PAGA' },
+      select: { id: true },
     }),
   ])
   const diasCarencia = parametros?.diasCarencia ?? CARENCIA_PADRAO
@@ -50,8 +88,17 @@ export async function situacaoDaConta(consultorioId: string): Promise<SituacaoCo
     ? Math.floor((agora.getTime() - vencimentoMaisAntigo.getTime()) / 86_400_000)
     : 0
 
+  const { bloqueado, primeiroPagamentoPendente } = decidirBloqueio({
+    acessoLiberado: Boolean(consultorio?.acessoLiberado),
+    exigePagamentoInicial: Boolean(consultorio?.exigePagamentoInicial),
+    jaPagouAlgumaVez: Boolean(pagaAlguma),
+    diasDeAtraso,
+    diasCarencia,
+  })
+
   return {
-    bloqueado: consultorio?.acessoLiberado ? false : diasDeAtraso > diasCarencia,
+    bloqueado,
+    primeiroPagamentoPendente,
     emAtraso: vencidas.length > 0,
     diasDeAtraso,
     valorEmAberto: abertas.reduce((s, f) => s + Number(f.valor), 0),

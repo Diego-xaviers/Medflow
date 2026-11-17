@@ -39,13 +39,25 @@ export default function PortaoDeAcesso({ children }: { children: React.ReactNode
         </div>
 
         <h1 className="text-[18px] font-semibold tracking-apertado mb-2">
-          Acesso pausado por pendência
+          {situacao.primeiroPagamentoPendente
+            ? 'Falta ativar sua assinatura'
+            : 'Acesso pausado por pendência'}
         </h1>
         <p className="text-[13px] text-neutro-500 leading-relaxed">
-          Sua mensalidade está em aberto há{' '}
-          <span className="font-semibold">{situacao.diasDeAtraso} dias</span>. As telas
-          voltam assim que o pagamento for confirmado — seus dados continuam
-          todos aqui, nada foi apagado.
+          {situacao.primeiroPagamentoPendente ? (
+            <>
+              Sua conta está criada e o consultório já existe. As telas abrem
+              assim que a primeira mensalidade for confirmada — escolhe PIX ou
+              cartão em Cobrança e leva menos de um minuto.
+            </>
+          ) : (
+            <>
+              Sua mensalidade está em aberto há{' '}
+              <span className="font-semibold">{situacao.diasDeAtraso} dias</span>. As telas
+              voltam assim que o pagamento for confirmado — seus dados continuam
+              todos aqui, nada foi apagado.
+            </>
+          )}
         </p>
 
         {situacao.valorEmAberto > 0 && (
@@ -56,7 +68,8 @@ export default function PortaoDeAcesso({ children }: { children: React.ReactNode
         )}
 
         <Link href={appUrl("/cobranca")} className="btn-primario w-full mt-5">
-          <Wallet size={16} strokeWidth={2.2} /> Ver como pagar
+          <Wallet size={16} strokeWidth={2.2} />
+          {situacao.primeiroPagamentoPendente ? 'Ativar assinatura' : 'Ver como pagar'}
           <ArrowRight size={15} strokeWidth={2.2} />
         </Link>
 

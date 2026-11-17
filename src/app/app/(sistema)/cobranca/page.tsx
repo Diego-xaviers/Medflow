@@ -233,7 +233,13 @@ function MeuPlano({ plano, bloqueado }: { plano: any; bloqueado: string | null }
 function Situacao({ situacao }: { situacao: any }) {
   if (!situacao) return null
 
-  const estado = situacao.bloqueado
+  const estado = situacao.primeiroPagamentoPendente
+    ? {
+        icone: Ban, cor: 'text-red-600 bg-red-50 dark:bg-red-950/40',
+        titulo: 'Assinatura ainda não ativada',
+        texto: 'As telas do sistema abrem assim que a primeira mensalidade for confirmada. Escolha PIX ou cartão abaixo.',
+      }
+    : situacao.bloqueado
     ? {
         icone: Ban, cor: 'text-red-600 bg-red-50 dark:bg-red-950/40',
         titulo: 'Acesso pausado',

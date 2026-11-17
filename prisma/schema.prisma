@@ -47,6 +47,12 @@ model Consultorio {
   /// inadimplência. Útil quando o admin decide dar carência extra.
   acessoLiberado Boolean @default(false)
 
+  /// Conta que precisa pagar a primeira mensalidade antes de usar o sistema.
+  /// Marcada só pelo cadastro público: quem entra sozinho pela vitrine paga
+  /// para entrar. Cliente criado pelo admin nasce `false` — a cobrança dele é
+  /// negociada fora do sistema, e ligar isto trancaria quem já é cliente.
+  exigePagamentoInicial Boolean @default(false)
+
   /// Plano contratado. Define o que o consultório enxerga; o preço de tabela
   /// vive em `src/lib/planos.ts` e serve só para exibir.
   ///

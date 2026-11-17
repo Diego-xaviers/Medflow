@@ -22,6 +22,12 @@ export interface NovoConsultorio {
    * negociado depois, na tela do consultório.
    */
   valorMensalidade?: number
+  /**
+   * Trava o sistema até a primeira mensalidade ser paga. Só o cadastro
+   * público manda `true`: quem chega pela vitrine assina para entrar. O admin
+   * não manda — cliente dele é negociado fora e entra usando no mesmo dia.
+   */
+  exigePagamentoInicial?: boolean
 }
 
 /**
@@ -54,6 +60,7 @@ export async function criarConsultorioComDono(dados: NovoConsultorio) {
       // pago por omissão.
       ...(dados.plano ? { plano: dados.plano } : {}),
       ...(dados.valorMensalidade ? { valorMensalidade: dados.valorMensalidade } : {}),
+      ...(dados.exigePagamentoInicial ? { exigePagamentoInicial: true } : {}),
       // Sem expediente, o link público nasce sem horário para oferecer.
       blocosExpediente: { create: BLOCOS_PADRAO },
       usuarios: {
