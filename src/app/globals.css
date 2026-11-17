@@ -109,6 +109,66 @@
            px-2.5 py-1 rounded-full;
   }
 
+  /* ─── Vitrine ────────────────────────────────────────────── */
+
+  /* A página de apresentação usa uma linguagem visual própria: tipo grande
+     de peso médio, botão em cápsula e painéis cinza grandes. Fica aqui, e
+     não solta no componente, porque são sete seções repetindo as mesmas
+     cinco formas — e porque NADA disto deve vazar para dentro do sistema,
+     onde a régua é densidade de informação, não impacto. */
+
+  .selo {
+    @apply inline-flex items-center gap-1.5 text-[12px] font-medium rounded-full
+           border border-neutro-200 dark:border-neutro-700
+           bg-white dark:bg-neutro-900 px-3 py-1.5;
+  }
+
+  /* 52px com entrelinha quase colada e tracking negativo: é o que faz o
+     título parecer desenhado em vez de digitado. */
+  .titulo-vitrine {
+    @apply text-[32px] sm:text-[52px] font-medium leading-[1.05]
+           tracking-[-0.035em];
+  }
+
+  .subtitulo-vitrine {
+    @apply text-[14.5px] sm:text-[16.5px] text-neutro-500 leading-relaxed
+           max-w-xl mx-auto;
+  }
+
+  .btn-pilula {
+    @apply inline-flex items-center justify-center gap-2 text-[14px] font-medium
+           rounded-full px-5 py-3 transition-all duration-200 active:scale-[0.98];
+  }
+
+  .btn-pilula-escuro {
+    @apply btn-pilula bg-neutro-900 text-white hover:bg-neutro-800
+           dark:bg-white dark:text-neutro-900 dark:hover:bg-neutro-100;
+  }
+
+  .btn-pilula-claro {
+    @apply btn-pilula bg-white text-neutro-900 border border-neutro-200
+           hover:bg-neutro-50 dark:bg-neutro-900 dark:text-white
+           dark:border-neutro-700 dark:hover:bg-neutro-800;
+  }
+
+  /* O retângulo cinza grande que emoldura um print do sistema. */
+  .painel {
+    @apply rounded-[26px] bg-neutro-100/80 dark:bg-neutro-900/50 p-4 sm:p-7;
+  }
+
+  /* Cartão escuro com o verde puxando no canto — usado no plano em destaque
+     e na coluna "com o Medflow". */
+  .painel-escuro {
+    @apply rounded-[20px] bg-gradient-to-br from-neutro-900 via-neutro-900
+           to-brand-900 text-white;
+  }
+
+  /* Esteira: as bordas somem em vez de cortarem o conteúdo no meio. */
+  .esteira-mascara {
+    mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  }
+
   /* ─── Carregamento ───────────────────────────────────────── */
 
   /* Esqueleto com brilho passando: some a sensação de "travou" */

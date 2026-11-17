@@ -12,8 +12,13 @@ const csp = [
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
   "connect-src 'self' https://*.vercel-insights.com wss:",
-  "frame-src 'none'",
-  "frame-ancestors 'none'",
+  // A vitrine embute `/demo` num iframe para a pessoa navegar no sistema
+  // antes de pagar. Por isso 'self' nos dois: a página pode embutir filho do
+  // mesmo site, e páginas do mesmo site podem nos embutir. Continua barrado
+  // ser embutido por QUALQUER outro domínio, que é o ataque real aqui
+  // (clickjacking de terceiro em cima do sistema logado).
+  "frame-src 'self'",
+  "frame-ancestors 'self'",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -26,7 +31,10 @@ const nextConfig = {
       {
         source: '/(.*)',
         headers: [
-          { key: 'X-Frame-Options',          value: 'DENY' },
+          // SAMEORIGIN, e não DENY, pelo mesmo motivo do `frame-ancestors`
+          // acima: a vitrine embute `/demo`. Navegador antigo que ignora CSP
+          // ainda fica protegido contra enquadramento por outro domínio.
+          { key: 'X-Frame-Options',          value: 'SAMEORIGIN' },
           { key: 'X-Content-Type-Options',    value: 'nosniff' },
           { key: 'Referrer-Policy',           value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy',        value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },

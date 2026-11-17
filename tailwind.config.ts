@@ -57,6 +57,19 @@ export default {
           from: { opacity: '0', transform: 'translateY(6px)' },
           to: { opacity: '1', transform: 'none' },
         },
+        /* Palavra que chega desfocada e assenta. É a entrada do título da
+           vitrine, aplicada palavra a palavra com `animation-delay`. */
+        surgir: {
+          from: { opacity: '0', transform: 'translateY(14px)', filter: 'blur(10px)' },
+          to: { opacity: '1', transform: 'none', filter: 'blur(0)' },
+        },
+        /* Esteira infinita. Anda metade da faixa porque o conteúdo é
+           duplicado: ao chegar em -50% o segundo bloco está exatamente onde
+           o primeiro começou, e o corte não aparece. */
+        esteira: {
+          from: { transform: 'translateX(0)' },
+          to: { transform: 'translateX(-50%)' },
+        },
         brilho: {
           '100%': { transform: 'translateX(100%)' },
         },
@@ -64,6 +77,9 @@ export default {
       animation: {
         entrar: 'entrar .4s cubic-bezier(.16,1,.3,1) both',
         brilho: 'brilho 1.6s infinite',
+        surgir: 'surgir .8s cubic-bezier(.16,1,.3,1) both',
+        esteira: 'esteira 42s linear infinite',
+        'esteira-rapida': 'esteira 28s linear infinite',
       },
     },
   },
