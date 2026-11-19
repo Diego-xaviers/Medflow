@@ -6,6 +6,10 @@ import {
 } from 'recharts'
 import { moeda } from '@/lib/formato'
 
+/** Eixo curto: 40000 vira "40 mil", para caber sem cortar em tela estreita. */
+const compacto = (v: number) =>
+  new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 }).format(v)
+
 /** Tooltip customizado — o padrão do Recharts destoa do resto da interface. */
 function Balao({ active, payload, label, formatador }: any) {
   if (!active || !payload?.length) return null
@@ -46,7 +50,7 @@ export function GraficoReceita({ dados, subtitulo = 'Últimos 7 meses' }: { dado
       </div>
 
       <ResponsiveContainer width="100%" height={215}>
-        <AreaChart data={dados} margin={{ left: -18, right: 8, top: 4 }}>
+        <AreaChart data={dados} margin={{ left: 0, right: 8, top: 4 }}>
           <defs>
             <linearGradient id="areaReceita" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#2b9878" stopOpacity={0.18} />
@@ -55,7 +59,7 @@ export function GraficoReceita({ dados, subtitulo = 'Últimos 7 meses' }: { dado
           </defs>
           <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#a1a1aa" strokeOpacity={0.18} />
           <XAxis dataKey="mes" tick={eixo} axisLine={false} tickLine={false} dy={6} />
-          <YAxis tick={eixo} axisLine={false} tickLine={false} width={52} />
+          <YAxis tick={eixo} axisLine={false} tickLine={false} width={44} tickFormatter={compacto} />
           <Tooltip content={<Balao formatador={(v: number) => moeda(v)} />} cursor={{ stroke: '#a1a1aa', strokeOpacity: 0.3, strokeDasharray: '4 4' }} />
           <Area type="monotone" dataKey="receitas" name="Receitas" stroke="#2b9878" strokeWidth={2}
             fill="url(#areaReceita)" dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: '#fff' }} />
@@ -86,10 +90,10 @@ export function GraficoComparecimento({ dados, chaveX = 'dia', subtitulo = 'Sema
       </div>
 
       <ResponsiveContainer width="100%" height={215}>
-        <BarChart data={dados} margin={{ left: -18, right: 8, top: 4 }}>
+        <BarChart data={dados} margin={{ left: 0, right: 8, top: 4 }}>
           <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#a1a1aa" strokeOpacity={0.18} />
           <XAxis dataKey={chaveX} tick={eixo} axisLine={false} tickLine={false} dy={6} />
-          <YAxis tick={eixo} axisLine={false} tickLine={false} allowDecimals={false} width={52} />
+          <YAxis tick={eixo} axisLine={false} tickLine={false} allowDecimals={false} width={32} />
           <Tooltip content={<Balao />} cursor={{ fill: '#a1a1aa', fillOpacity: 0.07 }} />
           <Bar dataKey="concluidas" name="Concluídas" fill="#2b9878" radius={[4, 4, 0, 0]} barSize={14} />
           <Bar dataKey="faltas" name="Faltas" fill="#fbbf24" radius={[4, 4, 0, 0]} barSize={14} />

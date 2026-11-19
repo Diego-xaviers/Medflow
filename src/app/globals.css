@@ -36,9 +36,14 @@
   /* Números grandes de KPI. O peso semibold é proposital e vale só para os
      números: no meio de uma tela de texto leve, é o que faz o olho pousar
      primeiro no dado que importa — o valor, a contagem, o percentual. */
+  /* O número encolhe junto com o cartão em vez de vazar para fora dele.
+     `cqi` mede a largura do cartão (`.kpi-caixa`); fora de um, cai na largura
+     da tela e o teto de 28px vale. */
   .numero-destaque {
-    @apply text-[28px] font-semibold tracking-apertado numerico leading-none;
+    @apply font-semibold tracking-apertado numerico leading-none whitespace-nowrap;
+    font-size: clamp(18px, 15cqi, 28px);
   }
+  .kpi-caixa { container-type: inline-size; }
 
   .titulo-pagina { @apply text-[22px] font-semibold tracking-apertado; }
   .subtitulo { @apply text-sm font-normal text-neutro-500; }

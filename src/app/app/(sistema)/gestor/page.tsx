@@ -38,13 +38,13 @@ export default function PainelRedePage() {
       {error ? (
         <p className="text-[13px] text-red-600">{error.message}</p>
       ) : isLoading || !data ? (
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-3">
           {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="esqueleto h-[96px]" />)}
         </div>
       ) : (
         <div className="space-y-5">
           {/* Totais do recorte */}
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-3">
             <Kpi rotulo="Recebido" valor={moeda(soma('recebido'))} icone={Wallet} destaque />
             <Kpi rotulo="Saldo" valor={moeda(soma('saldo'))} icone={TrendingUp} />
             <Kpi rotulo="Consultas" valor={soma('consultas')} icone={CalendarCheck} />

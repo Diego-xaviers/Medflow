@@ -74,7 +74,7 @@ export default function RelatoriosPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4 mb-5">
         {isLoading || !k ? (
           Array.from({ length: 6 }, (_, i) => <KpiEsqueleto key={i} />)
         ) : (

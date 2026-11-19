@@ -73,7 +73,7 @@ export default function DashboardPage() {
       )}
 
       <div className="grid grid-cols-12 gap-5">
-        <div className="col-span-12 xl:col-span-9 space-y-5">
+        <div className="col-span-12 2xl:col-span-9 space-y-5">
           {/* Linha 1 — indicadores do dia */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
             {isLoading ? (
@@ -126,8 +126,8 @@ export default function DashboardPage() {
         </div>
 
         {/* Atividade recente */}
-        <div className="col-span-12 xl:col-span-3">
-          <div className="cartao p-5 sticky top-[85px]">
+        <div className="col-span-12 2xl:col-span-3">
+          <div className="cartao p-5 2xl:sticky 2xl:top-[85px]">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h3 className="titulo-secao">Atividade recente</h3>
