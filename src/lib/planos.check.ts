@@ -38,6 +38,12 @@ for (const tela of ['/financeiro', '/relatorios', '/lembretes', '/encaminhamento
   assert.equal(planoNecessario(tela), 'PRO', `${tela} exige PRO`)
 }
 
+// --- Assistente IA: a tela abre para todos (vitrine), o recurso é só do Ultra ---
+for (const plano of TODOS) assert.ok(planoLibera(plano, '/ia'), `${plano} abre /ia (para ver o convite)`)
+assert.equal(planoNecessario('/ia'), null, '/ia não exige plano para abrir')
+assert.ok(!temRecurso('BASICO', 'iaPosVenda') && !temRecurso('PRO', 'iaPosVenda'), 'IA só no Ultra')
+assert.ok(temRecurso('ULTRA', 'iaPosVenda'), 'Ultra tem a IA')
+
 // Subrota herda o gate da tela: sem isto, /financeiro/abc passaria.
 assert.ok(!planoLibera('BASICO', '/financeiro/alguma-coisa'), 'subrota tambem barra')
 

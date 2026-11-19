@@ -48,4 +48,10 @@ assert.ok(podeAbrir('ATENDENTE', telaDaUrl('/app/agenda')), 'atendente abre a ag
 assert.ok(!podeAbrir('ATENDENTE', telaDaUrl('/app/admin')), 'atendente não abre /admin')
 assert.ok(podeAbrir('VENDEDORA', telaDaUrl(`${BASE_APP}/agenda`)), 'vendedora abre a agenda')
 
+// --- Assistente IA: mesmo público de Lembretes ---
+assert.ok(podeAbrir('DONO', '/ia'), 'dono abre o Assistente IA')
+assert.ok(podeAbrir('ATENDENTE', '/ia'), 'atendente abre o Assistente IA')
+assert.ok(!podeAbrir('VENDEDORA', '/ia'), 'vendedora não abre o Assistente IA')
+assert.ok(TELAS_CONFIGURAVEIS.some((t) => t.href === '/ia'), 'dono pode ligar/desligar /ia por pessoa')
+
 console.log('rotas: todos os checks passaram')

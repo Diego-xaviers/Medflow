@@ -46,6 +46,9 @@ const PLANO_MINIMO: Record<string, PlanoNome> = {
   '/financeiro': 'PRO',
   '/lembretes': 'PRO',
   '/relatorios': 'PRO',
+  // '/ia' fica de fora de propósito: o Assistente IA abre para todos os
+  // planos, como vitrine do Ultra. Quem trava é o recurso `iaPosVenda`,
+  // checado em toda rota /api/ia/*.
 }
 
 /** Recursos que não são tela — checados pelas rotas de API, não pelo menu. */

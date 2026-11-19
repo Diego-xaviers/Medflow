@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import { useSession } from 'next-auth/react'
 import {
   LayoutGrid, CalendarDays, Users, FileText, Receipt, Send, Wallet,
-  Bell, BarChart3, LifeBuoy, Settings, UserCircle, UsersRound, Building2, Network,
+  Bell, BarChart3, LifeBuoy, Sparkles, Settings, UserCircle, UsersRound, Building2, Network,
 } from 'lucide-react'
 import { podeAbrir, type PapelUsuario } from '@/lib/permissoes'
 import { planoLibera, type PlanoNome } from '@/lib/planos'
@@ -24,6 +24,7 @@ export const principais = [
 export const operacao = [
   { label: 'Financeiro', icon: Wallet, href: '/financeiro' },
   { label: 'Lembretes', icon: Bell, href: '/lembretes' },
+  { label: 'Assistente IA', icon: Sparkles, href: '/ia' },
   { label: 'Relatórios', icon: BarChart3, href: '/relatorios' },
   { label: 'Suporte', icon: LifeBuoy, href: '/suporte' },
 ]
@@ -42,7 +43,7 @@ export const admin = [
   { label: 'Perfil', icon: UserCircle, href: '/perfil' },
 ]
 
-function Item({ label, icon: Icon, href, aoNavegar, variante }: { label: string; icon: any; href: string; aoNavegar?: () => void; variante: string }) {
+function Item({ label, icon: Icon, href, aoNavegar, variante, selo }: { label: string; icon: any; href: string; aoNavegar?: () => void; variante: string; selo?: string }) {
   // `href` aqui é a CHAVE da tela (`/agenda`), igual à de permissoes.ts — o
   // prefixo `/app` entra só no Link. Por isso o caminho da URL volta para
   // chave antes de comparar: senão `/app/agenda` nunca bateria com `/agenda`.
@@ -84,6 +85,11 @@ function Item({ label, icon: Icon, href, aoNavegar, variante }: { label: string;
           }`}
         />
         {label}
+        {selo && (
+          <span className="ml-auto text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 dark:bg-brand-950/60 dark:text-brand-300">
+            {selo}
+          </span>
+        )}
       </span>
     </Link>
   )
@@ -118,9 +124,12 @@ export default function Sidebar({ aoNavegar, variante = 'fixa' }: { aoNavegar?: 
   // mesmas duas funções que o middleware consulta, para o menu nunca prometer
   // uma tela que vai barrar.
   const plano = sessao?.user?.plano as PlanoNome | undefined
-  const visiveis = (itens: any[]) => itens.filter((i) =>
-    podeAbrir(papel, i.href, sessao?.user?.telas, sessao?.user?.redeId) &&
-    planoLibera(plano, i.href))
+  const visiveis = (itens: any[]) => itens
+    .filter((i) =>
+      podeAbrir(papel, i.href, sessao?.user?.telas, sessao?.user?.redeId) &&
+      planoLibera(plano, i.href))
+    // O Assistente IA aparece para todos, mas avisa que é do Ultra.
+    .map((i) => (i.href === '/ia' && plano && plano !== 'ULTRA' ? { ...i, selo: 'Ultra' } : i))
 
   const principaisVisiveis = visiveis(principais)
   const operacaoVisiveis = visiveis(operacao)
