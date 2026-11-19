@@ -166,7 +166,7 @@ export async function sugerirContatos(
   const cliente = new Anthropic()
 
   const resposta = await cliente.messages.parse({
-    model: 'claude-opus-5',
+    model: 'claude-opus-5-5',
     max_tokens: 8000,
     // Prompt estável primeiro e fila depois: as instruções são idênticas em
     // toda chamada do mesmo consultório, então o prefixo fica em cache.
