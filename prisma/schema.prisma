@@ -93,6 +93,14 @@ model Consultorio {
   logsAuditoria    LogAuditoria[]
   campanhas        Campanha[]
   metasFinanceiras MetaFinanceira[]
+  lotesIA          LoteIA[]
+
+  /// Assistente IA: aprova lotes novos sozinho e prepara os contatos do dia.
+  /// O envio automático (sem clique) chega com o WhatsApp oficial, na etapa 2.
+  iaModoAutomatico  Boolean @default(false)
+  iaRitmoAutomatico Int     @default(20)
+  contatosLote     ContatoLote[]
+  analisesIA       AnaliseIA[]
 
   @@map("consultorios")
 }
@@ -209,6 +217,10 @@ model Paciente {
   prontuarios Prontuario[]
   receitas    Receita[]
   lancamentos Lancamento[]
+  contatosLote ContatoLote[]
+
+  /// "Não quero receber": o Assistente IA nunca mais propõe este paciente.
+  aceitaContato Boolean @default(true)
 
   @@index([consultorioId])
   @@map("pacientes")
@@ -838,4 +850,82 @@ model TentativaLogin {
   @@index([email, criadoEm])
   @@index([ip, criadoEm])
   @@map("tentativas_login")
+}
+
+// ─── Assistente IA ────────────────────────────────────────────────────────
+// Lotes de pacientes para reativar, aprovados pela clínica antes de qualquer
+// contato. Ver docs/superpowers/specs/2026-11-19-assistente-ia-design.md.
+
+enum TipoLoteIA {
+  EXAME_VENCIDO
+  RECEITA_VENCIDA
+  FALTOU
+  SUMIDO
+}
+
+enum StatusLoteIA {
+  PROPOSTO
+  APROVADO
+  PAUSADO
+  CONCLUIDO
+  DESCARTADO
+}
+
+enum StatusContatoLote {
+  AGUARDANDO
+  LIBERADO
+  ENVIADO
+  AGENDOU
+  RECUSOU
+  NAO_CONTATAR
+}
+
+model LoteIA {
+  id            String       @id @default(cuid())
+  consultorioId String
+  consultorio   Consultorio  @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+  tipo          TipoLoteIA
+  status        StatusLoteIA @default(PROPOSTO)
+  ritmoDiario   Int          @default(20)
+  aprovadoPorId String?
+  aprovadoEm    DateTime?
+  criadoEm      DateTime     @default(now())
+  contatos      ContatoLote[]
+
+  @@index([consultorioId, status])
+  @@map("lotes_ia")
+}
+
+model ContatoLote {
+  id            String            @id @default(cuid())
+  loteId        String
+  lote          LoteIA            @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  pacienteId    String
+  paciente      Paciente          @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  consultorioId String
+  consultorio   Consultorio       @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+  ordem         Int
+  prioridade    String?
+  motivoIA      String?
+  mensagem      String?
+  dias          Int
+  status        StatusContatoLote @default(AGUARDANDO)
+  liberadoEm    DateTime?
+  enviadoEm     DateTime?
+  atualizadoEm  DateTime          @updatedAt
+
+  @@index([consultorioId, pacienteId])
+  @@index([loteId, status])
+  @@map("contatos_lote")
+}
+
+model AnaliseIA {
+  id            String      @id @default(cuid())
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+  conteudo      Json
+  criadoEm      DateTime    @default(now())
+
+  @@index([consultorioId, criadoEm])
+  @@map("analises_ia")
 }
