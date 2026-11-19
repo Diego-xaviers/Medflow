@@ -10,6 +10,7 @@ import { useTema } from './TemaProvider'
 import Avatar from './Avatar'
 import Notificacoes from './Notificacoes'
 import BuscaGlobal from './BuscaGlobal'
+import InstalarApp from './InstalarApp'
 import { fetcher } from '@/lib/fetcher'
 import { appUrl } from '@/lib/rotas'
 
@@ -44,6 +45,8 @@ export default function Topbar({ aoAbrirMenu }: { aoAbrirMenu?: () => void } = {
       <BuscaGlobal />
 
       <div className="flex items-center gap-0.5 sm:gap-1.5 md:ml-6">
+        <InstalarApp />
+
         {/* Tema */}
         <button onClick={alternarTema} className="btn-icone overflow-hidden"
           title={tema === 'claro' ? 'Modo escuro' : 'Modo claro'}>
