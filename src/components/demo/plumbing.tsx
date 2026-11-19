@@ -39,6 +39,7 @@ export const TELAS_DEMO: Record<string, React.ComponentType> = {
   relatorios: dynamic(() => import('@/app/app/(sistema)/relatorios/page'), { ssr: false, loading: carregando }),
   encaminhamentos: dynamic(() => import('@/app/app/(sistema)/encaminhamentos/page'), { ssr: false, loading: carregando }),
   lembretes: dynamic(() => import('@/app/app/(sistema)/lembretes/page'), { ssr: false, loading: carregando }),
+  ia: dynamic(() => import('@/app/app/(sistema)/ia/page'), { ssr: false, loading: carregando }),
   equipe: dynamic(() => import('@/app/app/(sistema)/equipe/page'), { ssr: false, loading: carregando }),
   configuracoes: dynamic(() => import('@/app/app/(sistema)/configuracoes/page'), { ssr: false, loading: carregando }),
 }

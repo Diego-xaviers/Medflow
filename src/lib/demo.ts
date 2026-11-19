@@ -16,6 +16,8 @@
  * acontecer.
  */
 
+import { PAINEL_IA_EXEMPLO } from './ia-exemplo'
+
 /* ───────────────────────── Datas vivas ───────────────────────── */
 
 /**
@@ -446,6 +448,7 @@ const RESPOSTAS: Record<string, () => unknown> = {
   '/api/campanhas': () => CAMPANHAS,
   '/api/relatorios': () => RELATORIOS,
   '/api/lembretes': () => [],
+  '/api/ia/painel': () => PAINEL_IA_EXEMPLO,
   '/api/notificacoes': () => [],
   '/api/usuarios': () => EQUIPE.map((u) => ({ ...u, email: `${u.id}@visaoclara.demo`, papel: u.id === 'prof-1' ? 'DONO' : 'ATENDENTE', ativo: true, atendePacientes: u.id !== 'user-3', telas: null })),
   '/api/perfil': () => ({ ...SESSAO_DEMO.user, fotoUrl: null, telefone: CONSULTORIO_DEMO.telefone }),
