@@ -20,7 +20,7 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: '/app/agenda',
     display: 'standalone',
     background_color: '#ffffff',
-    theme_color: '#2b9878',
+    theme_color: '#00DC82',
     lang: 'pt-BR',
     // PNG além do SVG: Android exige 192 e 512 para instalar com ícone nítido,
     // e a versão "maskable" (sem cantos) deixa o sistema recortar no formato dele.
