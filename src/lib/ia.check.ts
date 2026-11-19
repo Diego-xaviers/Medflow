@@ -10,6 +10,8 @@
 
 import assert from 'node:assert/strict'
 import { apenasDaFila, iaConfigurada, primeiroNome, TETO_POR_CHAMADA } from './ia'
+import { dadosParaAnalise, podeRecalcular } from './iaAnalise'
+import type { Relatorio } from './relatorios'
 
 // --- só o primeiro nome atravessa a fronteira ---
 assert.equal(primeiroNome('Maria das Dores Albuquerque'), 'Maria', 'nome composto vira o primeiro')
@@ -40,5 +42,31 @@ process.env.ANTHROPIC_API_KEY = 'sk-ant-teste'
 assert.equal(iaConfigurada(), true, 'com chave o recurso liga')
 if (chaveOriginal === undefined) delete process.env.ANTHROPIC_API_KEY
 else process.env.ANTHROPIC_API_KEY = chaveOriginal
+
+// --- análise: só números agregados atravessam a fronteira ---
+const relatorioDeExemplo = {
+  periodo: { de: new Date('2026-06-01'), ate: new Date('2026-11-18') },
+  kpis: {
+    receitas: 41250, despesas: 18740, saldo: 22510, pendenteValor: 1240, pendenteQtd: 4,
+    concluidas: 225, faltas: 11, canceladas: 2, agendadas: 38, taxaComparecimento: 95.3,
+    ticketMedio: 183.4, novosPacientes: 23, receitasEmitidas: 150,
+  },
+  serieMensal: [{ mes: 'Nov/26', receitas: 41250, despesas: 18740, concluidas: 40, faltas: 2 }],
+  porOrigem: [{ rotulo: 'Instagram', total: 86 }],
+  porTipoLente: [{ rotulo: 'VISAO_SIMPLES', total: 118 }],
+  porVendedora: [{ rotulo: 'Juliana', total: 112 }],
+  topPacientes: [{ pacienteId: 'pac-123', rotulo: 'Rogério Pinto', total: 1240 }],
+} as unknown as Relatorio
+const enviado = JSON.stringify(dadosParaAnalise(relatorioDeExemplo, { EXAME_VENCIDO: 64 }))
+assert.ok(!enviado.includes('Rogério Pinto'), 'nome de paciente não vai para a IA')
+assert.ok(!enviado.includes('pacienteId') && !enviado.includes('pac-123'), 'id de paciente não vai para a IA')
+assert.ok(enviado.includes('kpis') && enviado.includes('41250'), 'os números agregados vão')
+assert.ok(enviado.includes('EXAME_VENCIDO') && enviado.includes('64'), 'o tamanho dos lotes vai')
+
+// --- recalcular no máximo de hora em hora ---
+const agoraAnalise = new Date('2026-11-19T12:00:00Z')
+assert.equal(podeRecalcular(null, agoraAnalise), true, 'sem análise salva, pode calcular')
+assert.equal(podeRecalcular(new Date('2026-11-19T11:01:00Z'), agoraAnalise), false, '59 min: ainda não')
+assert.equal(podeRecalcular(new Date('2026-11-19T11:00:00Z'), agoraAnalise), true, '60 min: pode')
 
 console.log('ia: todos os checks passaram')
