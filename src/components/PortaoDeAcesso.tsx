@@ -1,7 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import useSWR from 'swr'
 import { Lock, Wallet, ArrowRight } from 'lucide-react'
 import { fetcher } from '@/lib/fetcher'
@@ -28,6 +30,16 @@ export default function PortaoDeAcesso({ children }: { children: React.ReactNode
   // descobre a situação.
   const { data } = useSWR('/api/cobranca', fetcher, { refreshInterval: 60_000 })
   const situacao = data?.situacao
+  const router = useRouter()
+  const { data: sessao } = useSession()
+  const precisaAssinar = Boolean(situacao?.primeiroPagamentoPendente && situacao?.bloqueado && sessao?.user?.papel === 'DONO')
+
+  // Conta que nunca pagou não entra no sistema: o dono vai para o checkout,
+  // fora do painel. Só quem não pode pagar (equipe) vê o aviso abaixo.
+  useEffect(() => {
+    if (precisaAssinar) router.replace('/assinar')
+  }, [precisaAssinar, router])
+  if (precisaAssinar) return null
 
   if (!situacao?.bloqueado || liberadaNoBloqueio(caminho)) return <>{children}</>
 

@@ -6,8 +6,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { Check, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { enviar } from '@/lib/fetcher'
-import { appUrl } from '@/lib/rotas'
-import { CHAVE_BOAS_VINDAS } from '@/components/BoasVindas'
 import {
   INCLUI,
   ORDEM_PLANOS,
@@ -84,9 +82,9 @@ export default function Cadastro() {
       return
     }
 
-    sessionStorage.setItem(CHAVE_BOAS_VINDAS, '1')
-    router.push(appUrl('/cobranca'))
-    router.refresh()
+    // Primeiro paga, depois entra: o checkout fica fora do sistema e só abre
+    // o painel quando o Asaas confirma. As boas-vindas tocam lá, depois do pago.
+    router.replace('/assinar')
   }
 
   const teto = TETO_USUARIOS[plano]
