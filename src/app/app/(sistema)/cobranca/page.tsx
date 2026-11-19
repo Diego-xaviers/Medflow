@@ -58,11 +58,16 @@ function Cobranca() {
         </div>
       ) : (
         <div className="space-y-5">
-          <MeuPlano plano={data?.plano} bloqueado={bloqueado} />
+          {/* Quem acabou de se cadastrar veio aqui para pagar: no celular, o
+              plano em cima empurrava o pagamento para baixo da dobra e a
+              pessoa achava que o cadastro não tinha levado a lugar nenhum. */}
+          {!situacao?.primeiroPagamentoPendente && <MeuPlano plano={data?.plano} bloqueado={bloqueado} />}
 
           <Situacao situacao={situacao} />
 
           <PagamentoOnline online={data?.online} aoMudar={() => conferirPagamento()} />
+
+          {situacao?.primeiroPagamentoPendente && <MeuPlano plano={data?.plano} bloqueado={bloqueado} />}
 
           {atual ? (
             <section className="cartao p-5 sm:p-6">

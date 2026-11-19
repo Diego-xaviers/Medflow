@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Eye } from 'lucide-react'
 
 /** A chave que o login deixa marcada para esta tela consumir uma vez só. */
 export const CHAVE_BOAS_VINDAS = 'medflow:boas-vindas'
@@ -32,10 +31,16 @@ export default function BoasVindas() {
     // Consome já: se a pessoa navegar no meio da animação, não volta.
     sessionStorage.removeItem(CHAVE_BOAS_VINDAS)
     setVisivel(true)
+  }, [])
 
+  // O tempo de saída mora num efeito separado, preso a `visivel`: no efeito de
+  // cima, uma segunda montagem (StrictMode) cancelava o timer depois de a
+  // marca já ter sido consumida, e a abertura ficava na tela para sempre.
+  useEffect(() => {
+    if (!visivel) return
     const t = setTimeout(() => setVisivel(false), DURACAO_MS)
     return () => clearTimeout(t)
-  }, [])
+  }, [visivel])
 
   const primeiroNome = (sessao?.user?.name ?? '').trim().split(' ')[0]
 
@@ -61,9 +66,9 @@ export default function BoasVindas() {
               initial={{ scale: 0.4, opacity: 0, rotate: -12 }}
               animate={{ scale: 1, opacity: 1, rotate: 0 }}
               transition={{ type: 'spring', stiffness: 220, damping: 16 }}
-              className="w-20 h-20 rounded-3xl bg-brand-600 flex items-center justify-center text-white shadow-media"
+              className="w-20 h-20 rounded-3xl bg-brand-500 flex items-center justify-center shadow-media"
             >
-              <Eye size={38} strokeWidth={2.1} />
+              <span className="text-brand-950 font-black text-[44px] leading-none" style={{ letterSpacing: '-2px', marginRight: '-2px' }}>+</span>
             </motion.div>
           </div>
 
