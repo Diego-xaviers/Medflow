@@ -15,7 +15,10 @@ export const metadata: Metadata = {
   title: 'Medflow — Gestão Clínica',
   description: 'Sistema de gestão para clínicas e óticas',
   manifest: '/manifest.webmanifest',
-  icons: { icon: '/icone.svg', apple: '/icone.svg' },
+  // iPhone ignora SVG no ícone da tela inicial: sem o PNG, "Adicionar à Tela
+  // de Início" mostra um print da página em vez do ícone.
+  icons: { icon: '/icone.svg', apple: { url: '/icone-180.png', sizes: '180x180', type: 'image/png' } },
+  appleWebApp: { capable: true, title: 'Medflow', statusBarStyle: 'default' },
 }
 
 /**

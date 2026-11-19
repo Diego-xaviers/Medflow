@@ -22,8 +22,13 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: '#ffffff',
     theme_color: '#2b9878',
     lang: 'pt-BR',
+    // PNG além do SVG: Android exige 192 e 512 para instalar com ícone nítido,
+    // e a versão "maskable" (sem cantos) deixa o sistema recortar no formato dele.
     icons: [
       { src: '/icone.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+      { src: '/icone-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icone-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/icone-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   }
 }
