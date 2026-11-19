@@ -914,6 +914,7 @@ model ContatoLote {
   enviadoEm     DateTime?
   atualizadoEm  DateTime          @updatedAt
 
+  @@unique([loteId, pacienteId])
   @@index([consultorioId, pacienteId])
   @@index([loteId, status])
   @@map("contatos_lote")

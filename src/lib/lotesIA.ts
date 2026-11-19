@@ -69,7 +69,7 @@ export function ultimoExame(f: FichaPaciente): Date | null {
 /** Em qual lote o paciente entra hoje, ou `null` se em nenhum. */
 export function classificar(f: FichaPaciente, agora: Date): TipoLote | null {
   if (!f.ativo || !f.aceitaContato || f.emLoteAberto || f.temConsultaFutura) return null
-  if (!f.telefone || !f.telefone.trim()) return null
+  if (!telefoneValido(f.telefone)) return null
 
   if (f.ultimaFalta && !f.consultaDepoisDaFalta && agora.getTime() - f.ultimaFalta.getTime() <= DIAS_FALTA * DIA) {
     return 'FALTOU'
@@ -84,6 +84,30 @@ export function classificar(f: FichaPaciente, agora: Date): TipoLote | null {
   if (f.validadeReceitaMaisNova && f.validadeReceitaMaisNova < agora) return 'RECEITA_VENCIDA'
 
   return null
+}
+
+/**
+ * Telefone que o `wa.me` aceita: pelo menos DDD + número (mesma regra de
+ * `linkWhatsApp`). "-", "0" ou número sem DDD ocupariam vaga no lote sem
+ * nunca poder ser enviados.
+ */
+export function telefoneValido(telefone: string | null | undefined): boolean {
+  return !!telefone && telefone.replace(/\D/g, '').length >= 10
+}
+
+/**
+ * Na hora de liberar o dia, o paciente pode ter mudado desde a aprovação:
+ * marcou consulta, foi inativado, pediu para não receber, perdeu o telefone.
+ */
+export function podeLiberar(p: {
+  ativo: boolean
+  aceitaContato: boolean
+  telefone: string | null
+  temConsultaFutura: boolean
+}): 'LIBERAR' | 'AGENDOU' | 'NAO_CONTATAR' {
+  if (!p.ativo || !p.aceitaContato || !telefoneValido(p.telefone)) return 'NAO_CONTATAR'
+  if (p.temConsultaFutura) return 'AGENDOU'
+  return 'LIBERAR'
 }
 
 /** Como o lote conversa com o motor de mensagens que já existe (`ia.ts`). */

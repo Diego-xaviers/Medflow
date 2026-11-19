@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
-import { Sparkles, Play } from 'lucide-react'
+import { Sparkles, Play, Loader2 } from 'lucide-react'
 import { fetcher, enviar } from '@/lib/fetcher'
 import type { Painel } from '@/lib/lotesServidor'
 import PainelIA from '@/components/ia/PainelIA'
@@ -23,13 +23,16 @@ export default function PaginaAssistenteIA() {
   const [trabalhando, setTrabalhando] = useState(false)
   const [resultado, setResultado] = useState<Painel | null>(null)
   const [erroIA, setErroIA] = useState<string | null>(null)
+  const [comecou, setComecou] = useState(false)
+  const [escrevendo, setEscrevendo] = useState<number | null>(null)
+  const escrevendoRef = useRef(false)
 
   async function comecar() {
     setTrabalhando(true)
     setResultado(null)
     setErroIA(null)
     try {
-      const novo: Painel = await enviar('/api/ia/analise', 'POST')
+      const novo: Painel & { erroAnalise?: string | null } = await enviar('/api/ia/analise', 'POST')
       setResultado(novo)
     } catch (e) {
       setErroIA(e instanceof Error ? e.message : 'Não consegui falar com a IA agora.')
@@ -38,11 +41,36 @@ export default function PaginaAssistenteIA() {
 
   const terminar = useCallback(() => {
     if (resultado) mutate(resultado, { revalidate: false })
+    // Mesmo se a IA falhou, os lotes já existem: sai da tela de boas-vindas.
+    if (resultado) setComecou(true)
     setTrabalhando(false)
   }, [resultado, mutate])
 
+  // Mensagens do dia: uma chamada à IA por vez, até acabar ou parar de avançar.
+  const semMensagem = data && data.liberado
+    ? data.andamento.filter((l) => l.status === 'APROVADO').flatMap((l) => l.hoje).filter((c) => c.status === 'LIBERADO' && !c.mensagem).length
+    : 0
+  useEffect(() => {
+    if (!semMensagem || escrevendoRef.current || trabalhando) return
+    escrevendoRef.current = true
+    ;(async () => {
+      try {
+        for (let i = 0; i < 10; i++) {
+          const r = await enviar('/api/ia/mensagens', 'POST')
+          mutate(r, { revalidate: false })
+          setEscrevendo(r.pendentes)
+          if (!r.pendentes || !r.escritas) break
+        }
+      } catch {
+        // Sem IA agora: cada contato tem o botão "Gerar mensagem".
+      } finally {
+        setEscrevendo(null)
+      }
+    })()
+  }, [semMensagem, trabalhando, mutate])
+
   const liberado = data && data.liberado
-  const primeiraVez = liberado && !data.analise && data.andamento.length === 0
+  const primeiraVez = liberado && !comecou && !data.analise && data.andamento.length === 0
 
   return (
     <div className="p-4 sm:p-7 max-w-[1500px]">
@@ -86,6 +114,13 @@ export default function PaginaAssistenteIA() {
               <Play size={16} /> Começar
             </button>
           </div>
+        </div>
+      )}
+
+      {escrevendo !== null && (
+        <div className="mb-4 flex items-center gap-2 text-[13px] text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/40 border border-brand-200/60 dark:border-brand-900 px-4 py-2.5 rounded-lg">
+          <Loader2 size={14} className="animate-spin" /> A IA está escrevendo as mensagens de hoje
+          {escrevendo > 0 && <span className="text-neutro-500">· faltam {escrevendo}</span>}
         </div>
       )}
 

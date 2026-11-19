@@ -46,7 +46,7 @@ export default function CarregandoIA({
   erro,
   aoTerminar,
 }: {
-  resultado: Painel | null
+  resultado: (Painel & { erroAnalise?: string | null }) | null
   erro: string | null
   aoTerminar: () => void
 }) {
@@ -102,7 +102,12 @@ export default function CarregandoIA({
               {erro ? 'Não deu certo agora' : resultado ? 'Pronto!' : 'A IA está trabalhando'}
             </p>
             <p className="text-[12px] text-neutro-400">
-              {erro ?? (resultado ? 'Lotes separados e análise escrita.' : 'Isso leva alguns segundos.')}
+              {erro ??
+                (resultado
+                  ? resultado.erroAnalise
+                    ? 'Lotes separados. A análise da IA não veio agora; tente Atualizar depois.'
+                    : 'Lotes separados e análise escrita.'
+                  : 'Isso leva alguns segundos.')}
             </p>
           </div>
         </div>

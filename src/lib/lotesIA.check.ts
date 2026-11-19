@@ -14,6 +14,8 @@ import {
   liberarDoDia,
   motivoDoLote,
   ritmoValido,
+  telefoneValido,
+  podeLiberar,
   ultimoExame,
   type FichaPaciente,
 } from './lotesIA'
@@ -62,6 +64,22 @@ assert.equal(ultimoExame(ficha()), null)
 // --- Review Focus 2: telefone vazio ---
 assert.equal(classificar(ficha({ telefone: '   ', ultimaReceitaEmitida: d('2025-08-01') }), agora), null, 'telefone só com espaço fica fora')
 assert.equal(classificar(ficha({ telefone: null, ultimaReceitaEmitida: d('2025-08-01') }), agora), null, 'sem telefone fica fora')
+
+// --- Final review 8: telefone que o WhatsApp não aceita fica fora ---
+for (const lixo of ['-', '0', '1234', '(92) 9999']) {
+  assert.equal(classificar(ficha({ telefone: lixo, ultimaReceitaEmitida: d('2025-08-01') }), agora), null, `telefone "${lixo}" fica fora`)
+}
+assert.equal(telefoneValido('(92) 98111-2201'), true)
+assert.equal(telefoneValido('+55 92 98111-2201'), true)
+assert.equal(telefoneValido('981112201'), false, 'sem DDD não abre o WhatsApp')
+
+// --- Final review 4: na hora de liberar, quem mudou depois da aprovação ---
+const apto = { ativo: true, aceitaContato: true, telefone: '92981112201', temConsultaFutura: false }
+assert.equal(podeLiberar(apto), 'LIBERAR')
+assert.equal(podeLiberar({ ...apto, temConsultaFutura: true }), 'AGENDOU', 'marcou consulta antes da vez: agendou')
+assert.equal(podeLiberar({ ...apto, aceitaContato: false }), 'NAO_CONTATAR')
+assert.equal(podeLiberar({ ...apto, ativo: false }), 'NAO_CONTATAR', 'inativado depois da aprovação')
+assert.equal(podeLiberar({ ...apto, telefone: '' }), 'NAO_CONTATAR', 'telefone apagado depois da aprovação')
 
 // --- Review Focus 5 e exclusões ---
 const vencido = { ultimaReceitaEmitida: d('2025-08-01') }

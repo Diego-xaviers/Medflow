@@ -8,6 +8,9 @@ import { exigirAssistente } from '../../acesso'
 
 type Params = { params: { id: string } }
 
+/** "Gerar mensagem" faz uma chamada à IA. */
+export const maxDuration = 60
+
 const corpo = z
   .object({
     status: z.enum(['ENVIADO', 'AGENDOU', 'RECUSOU', 'NAO_CONTATAR']).optional(),

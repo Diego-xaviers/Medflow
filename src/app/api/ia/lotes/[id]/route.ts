@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { ritmoValido, TITULO_LOTE } from '@/lib/lotesIA'
-import { liberarHoje, montarPainel } from '@/lib/lotesServidor'
+import { aprovarLote, comTrava, liberarHoje, montarPainel } from '@/lib/lotesServidor'
 import { exigirAssistente } from '../../acesso'
 
 type Params = { params: { id: string } }
@@ -56,36 +56,27 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { acao, ritmoDiario, remover } = corpo.parse(await req.json())
     const regra = DE_PARA[acao]
 
-    const lote = await prisma.loteIA.findFirst({
-      where: { id: params.id, consultorioId },
-      select: { id: true, status: true },
-    })
-    if (!lote) throw new ErroDeNegocio('Lote não encontrado. Recarregue a página.')
-    if (!regra.de.includes(lote.status)) throw new ErroDeNegocio('Este lote já mudou de situação. Recarregue a página.')
-
-    await prisma.$transaction(async (tx) => {
-      if (acao === 'aprovar' && remover?.length) {
-        await tx.contatoLote.deleteMany({ where: { loteId: lote.id, consultorioId, pacienteId: { in: remover } } })
-      }
-      if (acao === 'descartar') {
-        // Descartar devolve os pacientes: quem não foi contatado volta a poder entrar num lote.
-        await tx.contatoLote.deleteMany({
-          where: { loteId: lote.id, consultorioId, status: { in: ['AGUARDANDO', 'LIBERADO'] } },
-        })
-      }
-      await tx.loteIA.update({
-        where: { id: lote.id },
-        data:
-          acao === 'aprovar'
-            ? { status: regra.para, ritmoDiario: ritmoValido(ritmoDiario), aprovadoPorId: usuarioId, aprovadoEm: new Date() }
-            : { status: regra.para },
+    if (acao === 'aprovar') {
+      await aprovarLote(consultorioId, params.id, usuarioId, ritmoValido(ritmoDiario), remover ?? [])
+    } else {
+      await comTrava(consultorioId, async (tx) => {
+        const lote = await tx.loteIA.findFirst({ where: { id: params.id, consultorioId }, select: { status: true } })
+        if (!lote) throw new ErroDeNegocio('Lote não encontrado. Recarregue a página.')
+        if (!regra.de.includes(lote.status)) throw new ErroDeNegocio('Este lote já mudou de situação. Recarregue a página.')
+        if (acao === 'descartar') {
+          // Descartar devolve os pacientes: quem não foi contatado volta a poder entrar num lote.
+          await tx.contatoLote.deleteMany({
+            where: { loteId: params.id, consultorioId, status: { in: ['AGUARDANDO', 'LIBERADO'] } },
+          })
+        }
+        await tx.loteIA.update({ where: { id: params.id }, data: { status: regra.para } })
       })
-    })
+    }
 
     registrarAuditoria({
       acao: `LOTE_IA_${acao.toUpperCase()}`,
       entidade: 'LoteIA',
-      entidadeId: lote.id,
+      entidadeId: params.id,
       usuarioId,
       consultorioId,
     })

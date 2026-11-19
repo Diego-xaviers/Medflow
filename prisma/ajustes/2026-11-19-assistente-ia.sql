@@ -76,3 +76,9 @@ CREATE INDEX IF NOT EXISTS "lotes_ia_consultorioId_status_idx" ON "lotes_ia"("co
 CREATE INDEX IF NOT EXISTS "contatos_lote_consultorioId_pacienteId_idx" ON "contatos_lote"("consultorioId", "pacienteId");
 CREATE INDEX IF NOT EXISTS "contatos_lote_loteId_status_idx" ON "contatos_lote"("loteId", "status");
 CREATE INDEX IF NOT EXISTS "analises_ia_consultorioId_criadoEm_idx" ON "analises_ia"("consultorioId", "criadoEm");
+
+-- Travas de segurança contra duplicidade (além da trava por consultório no
+-- código): um paciente aparece uma vez por lote, e há no máximo um lote
+-- PROPOSTO por tipo em cada consultório.
+CREATE UNIQUE INDEX IF NOT EXISTS "contatos_lote_loteId_pacienteId_key" ON "contatos_lote"("loteId", "pacienteId");
+CREATE UNIQUE INDEX IF NOT EXISTS "lotes_ia_um_proposto_por_tipo" ON "lotes_ia"("consultorioId", "tipo") WHERE "status" = 'PROPOSTO';
