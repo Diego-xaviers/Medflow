@@ -9,6 +9,7 @@ import { notificar, equipeDoConsultorio } from '@/lib/notificacoes'
 import { dataHora as fmtDataHora } from '@/lib/formato'
 import { exigirSemAusencia } from '@/lib/ausencias'
 import { sincronizarLancamentoDaConsulta } from '@/lib/financeiro'
+import { marcarAgendouSeEmLote } from '@/lib/lotesServidor'
 
 /**
  * Leitura liberada para toda a equipe — inclusive a vendedora, que precisa
@@ -104,6 +105,10 @@ export async function POST(req: NextRequest) {
       },
     })
     await sincronizarLancamentoDaConsulta(consulta.id)
+    // Paciente de um lote do Assistente IA que marcou: o contato vira "agendou".
+    await marcarAgendouSeEmLote(consultorioId, consulta.pacienteId).catch((erro) =>
+      console.error('[assistente-ia] falha ao marcar agendou:', erro)
+    )
 
     await notificar({
       usuarioIds: await equipeDoConsultorio(consultorioId, { exceto: usuarioId }),
