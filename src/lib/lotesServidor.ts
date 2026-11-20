@@ -15,7 +15,7 @@ import { primeiroNome, sugerirContatos, TETO_POR_CHAMADA, type CandidatoContato 
 import { analisarConsultorio, dadosParaAnalise, podeRecalcular, type AnaliseConsultorio } from './iaAnalise'
 import { calcularRelatorio } from './relatorios'
 import { hojeDaClinica } from './datas'
-import { espacar, janelaDeEnvio, textoDaAutorizacao } from './whatsappRegras'
+import { aindaNaFila, espacar, janelaDeEnvio, textoDaAutorizacao } from './whatsappRegras'
 import {
   classificar,
   diasDoContato,
@@ -376,6 +376,7 @@ export async function liberarHoje(consultorioId: string, agora = new Date()): Pr
           contatos: {
             select: {
               id: true, ordem: true, status: true, liberadoEm: true,
+              conversa: { select: { status: true } },
               paciente: { select: { id: true, ativo: true, aceitaContato: true, telefone: true } },
             },
           },
@@ -400,7 +401,7 @@ export async function liberarHoje(consultorioId: string, agora = new Date()): Pr
     let vagasDoDia = Math.max(
       0,
       consultorio.limiteDiarioEnvios -
-        todos.filter((c) => (c.liberadoEm && c.liberadoEm >= inicio) || c.status === 'LIBERADO').length
+        todos.filter((c) => (c.liberadoEm && c.liberadoEm >= inicio) || aindaNaFila(c.status, c.conversa?.status ?? null)).length
     )
 
     for (const lote of lotes) {

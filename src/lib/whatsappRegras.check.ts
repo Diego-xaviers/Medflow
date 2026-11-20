@@ -23,6 +23,7 @@ import {
   tituloDaEquipe,
   textoDaAutorizacao,
   type ItemFila,
+  aindaNaFila,
 } from './whatsappRegras'
 
 const fuso = 'America/Sao_Paulo'
@@ -194,5 +195,11 @@ assert.equal(posVendaVencido(diasAtras(15), hoje, fuso), true)
 assert.equal(posVendaVencido(diasAtras(7), hoje, fuso), false)
 
 assert.equal(numeroLegivel('5511987654321'), '(11) 98765-4321')
+
+// aindaNaFila
+assert.equal(aindaNaFila('LIBERADO', null), true)
+assert.equal(aindaNaFila('LIBERADO', 'AGUARDANDO_ENVIO'), true)
+assert.equal(aindaNaFila('LIBERADO', 'ENCERRADA'), false)
+assert.equal(aindaNaFila('AGUARDANDO', null), false)
 
 console.log('whatsapp: todos os checks passaram')

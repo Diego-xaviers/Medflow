@@ -27,10 +27,28 @@ export async function aoVirarUltraPago(consultorioId: string): Promise<void> {
  * se voltar ao Ultra, `aoVirarUltraPago` pede a instância de novo.
  */
 export async function aoSairDoUltra(consultorioId: string): Promise<void> {
-  await prisma.loteIA.updateMany({ where: { consultorioId, status: 'APROVADO' }, data: { status: 'PAUSADO' } })
-  await prisma.conversaIA.updateMany({
-    where: { consultorioId, status: 'AGUARDANDO_ENVIO' },
-    data: { status: 'ENCERRADA' },
+  await prisma.$transaction(async (tx) => {
+    const lotes = await tx.loteIA.findMany({ where: { consultorioId, status: 'APROVADO' }, select: { id: true } })
+    const loteIds = lotes.map((l) => l.id)
+    await tx.loteIA.updateMany({ where: { consultorioId, id: { in: loteIds } }, data: { status: 'PAUSADO' } })
+    // Conversa que nunca enviou nada some, para o contato poder ganhar outra depois (contatoLoteId é único).
+    await tx.conversaIA.deleteMany({
+      where: {
+        consultorioId,
+        status: 'AGUARDANDO_ENVIO',
+        aberturaEnviadaEm: null,
+        mensagens: { none: {} },
+        contatoLote: { is: { consultorioId, loteId: { in: loteIds } } },
+      },
+    })
+    await tx.contatoLote.updateMany({
+      where: { consultorioId, loteId: { in: loteIds }, status: 'LIBERADO', conversa: { is: null } },
+      data: { status: 'AGUARDANDO', liberadoEm: null, enviarEm: null },
+    })
+    await tx.conversaIA.updateMany({
+      where: { consultorioId, status: 'AGUARDANDO_ENVIO' },
+      data: { status: 'ENCERRADA' },
+    })
   })
   const c = await prisma.consultorio.update({
     where: { id: consultorioId },

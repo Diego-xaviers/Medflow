@@ -275,3 +275,8 @@ export function textoDaAutorizacao(l: {
     'Você autoriza o envio de mensagens para este lote?'
   )
 }
+
+/** Contato liberado que ainda espera envio: sem conversa ou com conversa aguardando. Conversa encerrada não conta. */
+export function aindaNaFila(statusDoContato: string, statusDaConversa: string | null): boolean {
+  return statusDoContato === 'LIBERADO' && (statusDaConversa === null || statusDaConversa === 'AGUARDANDO_ENVIO')
+}
