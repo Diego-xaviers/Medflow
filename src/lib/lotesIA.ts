@@ -11,7 +11,7 @@
 
 import type { CandidatoContato } from './ia'
 
-export type TipoLote = 'EXAME_VENCIDO' | 'RECEITA_VENCIDA' | 'FALTOU' | 'SUMIDO'
+export type TipoLote = 'EXAME_VENCIDO' | 'RECEITA_VENCIDA' | 'FALTOU' | 'SUMIDO' | 'INATIVO_6M'
 
 /** O que o sistema sabe de um paciente para decidir o lote. */
 export interface FichaPaciente {
@@ -36,6 +36,7 @@ export const TITULO_LOTE: Record<TipoLote, string> = {
   RECEITA_VENCIDA: 'Receita vencida',
   FALTOU: 'Faltou e não remarcou',
   SUMIDO: 'Sumidos há +2 anos',
+  INATIVO_6M: 'Sem exame há 6 a 12 meses',
 }
 
 export const RITMO_PADRAO = 20

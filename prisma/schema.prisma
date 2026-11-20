@@ -62,31 +62,31 @@ model Consultorio {
 
   /// Mensalidade cobrada deste consultório, definida pelo administrador.
   /// É o valor da assinatura no Asaas.
-  valorMensalidade Decimal? @db.Decimal(10, 2)
+  valorMensalidade  Decimal? @db.Decimal(10, 2)
   /// CPF ou CNPJ de quem paga — o Asaas exige para emitir cobrança e nota.
   documentoCobranca String?
   /// Vínculo com o Asaas. O cartão nunca passa pelo Medflow: fica no Asaas,
   /// e aqui só guardamos os ids para conversar com ele.
-  asaasClienteId    String? @unique
-  asaasAssinaturaId String? @unique
+  asaasClienteId    String?  @unique
+  asaasAssinaturaId String?  @unique
   /// PIX ou CREDIT_CARD — forma escolhida pelo dono na tela Cobrança.
   formaCobranca     String?
 
-  usuarios         Usuario[]
-  pacientes        Paciente[]
-  consultas        Consulta[]
-  lancamentos      Lancamento[]
-  prontuarios      Prontuario[]
-  receitas         Receita[]
-  encaminhamentos  Encaminhamento[]
-  ausencias        Ausencia[]
-  acessosExtras    AcessoConsultorio[]
-  tetosAcesso      TetoAcesso[]
+  usuarios        Usuario[]
+  pacientes       Paciente[]
+  consultas       Consulta[]
+  lancamentos     Lancamento[]
+  prontuarios     Prontuario[]
+  receitas        Receita[]
+  encaminhamentos Encaminhamento[]
+  ausencias       Ausencia[]
+  acessosExtras   AcessoConsultorio[]
+  tetosAcesso     TetoAcesso[]
 
   /// Rede de que este consultório faz parte (vínculo criado pelo admin).
-  redeId String?
-  rede   Rede?   @relation(fields: [redeId], references: [id], onDelete: SetNull)
-  notificacoes    Notificacao[]
+  redeId           String?
+  rede             Rede?             @relation(fields: [redeId], references: [id], onDelete: SetNull)
+  notificacoes     Notificacao[]
   blocosExpediente BlocoExpediente[]
   faturas          Fatura[]
   chamados         Chamado[]
@@ -97,10 +97,24 @@ model Consultorio {
 
   /// Assistente IA: aprova lotes novos sozinho e prepara os contatos do dia.
   /// O envio automático (sem clique) chega com o WhatsApp oficial, na etapa 2.
-  iaModoAutomatico  Boolean @default(false)
-  iaRitmoAutomatico Int     @default(20)
-  contatosLote     ContatoLote[]
-  analisesIA       AnaliseIA[]
+  iaModoAutomatico  Boolean       @default(false)
+  iaRitmoAutomatico Int           @default(20)
+  contatosLote      ContatoLote[]
+  analisesIA        AnaliseIA[]
+  conversasIA       ConversaIA[]
+
+  /// WhatsApp via Z-API (etapa 2): uma instância por consultório. O segredo
+  /// vai na URL do webhook para identificar a clínica sem confiar no corpo.
+  whatsappStatus            StatusWhatsapp @default(SEM_INSTANCIA)
+  whatsappInstanciaId       String?
+  whatsappInstanciaToken    String?
+  whatsappSegredoWebhook    String?        @unique
+  whatsappNumero            String?
+  /// Pós-venda automático: só liga com autorização registrada de quem aceitou.
+  iaPosVendaLigada          Boolean        @default(false)
+  iaPosVendaAutorizadaPorId String?
+  iaPosVendaAutorizadaEm    DateTime?
+  limiteDiarioEnvios        Int            @default(20)
 
   @@map("consultorios")
 }
@@ -167,9 +181,9 @@ model Usuario {
   consultorioId String?
   consultorio   Consultorio? @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
 
-  consultasComoProfissional Consulta[]     @relation("ProfissionalDaConsulta")
-  consultasCriadas          Consulta[]     @relation("CriadorDaConsulta")
-  receitasComoProfissional  Receita[]      @relation("ProfissionalDaReceita")
+  consultasComoProfissional Consulta[]       @relation("ProfissionalDaConsulta")
+  consultasCriadas          Consulta[]       @relation("CriadorDaConsulta")
+  receitasComoProfissional  Receita[]        @relation("ProfissionalDaReceita")
   encaminhamentosEmitidos   Encaminhamento[] @relation("ProfissionalDoEncaminhamento")
   ausencias                 Ausencia[]
   notificacoes              Notificacao[]
@@ -213,11 +227,12 @@ model Paciente {
   consultorioId String
   consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
 
-  consultas   Consulta[]
-  prontuarios Prontuario[]
-  receitas    Receita[]
-  lancamentos Lancamento[]
+  consultas    Consulta[]
+  prontuarios  Prontuario[]
+  receitas     Receita[]
+  lancamentos  Lancamento[]
   contatosLote ContatoLote[]
+  conversasIA  ConversaIA[]
 
   /// "Não quero receber": o Assistente IA nunca mais propõe este paciente.
   aceitaContato Boolean @default(true)
@@ -234,12 +249,12 @@ enum StatusConsulta {
 }
 
 model Consulta {
-  id          String         @id @default(cuid())
-  dataHora    DateTime
-  status      StatusConsulta @default(AGENDADA)
-  valor       Decimal?       @db.Decimal(10, 2)
+  id             String          @id @default(cuid())
+  dataHora       DateTime
+  status         StatusConsulta  @default(AGENDADA)
+  valor          Decimal?        @db.Decimal(10, 2)
   formaPagamento FormaPagamento?
-  observacoes String?
+  observacoes    String?
 
   /// Preenchidos quando a consulta nasce do link público de agendamento.
   telefoneContato      String?
@@ -272,11 +287,11 @@ model Consulta {
 
   /// O paciente desta consulta de campanha fechou compra na ótica. Marcado
   /// pelo dono ou pelo optometrista; gera o complemento abaixo.
-  vendaFechada   Boolean   @default(false)
+  vendaFechada   Boolean     @default(false)
   vendaFechadaEm DateTime?
   /// Diferença até o valor de referência da campanha (100 − 59,90), devida
   /// quando a venda fecha. Mantido por src/lib/financeiro.ts.
-  complemento Lancamento? @relation("ComplementoDaConsulta")
+  complemento    Lancamento? @relation("ComplementoDaConsulta")
 
   /// Campanha que trouxe esta consulta. Anulável: a maioria não vem de uma.
   campanhaId String?
@@ -314,12 +329,12 @@ enum StatusPagamento {
 }
 
 model Lancamento {
-  id        String          @id @default(cuid())
-  descricao String
-  valor     Decimal         @db.Decimal(10, 2)
-  tipo      TipoLancamento
-  status    StatusPagamento @default(PENDENTE)
-  data      DateTime
+  id             String          @id @default(cuid())
+  descricao      String
+  valor          Decimal         @db.Decimal(10, 2)
+  tipo           TipoLancamento
+  status         StatusPagamento @default(PENDENTE)
+  data           DateTime
   formaPagamento FormaPagamento?
 
   pacienteId String?
@@ -355,19 +370,19 @@ enum QuemPagaDiferenca {
 /// uma consulta CONCLUÍDA ligada à campanha — o resultado sai da agenda e
 /// nunca precisa ser digitado. Aqui só ficam a oferta e a meta.
 model Campanha {
-  id        String   @id @default(cuid())
-  nome      String
+  id                 String   @id @default(cuid())
+  nome               String
   /// O que está sendo oferecido, em texto livre.
-  descricao String?
+  descricao          String?
   /// Dias inteiros, ancorados ao meio-dia: "ativa" é hoje entre os dois.
-  inicio    DateTime
-  fim       DateTime
+  inicio             DateTime
+  fim                DateTime
   /// A oferta: preço fechado OU desconto sobre o valor de tabela. Os dois
   /// vazios = campanha sem condição de preço (ex.: "brinde na compra").
   precoPromocional   Decimal? @db.Decimal(10, 2)
   descontoPercentual Int?
   /// Quantas vendas a campanha precisa fechar.
-  metaVendas Int?
+  metaVendas         Int?
 
   /// Valor cheio da consulta (ex.: 100). Com ele, a consulta que fechar
   /// venda na ótica gera a diferença até este valor.
@@ -375,7 +390,7 @@ model Campanha {
   quemPagaDiferenca QuemPagaDiferenca?
   /// Ótica parceira que paga a diferença (quando é ela quem paga).
   parceiroNome      String?
-  criadoEm  DateTime @default(now())
+  criadoEm          DateTime           @default(now())
 
   consultas Consulta[]
 
@@ -775,22 +790,22 @@ enum StatusFatura {
 /// ou gerada pela assinatura no Asaas (baixa automática pelo webhook). Em
 /// nenhum caso há dado de cartão aqui — o checkout é todo no Asaas.
 model Fatura {
-  id          String       @id @default(cuid())
+  id               String       @id @default(cuid())
   /// Mês de referência no formato AAAA-MM.
-  competencia String
-  descricao   String?
-  valor       Decimal      @db.Decimal(10, 2)
-  vencimento  DateTime
-  status      StatusFatura @default(ABERTA)
-  pagoEm      DateTime?
+  competencia      String
+  descricao        String?
+  valor            Decimal      @db.Decimal(10, 2)
+  vencimento       DateTime
+  status           StatusFatura @default(ABERTA)
+  pagoEm           DateTime?
   /// Anotação livre de quem confirmou: "PIX recebido dia 03", por exemplo.
-  observacao  String?
+  observacao       String?
   /// Preenchidos quando a fatura nasce de uma cobrança do Asaas: a baixa
   /// chega pelo webhook, sem confirmação manual.
-  asaasPagamentoId String? @unique
+  asaasPagamentoId String?      @unique
   linkPagamento    String?
   formaPagamento   String?
-  criadoEm    DateTime     @default(now())
+  criadoEm         DateTime     @default(now())
 
   consultorioId String
   consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
@@ -861,6 +876,7 @@ enum TipoLoteIA {
   RECEITA_VENCIDA
   FALTOU
   SUMIDO
+  INATIVO_6M
 }
 
 enum StatusLoteIA {
@@ -881,16 +897,21 @@ enum StatusContatoLote {
 }
 
 model LoteIA {
-  id            String       @id @default(cuid())
-  consultorioId String
-  consultorio   Consultorio  @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
-  tipo          TipoLoteIA
-  status        StatusLoteIA @default(PROPOSTO)
-  ritmoDiario   Int          @default(20)
-  aprovadoPorId String?
-  aprovadoEm    DateTime?
-  criadoEm      DateTime     @default(now())
-  contatos      ContatoLote[]
+  id               String        @id @default(cuid())
+  consultorioId    String
+  consultorio      Consultorio   @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+  tipo             TipoLoteIA
+  status           StatusLoteIA  @default(PROPOSTO)
+  ritmoDiario      Int           @default(20)
+  aprovadoPorId    String?
+  aprovadoEm       DateTime?
+  /// Registro de quem autorizou o envio automático e o texto que aceitou.
+  iniciaEm         DateTime?
+  autorizadoPorId  String?
+  autorizadoEm     DateTime?
+  textoAutorizacao String?
+  criadoEm         DateTime      @default(now())
+  contatos         ContatoLote[]
 
   @@index([consultorioId, status])
   @@map("lotes_ia")
@@ -912,7 +933,9 @@ model ContatoLote {
   status        StatusContatoLote @default(AGUARDANDO)
   liberadoEm    DateTime?
   enviadoEm     DateTime?
+  enviarEm      DateTime?
   atualizadoEm  DateTime          @updatedAt
+  conversa      ConversaIA?
 
   @@unique([loteId, pacienteId])
   @@index([consultorioId, pacienteId])
@@ -929,4 +952,82 @@ model AnaliseIA {
 
   @@index([consultorioId, criadoEm])
   @@map("analises_ia")
+}
+
+// ─── Assistente IA, etapa 2: WhatsApp automático (Z-API) ──────────────────
+
+enum StatusWhatsapp {
+  SEM_INSTANCIA
+  EM_CONFIGURACAO
+  DESCONECTADO
+  CONECTADO
+}
+
+enum TipoConversa {
+  POS_VENDA
+  RECUPERACAO
+}
+
+enum StatusConversa {
+  AGUARDANDO_ENVIO
+  ABERTA
+  COM_EQUIPE
+  RESOLVIDA
+  SEM_RESPOSTA
+  ENCERRADA
+}
+
+enum DirecaoMensagem {
+  SAIDA
+  ENTRADA
+}
+
+/// Não reaproveita AutorMensagem: esse nome já é do chat de suporte (Chamado).
+enum AutorMensagemIA {
+  IA
+  PACIENTE
+  EQUIPE
+}
+
+model ConversaIA {
+  id                String         @id @default(cuid())
+  consultorioId     String
+  consultorio       Consultorio    @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+  pacienteId        String
+  paciente          Paciente       @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  tipo              TipoConversa
+  status            StatusConversa @default(AGUARDANDO_ENVIO)
+  /// Uma conversa de pós-venda por consulta e uma por contato de lote.
+  consultaId        String?        @unique
+  contatoLoteId     String?        @unique
+  contatoLote       ContatoLote?   @relation(fields: [contatoLoteId], references: [id], onDelete: SetNull)
+  enviarEm          DateTime?
+  motivoEquipe      String?
+  prioridade        String?
+  aberturaEnviadaEm DateTime?
+  lembreteEnviadoEm DateTime?
+  ultimaRespostaEm  DateTime?
+  criadoEm          DateTime       @default(now())
+  atualizadoEm      DateTime       @updatedAt
+  mensagens         MensagemIA[]
+
+  @@index([consultorioId, status])
+  @@index([consultorioId, pacienteId])
+  @@map("conversas_ia")
+}
+
+model MensagemIA {
+  id            String          @id @default(cuid())
+  conversaId    String
+  conversa      ConversaIA      @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  consultorioId String
+  direcao       DirecaoMensagem
+  autor         AutorMensagemIA
+  texto         String          @db.Text
+  /// Id da mensagem na Z-API: barra entrega duplicada do webhook.
+  idProvedor    String?         @unique
+  criadoEm      DateTime        @default(now())
+
+  @@index([conversaId, criadoEm])
+  @@map("mensagens_ia")
 }
