@@ -199,3 +199,8 @@ export function acaoDaResposta(c: Classificacao): AcaoDaResposta {
 export function tituloDaEquipe(primeiroNome: string, motivo: string): string {
   return `${primeiroNome} ${motivo.charAt(0).toLowerCase()}${motivo.slice(1)}`
 }
+
+/** Status depois de salvar id/token: só quem ainda não configurou vira DESCONECTADO; conectado segue conectado. */
+export function statusAposSalvar(atual: string): string {
+  return atual === 'SEM_INSTANCIA' || atual === 'EM_CONFIGURACAO' ? 'DESCONECTADO' : atual
+}

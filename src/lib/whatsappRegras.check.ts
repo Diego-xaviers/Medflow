@@ -10,6 +10,7 @@ import {
   dentroDaJanela,
   doTelefone,
   ehEcoNosso,
+  statusAposSalvar,
   entraNoPosVenda,
   espacar,
   janelaDeEnvio,
@@ -140,5 +141,10 @@ assert.deepEqual(acaoDaResposta('QUEIXA'), { fim: 'EQUIPE', motivo: 'Relatou des
 assert.deepEqual(acaoDaResposta('OUTRO'), { fim: 'EQUIPE', motivo: 'Precisa da equipe', prioridade: 'normal' })
 assert.equal(tituloDaEquipe('Maria', 'Quer marcar'), 'Maria quer marcar')
 assert.equal(tituloDaEquipe('João', 'Relatou desconforto com o grau'), 'João relatou desconforto com o grau')
+
+assert.equal(statusAposSalvar('SEM_INSTANCIA'), 'DESCONECTADO')
+assert.equal(statusAposSalvar('EM_CONFIGURACAO'), 'DESCONECTADO')
+assert.equal(statusAposSalvar('CONECTADO'), 'CONECTADO')
+assert.equal(statusAposSalvar('DESCONECTADO'), 'DESCONECTADO')
 
 console.log('whatsapp: todos os checks passaram')
