@@ -20,7 +20,7 @@ export default function PoliticaDePrivacidade() {
           Esta política descreve como a plataforma Medflow trata dados pessoais em conformidade
           com a Lei Geral de Proteção de Dados Pessoais — LGPD (Lei nº 13.709/2018).
         </p>
-        <p className="text-neutro-500 text-sm">Última atualização: 31 de agosto de 2026.</p>
+        <p className="text-neutro-500 text-sm">Última atualização: 20 de novembro de 2026.</p>
 
         <h2>1. Quem somos</h2>
         <p>
@@ -47,6 +47,10 @@ export default function PoliticaDePrivacidade() {
             clínicos, resultados de exames, diagnósticos, prescrições e receitas ópticas.
           </li>
           <li>Histórico de agendamentos.</li>
+          <li>
+            Mensagens trocadas com o paciente pelo Assistente IA no WhatsApp (texto da conversa
+            e número de telefone).
+          </li>
         </ul>
 
         <h3>Dados de acesso</h3>
@@ -107,6 +111,16 @@ export default function PoliticaDePrivacidade() {
           <li>
             <strong>Neon</strong> — banco de dados PostgreSQL com criptografia em repouso
             (AES-256).
+          </li>
+          <li>
+            <strong>Anthropic</strong> — inteligência artificial do Assistente IA. As respostas
+            dos pacientes no WhatsApp são processadas para classificar e responder, usando o
+            primeiro nome do paciente e o texto da conversa (EUA; transferência internacional
+            amparada em cláusulas contratuais padrão).
+          </li>
+          <li>
+            <strong>Provedor de conexão com o WhatsApp</strong> — transmite as mensagens entre o
+            Medflow e o WhatsApp da clínica.
           </li>
         </ul>
 

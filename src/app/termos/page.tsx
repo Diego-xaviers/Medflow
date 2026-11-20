@@ -20,7 +20,7 @@ export default function TermosDeUso() {
           Ao usar o Medflow, o contratante concorda com estes termos. Leia com atenção antes de
           utilizar a plataforma.
         </p>
-        <p className="text-neutro-500 text-sm">Última atualização: 31 de agosto de 2026.</p>
+        <p className="text-neutro-500 text-sm">Última atualização: 20 de novembro de 2026.</p>
 
         <h2>1. Serviço</h2>
         <p>
@@ -73,7 +73,23 @@ export default function TermosDeUso() {
           <li>Ações que comprometam a disponibilidade ou a integridade da plataforma.</li>
         </ul>
 
-        <h2>5. Pagamento e suspensão</h2>
+        <h2>5. Assistente IA e mensagens no WhatsApp</h2>
+        <ul>
+          <li>
+            O Assistente IA envia mensagens automáticas pelo WhatsApp da própria clínica, somente
+            após autorização expressa de cada envio.
+          </li>
+          <li>
+            A conexão com o WhatsApp não usa a API oficial. Por isso, o número da clínica pode
+            sofrer restrição ou bloqueio pela Meta, e o Medflow não se responsabiliza por isso.
+          </li>
+          <li>
+            A clínica é responsável pela base de pacientes que usa nos envios e pelo
+            consentimento deles para receber mensagens.
+          </li>
+        </ul>
+
+        <h2>6. Pagamento e suspensão</h2>
         <ul>
           <li>O serviço é cobrado por assinatura mensal, com vencimento conforme a fatura emitida.</li>
           <li>
@@ -90,7 +106,7 @@ export default function TermosDeUso() {
           </li>
         </ul>
 
-        <h2>6. Disponibilidade</h2>
+        <h2>7. Disponibilidade</h2>
         <p>
           O Medflow busca disponibilidade contínua, mas não garante a ausência de
           interrupções. Manutenções programadas serão comunicadas com antecedência sempre que
@@ -98,7 +114,7 @@ export default function TermosDeUso() {
           plataforma, da infraestrutura de hospedagem ou da conexão do contratante.
         </p>
 
-        <h2>7. Limitação de responsabilidade</h2>
+        <h2>8. Limitação de responsabilidade</h2>
         <p>
           O Medflow é uma ferramenta de apoio à gestão. A responsabilidade clínica pelas
           prescrições, diagnósticos e condutas é exclusiva dos profissionais de saúde
@@ -106,21 +122,21 @@ export default function TermosDeUso() {
           clínicas tomadas com base nos dados registrados.
         </p>
 
-        <h2>8. Propriedade intelectual</h2>
+        <h2>9. Propriedade intelectual</h2>
         <p>
           O código, o design e as funcionalidades do Medflow são de propriedade da DX Creative.
           Os dados inseridos pelo contratante permanecem de sua propriedade. A contratação
           concede apenas o direito de uso da plataforma, não de cópia ou distribuição.
         </p>
 
-        <h2>9. Alterações nos termos</h2>
+        <h2>10. Alterações nos termos</h2>
         <p>
           Estes termos podem ser atualizados. Mudanças relevantes serão notificadas dentro da
           plataforma com pelo menos 15 dias de antecedência. O uso continuado após a vigência
           das alterações implica aceitação.
         </p>
 
-        <h2>10. Foro e lei aplicável</h2>
+        <h2>11. Foro e lei aplicável</h2>
         <p>
           Estes termos são regidos pelas leis brasileiras. Para qualquer controvérsia, fica
           eleito o foro da comarca do domicílio do contratante, com preferência para solução
