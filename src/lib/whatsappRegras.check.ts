@@ -8,6 +8,7 @@ import {
   acaoDaResposta,
   cotaDoDia,
   dentroDaJanela,
+  doTelefone,
   ehEcoNosso,
   entraNoPosVenda,
   espacar,
@@ -108,6 +109,19 @@ assert.equal(mesmoTelefone('5511999998888', '5521999998888'), false) // outro DD
 assert.equal(mesmoTelefone('551132228888', '5511932228888'), false) // fixo não ganha 9
 assert.equal(mesmoTelefone(null, '5511999998888'), false)
 assert.equal(mesmoTelefone(null, null), false)
+
+// doTelefone: cadastro em qualquer formato, evento do provedor sem o nono dígito
+const pacs = [
+  { id: 'mae', telefone: '(11) 99999-8888' },
+  { id: 'filho', telefone: '11 99999 8888' },
+  { id: 'outro', telefone: '(11) 97777-6666' },
+  { id: 'sem', telefone: null },
+]
+const tel = (p: { telefone: string | null }) => p.telefone
+assert.deepEqual(doTelefone(pacs, tel, '551199998888').map((p) => p.id), ['mae', 'filho']) // compartilhado
+assert.deepEqual(doTelefone(pacs, tel, '5511977776666').map((p) => p.id), ['outro'])
+assert.deepEqual(doTelefone(pacs, tel, '5511900001111'), [])
+assert.deepEqual(doTelefone(pacs, tel, ''), [])
 
 // ehEcoNosso
 const nossa = [{ texto: 'Oi, Maria!', criadoEm: new Date(agora.getTime() - 4 * 60_000) }]

@@ -20,11 +20,12 @@ import {
   cotaDoDia,
   dentroDaJanela,
   diaNoFuso,
+  doTelefone,
+  ECO_MS,
   ehEcoNosso,
   entraNoPosVenda,
   espacar,
   janelaDeEnvio,
-  mesmoTelefone,
   proximoPasso,
   tituloDaEquipe,
   type ItemFila,
@@ -416,31 +417,38 @@ async function enviarUma(
 // ---------------------------------------------------------------------------
 
 const SEM_TEXTO = '[áudio ou imagem]'
-const ECO_MS = 5 * 60_000
+
+async function avisarEquipe(consultorioId: string, titulo: string, prioridade: 'alta' | 'normal') {
+  await notificar({
+    usuarioIds: await equipeDoConsultorio(consultorioId),
+    consultorioId,
+    tipo: 'ASSISTENTE_IA',
+    titulo,
+    descricao: prioridade === 'alta' ? 'Prioridade alta. Responda pelo WhatsApp da clínica.' : 'Responda pelo WhatsApp da clínica.',
+    link: '/ia',
+  })
+}
 
 /**
  * A recepção assume: `COM_EQUIPE` e aviso na campainha. Só sai de `ABERTA`,
  * então duas mensagens seguidas não avisam duas vezes.
  */
-export async function passarParaEquipe(conversaId: string, motivo: string, prioridade: 'alta' | 'normal'): Promise<void> {
-  const c = await prisma.conversaIA.findUnique({
-    where: { id: conversaId },
-    select: { consultorioId: true, paciente: { select: { nome: true } } },
+export async function passarParaEquipe(
+  consultorioId: string,
+  conversaId: string,
+  motivo: string,
+  prioridade: 'alta' | 'normal'
+): Promise<void> {
+  const c = await prisma.conversaIA.findFirst({
+    where: { id: conversaId, consultorioId },
+    select: { paciente: { select: { nome: true } } },
   })
   if (!c) return
   const { count } = await prisma.conversaIA.updateMany({
-    where: { id: conversaId, consultorioId: c.consultorioId, status: 'ABERTA' },
+    where: { id: conversaId, consultorioId, status: 'ABERTA' },
     data: { status: 'COM_EQUIPE', motivoEquipe: motivo, prioridade },
   })
-  if (count === 0) return
-  await notificar({
-    usuarioIds: await equipeDoConsultorio(c.consultorioId),
-    consultorioId: c.consultorioId,
-    tipo: 'ASSISTENTE_IA',
-    titulo: tituloDaEquipe(primeiroNome(c.paciente.nome), motivo),
-    descricao: prioridade === 'alta' ? 'Prioridade alta. Responda pelo WhatsApp da clínica.' : 'Responda pelo WhatsApp da clínica.',
-    link: '/ia',
-  })
+  if (count > 0) await avisarEquipe(consultorioId, tituloDaEquipe(primeiroNome(c.paciente.nome), motivo), prioridade)
 }
 
 /**
@@ -478,7 +486,6 @@ export async function receberEvento(consultorioId: string, ev: EventoWhatsapp): 
   }
 
   // Só as conversas em andamento do consultório; o telefone é comparado aqui.
-  const telefone = telefoneE164(ev.telefone)
   const emAndamento = await prisma.conversaIA.findMany({
     where: { consultorioId, status: { in: ['ABERTA', 'COM_EQUIPE'] } },
     orderBy: { criadoEm: 'desc' },
@@ -491,14 +498,15 @@ export async function receberEvento(consultorioId: string, ev: EventoWhatsapp): 
       paciente: { select: { nome: true, telefone: true } },
     },
   })
-  const conversa = emAndamento.find((c) => mesmoTelefone(telefoneE164(c.paciente.telefone), telefone))
+  const doNumero = doTelefone(emAndamento, (c) => c.paciente.telefone, ev.telefone)
+  const conversa = doNumero[0] // a mais recente guarda a mensagem
   if (!conversa) return
   const agora = new Date()
 
   if (ev.deMim) {
     const nossas = await prisma.mensagemIA.findMany({
       where: {
-        conversaId: conversa.id,
+        conversaId: { in: doNumero.map((c) => c.id) },
         consultorioId,
         direcao: 'SAIDA',
         autor: 'IA',
@@ -527,7 +535,7 @@ export async function receberEvento(consultorioId: string, ev: EventoWhatsapp): 
   }
 
   try {
-    await depoisDeGravar(consultorioId, conversa, ev.deMim, ev.texto, agora)
+    await depoisDeGravar(consultorioId, conversa, doNumero.map((c) => c.id), ev, agora)
   } catch (erro) {
     console.error('[webhook-zapi] mensagem gravada, mas o resto falhou:', conversa.id, erro)
   }
@@ -536,38 +544,53 @@ export async function receberEvento(consultorioId: string, ev: EventoWhatsapp): 
 async function depoisDeGravar(
   consultorioId: string,
   conversa: { id: string; status: string; tipo: TipoConversa; pacienteId: string; contatoLoteId: string | null; paciente: { nome: string } },
-  deMim: boolean,
-  texto: string | null,
+  doNumero: string[],
+  ev: Extract<EventoWhatsapp, { tipo: 'RECEBIDA' }>,
   agora: Date
 ): Promise<void> {
   const { id } = conversa
+  const equipeAssumeCalada = () =>
+    prisma.conversaIA.updateMany({
+      where: { id: { in: doNumero }, consultorioId, status: 'ABERTA' },
+      data: { status: 'COM_EQUIPE' },
+    })
 
   // A equipe respondeu pelo celular da clínica: ela assume, sem aviso.
-  if (deMim) {
-    await prisma.conversaIA.updateMany({ where: { id, consultorioId, status: 'ABERTA' }, data: { status: 'COM_EQUIPE' } })
+  if (ev.deMim) {
+    await equipeAssumeCalada()
     return
   }
-  if (conversa.status === 'COM_EQUIPE') return
+  if (conversa.status === 'COM_EQUIPE' && doNumero.length === 1) return
 
   await prisma.conversaIA.updateMany({ where: { id, consultorioId }, data: { ultimaRespostaEm: agora } })
 
   // Sem o plano ou com a conta bloqueada a IA não responde: a equipe assume, sem aviso.
-  const c = await prisma.consultorio.findUniqueOrThrow({ where: { id: consultorioId }, select: { plano: true } })
-  if (!temRecurso(c.plano as PlanoNome, 'iaPosVenda') || (await situacaoDaConta(consultorioId)).bloqueado) {
-    await prisma.conversaIA.updateMany({ where: { id, consultorioId, status: 'ABERTA' }, data: { status: 'COM_EQUIPE' } })
+  const consultorio = await prisma.consultorio.findUniqueOrThrow({
+    where: { id: consultorioId },
+    select: { nome: true, plano: true },
+  })
+  if (!temRecurso(consultorio.plano as PlanoNome, 'iaPosVenda') || (await situacaoDaConta(consultorioId)).bloqueado) {
+    await equipeAssumeCalada()
     return
   }
 
-  if (texto === null) return passarParaEquipe(id, 'Mandou áudio ou imagem', 'normal')
+  // Número de mais de um paciente: a IA não sabe com quem fala.
+  if (doNumero.length > 1) {
+    const { count } = await prisma.conversaIA.updateMany({
+      where: { id: { in: doNumero }, consultorioId, status: 'ABERTA' },
+      data: { status: 'COM_EQUIPE', motivoEquipe: 'Número compartilhado', prioridade: 'normal' },
+    })
+    if (count > 0) await avisarEquipe(consultorioId, 'Mensagem de um número compartilhado por mais de um paciente', 'normal')
+    return
+  }
 
-  const [consultorio, mensagens] = await Promise.all([
-    prisma.consultorio.findUniqueOrThrow({ where: { id: consultorioId }, select: { nome: true } }),
-    prisma.mensagemIA.findMany({
-      where: { conversaId: id, consultorioId },
-      orderBy: { criadoEm: 'asc' },
-      select: { autor: true, texto: true },
-    }),
-  ])
+  if (ev.texto === null) return passarParaEquipe(consultorioId, id, 'Mandou áudio ou imagem', 'normal')
+
+  const mensagens = await prisma.mensagemIA.findMany({
+    where: { conversaId: id, consultorioId },
+    orderBy: { criadoEm: 'asc' },
+    select: { autor: true, texto: true },
+  })
 
   // shortcut: duas mensagens seguidas do paciente rodam a IA em paralelo e podem sair duas respostas; upgrade: trava por conversa (ex. advisory lock) ou responder só à última mensagem
   let r: Awaited<ReturnType<typeof responderConversa>>
@@ -581,27 +604,45 @@ async function depoisDeGravar(
     })
   } catch (erro) {
     console.error('[webhook-zapi] IA falhou:', id, erro)
-    return passarParaEquipe(id, 'Precisa da equipe', 'normal')
+    return passarParaEquipe(consultorioId, id, 'Precisa da equipe', 'normal')
   }
 
   // Resposta a quem escreveu sai na hora: sem janela e fora do limite do dia.
-  if (r.resposta) {
+  const responder = async () => {
+    if (!r.resposta) return
     try {
       await enviarNaConversa(consultorioId, id, r.resposta, 'IA')
     } catch (erro) {
       console.error('[webhook-zapi] resposta não saiu:', id, erro)
     }
   }
-
   const acao = acaoDaResposta(r.classificacao)
-  if (acao.fim === 'EQUIPE') return passarParaEquipe(id, acao.motivo, acao.prioridade)
+
+  // O "não contatar" primeiro: se a resposta falhar ou o tempo acabar, o pedido já ficou.
   if (acao.fim === 'PARAR') {
-    await naoContatarMais(consultorioId, conversa.pacienteId)
+    const pacientes = await prisma.paciente.findMany({
+      where: { consultorioId, telefone: { not: null } },
+      select: { id: true, telefone: true },
+    })
+    // Todo paciente desse número, não só o da conversa (família no mesmo celular).
+    const ids = new Set([conversa.pacienteId, ...doTelefone(pacientes, (p) => p.telefone, ev.telefone).map((p) => p.id)])
+    for (const pacienteId of ids) await naoContatarMais(consultorioId, pacienteId)
     await prisma.conversaIA.updateMany({ where: { id, consultorioId }, data: { status: 'ENCERRADA' } })
+    await responder()
     return
   }
-  await prisma.conversaIA.updateMany({ where: { id, consultorioId, status: 'ABERTA' }, data: { status: 'RESOLVIDA' } })
-  if (acao.recusou && conversa.contatoLoteId) {
+
+  // A equipe pode ter assumido enquanto a IA pensava: aí a IA fica quieta.
+  const aindaAberta = await prisma.conversaIA.findFirst({ where: { id, consultorioId, status: 'ABERTA' }, select: { id: true } })
+  if (!aindaAberta) return
+  await responder()
+
+  if (acao.fim === 'EQUIPE') return passarParaEquipe(consultorioId, id, acao.motivo, acao.prioridade)
+  const { count } = await prisma.conversaIA.updateMany({
+    where: { id, consultorioId, status: 'ABERTA' },
+    data: { status: 'RESOLVIDA' },
+  })
+  if (count > 0 && acao.recusou && conversa.contatoLoteId) {
     await prisma.contatoLote.updateMany({
       where: { id: conversa.contatoLoteId, consultorioId, status: 'ENVIADO' },
       data: { status: 'RECUSOU' },

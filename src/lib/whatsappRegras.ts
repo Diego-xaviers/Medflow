@@ -9,6 +9,7 @@
 import { instanteNoFuso, partesNoFuso } from './agenda'
 import { telefoneValido } from './lotesIA'
 import type { Classificacao } from './iaConversa'
+import { telefoneE164 } from './whatsapp'
 
 const HORA_MS = 3_600_000
 const DIA_MS = 24 * HORA_MS
@@ -149,7 +150,17 @@ export function mesmoTelefone(a: string | null, b: string | null): boolean {
   return curto(a) === curto(b)
 }
 
-const ECO_MS = 5 * 60_000
+/**
+ * Itens (conversas, pacientes) cujo telefone cadastrado é o do evento, na
+ * ordem recebida. Mais de um = número compartilhado (família): ninguém é
+ * escolhido no chute.
+ */
+export function doTelefone<T>(itens: T[], telefoneDe: (i: T) => string | null, telefoneEvento: string): T[] {
+  const alvo = telefoneE164(telefoneEvento)
+  return itens.filter((i) => mesmoTelefone(telefoneE164(telefoneDe(i)), alvo))
+}
+
+export const ECO_MS = 5 * 60_000
 
 /**
  * "Enviada por mim" que é a nossa própria (eco do que a IA mandou): mesmo
