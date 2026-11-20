@@ -6,21 +6,27 @@
  * `consultorioId`.
  */
 
+import { Prisma } from '@prisma/client'
 import { prisma } from './prisma'
 import { situacaoDaConta } from './cobranca'
 import { temRecurso, type PlanoNome } from './planos'
 import { primeiroNome } from './ia'
-import { escreverAberturaPosVenda, textoLembrete, NOME_IA } from './iaConversa'
-import { escreverPendentes, inicioDoDiaNoFuso, liberarHoje } from './lotesServidor'
-import { enviarTexto, ErroProvedor, telefoneE164, type Instancia } from './whatsappProvedor'
+import { escreverAberturaPosVenda, responderConversa, textoLembrete, NOME_IA, type Turno } from './iaConversa'
+import { escreverPendentes, inicioDoDiaNoFuso, liberarHoje, naoContatarMais } from './lotesServidor'
+import { equipeDoConsultorio, notificar } from './notificacoes'
+import { enviarTexto, ErroProvedor, telefoneE164, type EventoWhatsapp, type Instancia } from './whatsappProvedor'
 import {
+  acaoDaResposta,
   cotaDoDia,
   dentroDaJanela,
   diaNoFuso,
+  ehEcoNosso,
   entraNoPosVenda,
   espacar,
   janelaDeEnvio,
+  mesmoTelefone,
   proximoPasso,
+  tituloDaEquipe,
   type ItemFila,
 } from './whatsappRegras'
 
@@ -389,4 +395,193 @@ async function enviarUma(
     })
   }
   return true
+}
+
+// ---------------------------------------------------------------------------
+// Recebimento (webhook)
+// ---------------------------------------------------------------------------
+
+const SEM_TEXTO = '[áudio ou imagem]'
+const ECO_MS = 5 * 60_000
+
+/**
+ * A recepção assume: `COM_EQUIPE` e aviso na campainha. Só sai de `ABERTA`,
+ * então duas mensagens seguidas não avisam duas vezes.
+ */
+export async function passarParaEquipe(conversaId: string, motivo: string, prioridade: 'alta' | 'normal'): Promise<void> {
+  const c = await prisma.conversaIA.findUnique({
+    where: { id: conversaId },
+    select: { consultorioId: true, paciente: { select: { nome: true } } },
+  })
+  if (!c) return
+  const { count } = await prisma.conversaIA.updateMany({
+    where: { id: conversaId, consultorioId: c.consultorioId, status: 'ABERTA' },
+    data: { status: 'COM_EQUIPE', motivoEquipe: motivo, prioridade },
+  })
+  if (count === 0) return
+  await notificar({
+    usuarioIds: await equipeDoConsultorio(c.consultorioId),
+    consultorioId: c.consultorioId,
+    tipo: 'ASSISTENTE_IA',
+    titulo: tituloDaEquipe(primeiroNome(c.paciente.nome), motivo),
+    descricao: prioridade === 'alta' ? 'Prioridade alta. Responda pelo WhatsApp da clínica.' : 'Responda pelo WhatsApp da clínica.',
+    link: '/ia',
+  })
+}
+
+/**
+ * Um evento do webhook, já com o consultório resolvido pelo segredo da URL.
+ * Lança só antes de a mensagem estar gravada (o provedor reenvia); depois
+ * disso, falha vira log — o reenvio seria barrado pelo `idProvedor` mesmo.
+ */
+export async function receberEvento(consultorioId: string, ev: EventoWhatsapp): Promise<void> {
+  if (ev.tipo === 'IGNORAR') return
+
+  if (ev.tipo === 'CONECTOU') {
+    await prisma.consultorio.updateMany({
+      where: { id: consultorioId },
+      data: { whatsappStatus: 'CONECTADO', ...(ev.numero && { whatsappNumero: ev.numero }) },
+    })
+    return
+  }
+
+  if (ev.tipo === 'DESCONECTOU') {
+    // Só avisa na passagem de conectado para desconectado: evento repetido não vira spam.
+    const { count } = await prisma.consultorio.updateMany({
+      where: { id: consultorioId, whatsappStatus: 'CONECTADO' },
+      data: { whatsappStatus: 'DESCONECTADO' },
+    })
+    if (count > 0) {
+      await notificar({
+        usuarioIds: await equipeDoConsultorio(consultorioId),
+        consultorioId,
+        tipo: 'ASSISTENTE_IA',
+        titulo: 'O WhatsApp da clínica desconectou. Conecte de novo no Assistente IA.',
+        link: '/ia',
+      })
+    }
+    return
+  }
+
+  // Só as conversas em andamento do consultório; o telefone é comparado aqui.
+  const telefone = telefoneE164(ev.telefone)
+  const emAndamento = await prisma.conversaIA.findMany({
+    where: { consultorioId, status: { in: ['ABERTA', 'COM_EQUIPE'] } },
+    orderBy: { criadoEm: 'desc' },
+    select: {
+      id: true,
+      status: true,
+      tipo: true,
+      pacienteId: true,
+      contatoLoteId: true,
+      paciente: { select: { nome: true, telefone: true } },
+    },
+  })
+  const conversa = emAndamento.find((c) => mesmoTelefone(telefoneE164(c.paciente.telefone), telefone))
+  if (!conversa) return
+  const agora = new Date()
+
+  if (ev.deMim) {
+    const nossas = await prisma.mensagemIA.findMany({
+      where: {
+        conversaId: conversa.id,
+        consultorioId,
+        direcao: 'SAIDA',
+        autor: 'IA',
+        criadoEm: { gte: new Date(agora.getTime() - ECO_MS) },
+      },
+      select: { texto: true, criadoEm: true },
+    })
+    if (ehEcoNosso(ev.texto, nossas, agora)) return
+  }
+
+  try {
+    await prisma.mensagemIA.create({
+      data: {
+        conversaId: conversa.id,
+        consultorioId,
+        direcao: ev.deMim ? 'SAIDA' : 'ENTRADA',
+        autor: ev.deMim ? 'EQUIPE' : 'PACIENTE',
+        texto: ev.texto ?? SEM_TEXTO,
+        idProvedor: ev.idProvedor,
+      },
+    })
+  } catch (erro) {
+    // Já gravada: entrega repetida do webhook ou eco de mensagem nossa.
+    if (erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === 'P2002') return
+    throw erro
+  }
+
+  try {
+    await depoisDeGravar(consultorioId, conversa, ev.deMim, ev.texto, agora)
+  } catch (erro) {
+    console.error('[webhook-zapi] mensagem gravada, mas o resto falhou:', conversa.id, erro)
+  }
+}
+
+async function depoisDeGravar(
+  consultorioId: string,
+  conversa: { id: string; status: string; tipo: TipoConversa; pacienteId: string; contatoLoteId: string | null; paciente: { nome: string } },
+  deMim: boolean,
+  texto: string | null,
+  agora: Date
+): Promise<void> {
+  const { id } = conversa
+
+  // A equipe respondeu pelo celular da clínica: ela assume, sem aviso.
+  if (deMim) {
+    await prisma.conversaIA.updateMany({ where: { id, consultorioId, status: 'ABERTA' }, data: { status: 'COM_EQUIPE' } })
+    return
+  }
+  if (conversa.status === 'COM_EQUIPE') return
+
+  await prisma.conversaIA.updateMany({ where: { id, consultorioId }, data: { ultimaRespostaEm: agora } })
+  if (texto === null) return passarParaEquipe(id, 'Mandou áudio ou imagem', 'normal')
+
+  const [consultorio, mensagens] = await Promise.all([
+    prisma.consultorio.findUniqueOrThrow({ where: { id: consultorioId }, select: { nome: true } }),
+    prisma.mensagemIA.findMany({
+      where: { conversaId: id, consultorioId },
+      orderBy: { criadoEm: 'asc' },
+      select: { autor: true, texto: true },
+    }),
+  ])
+
+  let r: Awaited<ReturnType<typeof responderConversa>>
+  try {
+    r = await responderConversa({
+      clinica: consultorio.nome,
+      assinatura: assinaturaDa(conversa.tipo, consultorio.nome),
+      tipo: conversa.tipo,
+      primeiroNome: primeiroNome(conversa.paciente.nome),
+      turnos: mensagens satisfies Turno[],
+    })
+  } catch (erro) {
+    console.error('[webhook-zapi] IA falhou:', id, erro)
+    return passarParaEquipe(id, 'Precisa da equipe', 'normal')
+  }
+
+  // Resposta a quem escreveu sai na hora: sem janela e fora do limite do dia.
+  if (r.resposta) {
+    try {
+      await enviarNaConversa(consultorioId, id, r.resposta, 'IA')
+    } catch (erro) {
+      console.error('[webhook-zapi] resposta não saiu:', id, erro)
+    }
+  }
+
+  const acao = acaoDaResposta(r.classificacao)
+  if (acao.fim === 'EQUIPE') return passarParaEquipe(id, acao.motivo, acao.prioridade)
+  if (acao.fim === 'PARAR') {
+    await naoContatarMais(consultorioId, conversa.pacienteId)
+    await prisma.conversaIA.updateMany({ where: { id, consultorioId }, data: { status: 'ENCERRADA' } })
+    return
+  }
+  await prisma.conversaIA.updateMany({ where: { id, consultorioId, status: 'ABERTA' }, data: { status: 'RESOLVIDA' } })
+  if (acao.recusou && conversa.contatoLoteId) {
+    await prisma.contatoLote.updateMany({
+      where: { id: conversa.contatoLoteId, consultorioId, status: 'ENVIADO' },
+      data: { status: 'RECUSOU' },
+    })
+  }
 }

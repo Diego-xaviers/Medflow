@@ -4,7 +4,19 @@
  */
 
 import assert from 'node:assert/strict'
-import { cotaDoDia, dentroDaJanela, entraNoPosVenda, espacar, janelaDeEnvio, proximoPasso, type ItemFila } from './whatsappRegras'
+import {
+  acaoDaResposta,
+  cotaDoDia,
+  dentroDaJanela,
+  ehEcoNosso,
+  entraNoPosVenda,
+  espacar,
+  janelaDeEnvio,
+  mesmoTelefone,
+  proximoPasso,
+  tituloDaEquipe,
+  type ItemFila,
+} from './whatsappRegras'
 
 const fuso = 'America/Sao_Paulo'
 const agora = new Date('2026-11-19T15:00:00Z')
@@ -87,5 +99,32 @@ assert.equal(entraNoPosVenda(consulta({ temConversaAberta: true }), hoje, fuso),
 assert.equal(entraNoPosVenda(consulta({ dataHora: new Date('2026-11-13T02:00:00Z') }), new Date('2026-11-19T15:00:00Z'), fuso), true)
 // 01h UTC de 19/11 ainda é dia 18 em SP → 6 dias
 assert.equal(entraNoPosVenda(consulta({ dataHora: new Date('2026-11-13T02:00:00Z') }), new Date('2026-11-19T01:00:00Z'), fuso), false)
+
+// mesmoTelefone: nono dígito do WhatsApp
+assert.equal(mesmoTelefone('5511999998888', '5511999998888'), true)
+assert.equal(mesmoTelefone('551199998888', '5511999998888'), true)
+assert.equal(mesmoTelefone('5511999998888', '551199998888'), true)
+assert.equal(mesmoTelefone('5511999998888', '5521999998888'), false) // outro DDD
+assert.equal(mesmoTelefone('551132228888', '5511932228888'), false) // fixo não ganha 9
+assert.equal(mesmoTelefone(null, '5511999998888'), false)
+assert.equal(mesmoTelefone(null, null), false)
+
+// ehEcoNosso
+const nossa = [{ texto: 'Oi, Maria!', criadoEm: new Date(agora.getTime() - 4 * 60_000) }]
+assert.equal(ehEcoNosso('Oi, Maria!', nossa, agora), true)
+assert.equal(ehEcoNosso('Oi, Maria!', [{ texto: 'Oi, Maria!', criadoEm: new Date(agora.getTime() - 6 * 60_000) }], agora), false)
+assert.equal(ehEcoNosso('Outro texto', nossa, agora), false)
+assert.equal(ehEcoNosso(null, nossa, agora), false)
+assert.equal(ehEcoNosso('Oi, Maria!', [], agora), false)
+
+// acaoDaResposta
+assert.deepEqual(acaoDaResposta('TUDO_BEM'), { fim: 'RESOLVIDA', recusou: false })
+assert.deepEqual(acaoDaResposta('NAO_QUER'), { fim: 'RESOLVIDA', recusou: true })
+assert.deepEqual(acaoDaResposta('PARAR'), { fim: 'PARAR' })
+assert.deepEqual(acaoDaResposta('QUER_MARCAR'), { fim: 'EQUIPE', motivo: 'Quer marcar', prioridade: 'normal' })
+assert.deepEqual(acaoDaResposta('QUEIXA'), { fim: 'EQUIPE', motivo: 'Relatou desconforto com o grau', prioridade: 'alta' })
+assert.deepEqual(acaoDaResposta('OUTRO'), { fim: 'EQUIPE', motivo: 'Precisa da equipe', prioridade: 'normal' })
+assert.equal(tituloDaEquipe('Maria', 'Quer marcar'), 'Maria quer marcar')
+assert.equal(tituloDaEquipe('João', 'Relatou desconforto com o grau'), 'João relatou desconforto com o grau')
 
 console.log('whatsapp: todos os checks passaram')

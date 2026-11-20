@@ -24,6 +24,7 @@ export type TipoNotificacao =
   | 'SUPORTE'
   | 'CHAMADO'
   | 'COBRANCA'
+  | 'ASSISTENTE_IA'
 
 interface Aviso {
   usuarioIds: string[]

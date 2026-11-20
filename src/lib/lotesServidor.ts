@@ -372,17 +372,23 @@ export async function liberarHoje(consultorioId: string, agora = new Date()): Pr
   })
 }
 
-/** Paciente marcou consulta: o contato dele no lote vira "agendou". */
+/** Paciente marcou consulta: o contato dele no lote vira "agendou" e a conversa dele se encerra. */
 export async function marcarAgendouSeEmLote(consultorioId: string, pacienteId: string): Promise<void> {
-  await prisma.contatoLote.updateMany({
-    where: {
-      consultorioId,
-      pacienteId,
-      status: { in: ['AGUARDANDO', 'LIBERADO', 'ENVIADO'] },
-      lote: { status: { in: ['APROVADO', 'PAUSADO', 'CONCLUIDO'] } },
-    },
-    data: { status: 'AGENDOU' },
-  })
+  await prisma.$transaction([
+    prisma.contatoLote.updateMany({
+      where: {
+        consultorioId,
+        pacienteId,
+        status: { in: ['AGUARDANDO', 'LIBERADO', 'ENVIADO'] },
+        lote: { status: { in: ['APROVADO', 'PAUSADO', 'CONCLUIDO'] } },
+      },
+      data: { status: 'AGENDOU' },
+    }),
+    prisma.conversaIA.updateMany({
+      where: { consultorioId, pacienteId, status: { in: ['ABERTA', 'COM_EQUIPE'] } },
+      data: { status: 'RESOLVIDA' },
+    }),
+  ])
 }
 
 /** "Não quero receber": vale para o paciente, em todo lote, para sempre. */

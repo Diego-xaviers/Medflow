@@ -8,6 +8,7 @@
 
 import { instanteNoFuso, partesNoFuso } from './agenda'
 import { telefoneValido } from './lotesIA'
+import type { Classificacao } from './iaConversa'
 
 const HORA_MS = 3_600_000
 const DIA_MS = 24 * HORA_MS
@@ -135,4 +136,55 @@ export function entraNoPosVenda(
   if (c.temConversaAberta || !telefoneValido(c.telefone)) return false
   const dias = diaNoFuso(hoje, fuso) - diaNoFuso(c.dataHora, fuso)
   return dias >= 7 && dias <= 14
+}
+
+/**
+ * Mesmo celular? O WhatsApp devolve muito número brasileiro sem o nono dígito
+ * (55 DD + 8) enquanto o cadastro tem 55 DD 9 + 8: os dois valem. Só celular
+ * (depois do 9 vem 6-9); fixo não tem nono dígito.
+ */
+export function mesmoTelefone(a: string | null, b: string | null): boolean {
+  if (!a || !b) return false
+  const curto = (t: string) => t.replace(/^(55\d{2})9([6-9]\d{7})$/, '$1$2')
+  return curto(a) === curto(b)
+}
+
+const ECO_MS = 5 * 60_000
+
+/**
+ * "Enviada por mim" que é a nossa própria (eco do que a IA mandou): mesmo
+ * texto de uma mensagem nossa dos últimos 5 minutos. O `idProvedor` repetido
+ * já é barrado pelo único do banco.
+ */
+export function ehEcoNosso(texto: string | null, nossas: { texto: string; criadoEm: Date }[], agora: Date): boolean {
+  if (texto === null) return false
+  return nossas.some((m) => m.texto === texto && agora.getTime() - m.criadoEm.getTime() <= ECO_MS)
+}
+
+export type AcaoDaResposta =
+  | { fim: 'RESOLVIDA'; recusou: boolean }
+  | { fim: 'PARAR' }
+  | { fim: 'EQUIPE'; motivo: string; prioridade: 'alta' | 'normal' }
+
+/** O que fazer com a conversa depois da resposta da IA (a resposta sai antes, se houver). */
+export function acaoDaResposta(c: Classificacao): AcaoDaResposta {
+  switch (c) {
+    case 'TUDO_BEM':
+      return { fim: 'RESOLVIDA', recusou: false }
+    case 'NAO_QUER':
+      return { fim: 'RESOLVIDA', recusou: true }
+    case 'PARAR':
+      return { fim: 'PARAR' }
+    case 'QUER_MARCAR':
+      return { fim: 'EQUIPE', motivo: 'Quer marcar', prioridade: 'normal' }
+    case 'QUEIXA':
+      return { fim: 'EQUIPE', motivo: 'Relatou desconforto com o grau', prioridade: 'alta' }
+    default:
+      return { fim: 'EQUIPE', motivo: 'Precisa da equipe', prioridade: 'normal' }
+  }
+}
+
+/** "Maria" + "Quer marcar" → "Maria quer marcar". */
+export function tituloDaEquipe(primeiroNome: string, motivo: string): string {
+  return `${primeiroNome} ${motivo.charAt(0).toLowerCase()}${motivo.slice(1)}`
 }
