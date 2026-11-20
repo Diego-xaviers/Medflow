@@ -53,8 +53,8 @@
   - `enum TipoConversa { POS_VENDA RECUPERACAO }`
   - `enum StatusConversa { AGUARDANDO_ENVIO ABERTA COM_EQUIPE RESOLVIDA SEM_RESPOSTA ENCERRADA }`
   - `model ConversaIA { id, consultorioId, pacienteId, tipo TipoConversa, status StatusConversa @default(AGUARDANDO_ENVIO), consultaId String? @unique, contatoLoteId String? @unique, enviarEm DateTime?, motivoEquipe String?, prioridade String?, aberturaEnviadaEm DateTime?, lembreteEnviadoEm DateTime?, ultimaRespostaEm DateTime?, criadoEm DateTime @default(now()), atualizadoEm DateTime @updatedAt, mensagens MensagemIA[] }` com `@@index([consultorioId, status])`, `@@index([consultorioId, pacienteId])`, `@@map("conversas_ia")`; cascade a partir de consultório e paciente.
-  - `enum DirecaoMensagem { SAIDA ENTRADA }`, `enum AutorMensagem { IA PACIENTE EQUIPE }`
-  - `model MensagemIA { id, conversaId, consultorioId, direcao DirecaoMensagem, autor AutorMensagem, texto String @db.Text, idProvedor String? @unique, criadoEm DateTime @default(now()) }` com `@@index([conversaId, criadoEm])`, `@@map("mensagens_ia")`; cascade a partir da conversa.
+  - `enum DirecaoMensagem { SAIDA ENTRADA }`, `enum AutorMensagemIA { IA PACIENTE EQUIPE }`
+  - `model MensagemIA { id, conversaId, consultorioId, direcao DirecaoMensagem, autor AutorMensagemIA, texto String @db.Text, idProvedor String? @unique, criadoEm DateTime @default(now()) }` com `@@index([conversaId, criadoEm])`, `@@map("mensagens_ia")`; cascade a partir da conversa.
 
 - [ ] **Step 1:** Editar `schema.prisma` com o que está acima.
 - [ ] **Step 2:** Escrever o SQL idempotente (mesma técnica de `prisma/ajustes/2026-11-19-assistente-ia.sql`: `DO $$ ... EXCEPTION WHEN duplicate_object` para tipos, `ADD VALUE IF NOT EXISTS` para o enum). Conferir: nenhum `DROP`, nenhum `ALTER ... TYPE`.
