@@ -26,7 +26,7 @@ const ajusteSchema = z.object({
   /// Mensalidade da assinatura no Asaas; null tira o valor.
   valorMensalidade: z.coerce.number().positive('Valor deve ser maior que zero').nullable().optional(),
   cancelarAssinatura: z.literal(true).optional(),
-  whatsapp: z.object({ instanciaId: z.string(), instanciaToken: z.string() }).optional(),
+  whatsapp: z.object({ instanciaId: z.string().max(200), instanciaToken: z.string().max(200) }).optional(),
   limiteDiarioEnvios: z.coerce.number().int().min(1).max(100).optional(),
 })
 

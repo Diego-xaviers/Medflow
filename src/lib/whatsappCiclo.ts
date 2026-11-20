@@ -59,9 +59,10 @@ export async function salvarInstancia(
 
   const atual = await prisma.consultorio.findUnique({
     where: { id: consultorioId },
-    select: { whatsappStatus: true, whatsappSegredoWebhook: true },
+    select: { plano: true, whatsappStatus: true, whatsappSegredoWebhook: true },
   })
   if (!atual) throw new ErroDeNegocio('Consultório não encontrado')
+  if (atual.plano !== 'ULTRA') throw new ErroDeNegocio('Este consultório não está no plano Ultra.')
 
   // Mantém o segredo: a URL já colada na instância continua valendo.
   const segredo = atual.whatsappSegredoWebhook ?? randomBytes(32).toString('hex')
