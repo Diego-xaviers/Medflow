@@ -7,6 +7,7 @@ import { fetcher, enviar } from '@/lib/fetcher'
 import type { Painel } from '@/lib/lotesServidor'
 import PainelIA from '@/components/ia/PainelIA'
 import PreviaUltra from '@/components/ia/PreviaUltra'
+import CartaoWhatsapp from '@/components/ia/CartaoWhatsapp'
 import CarregandoIA from '@/components/ia/CarregandoIA'
 
 type RespostaPainel = { liberado: false } | Painel
@@ -97,6 +98,12 @@ export default function PaginaAssistenteIA() {
       )}
 
       {data && !data.liberado && <PreviaUltra />}
+
+      {primeiraVez && (
+        <div className="mb-5">
+          <CartaoWhatsapp whatsapp={data.whatsapp} aoMudar={(p) => mutate(p, { revalidate: false })} aoConectar={() => mutate()} />
+        </div>
+      )}
 
       {primeiraVez && (
         <div className="cartao relative overflow-hidden px-6 py-14 sm:py-20 text-center">

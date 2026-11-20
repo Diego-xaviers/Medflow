@@ -41,6 +41,12 @@ export default function AdminPage() {
 
   const { data: consultorios, isLoading, mutate } = useSWR('/api/admin/consultorios', fetcher)
 
+  // Link das notificações: /admin?consultorio=<id> abre o detalhe direto.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('consultorio')
+    if (id) setGerenciando(id)
+  }, [])
+
   function abrir() {
     setForm({ ...vazio, senhaDono: gerarSenha() })
     setErro(null)
@@ -349,6 +355,36 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
     } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
   }
 
+  const [zId, setZId] = useState('')
+  const [zToken, setZToken] = useState('')
+  const [zLimite, setZLimite] = useState('')
+  const [zCopiado, setZCopiado] = useState(false)
+  useEffect(() => { setZLimite(c?.whatsapp ? String(c.whatsapp.limiteDiarioEnvios) : '') }, [c?.whatsapp?.limiteDiarioEnvios])
+
+  async function salvarInstancia() {
+    setOcupado(true); setErro(null)
+    try {
+      await enviar(`/api/admin/consultorios/${id}`, 'PATCH', { whatsapp: { instanciaId: zId, instanciaToken: zToken } })
+      setZId(''); setZToken('') // o token nunca volta do servidor; limpa o campo
+      await mutate(); aoMudar()
+    } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
+  }
+
+  async function salvarLimite() {
+    setOcupado(true); setErro(null)
+    try {
+      await enviar(`/api/admin/consultorios/${id}`, 'PATCH', { limiteDiarioEnvios: Number(zLimite) })
+      await mutate()
+    } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
+  }
+
+  async function copiarUrl() {
+    try {
+      await navigator.clipboard.writeText(c.whatsapp.urlWebhook)
+      setZCopiado(true); setTimeout(() => setZCopiado(false), 2000)
+    } catch { /* sem permissão de área de transferência: o campo é selecionável */ }
+  }
+
   async function salvarMensalidade() {
     setOcupado(true); setErro(null)
     try {
@@ -502,6 +538,65 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
                         negociado, desconto de rede e cliente fundador funcionam.
                       </p>
                     </div>
+
+                    {c.plano === 'ULTRA' && c.whatsapp && (
+                      <div className="mb-4 p-3 rounded-lg border border-brand-200 dark:border-brand-900 bg-brand-50/40 dark:bg-brand-900/10 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[12.5px] font-medium">WhatsApp (Z-API)</p>
+                          <span className="etiqueta bg-neutro-100 dark:bg-neutro-800 text-neutro-500">
+                            {({ SEM_INSTANCIA: 'Sem instância', EM_CONFIGURACAO: 'Em configuração', DESCONECTADO: 'Desconectado', CONECTADO: 'Conectado' } as Record<string, string>)[c.whatsapp.status] ?? c.whatsapp.status}
+                            {c.whatsapp.numero ? ` · ${c.whatsapp.numero}` : ''}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="rotulo">ID da instância</label>
+                            <input className="campo" autoComplete="off" value={zId} onChange={(e) => setZId(e.target.value)}
+                              placeholder={c.whatsapp.configurado ? 'Já configurado' : ''} />
+                          </div>
+                          <div>
+                            <label className="rotulo">Token</label>
+                            <input type="password" className="campo" autoComplete="new-password" value={zToken}
+                              onChange={(e) => setZToken(e.target.value)}
+                              placeholder={c.whatsapp.configurado ? 'Já configurado' : ''} />
+                          </div>
+                        </div>
+                        <button type="button" onClick={salvarInstancia} disabled={ocupado || !zId.trim() || !zToken.trim()}
+                          className="btn-suave !py-2 !px-3">
+                          <Check size={13} /> Salvar instância
+                        </button>
+                        {c.whatsapp.configurado && (
+                          c.whatsapp.urlWebhook ? (
+                            <div>
+                              <label className="rotulo">URL do webhook (colar na instância)</label>
+                              <div className="flex items-center gap-2">
+                                <input readOnly className="campo font-mono text-[11px]" value={c.whatsapp.urlWebhook}
+                                  onFocus={(e) => e.currentTarget.select()} />
+                                <button type="button" onClick={copiarUrl} className="btn-suave !py-2 !px-3 shrink-0">
+                                  {zCopiado ? <Check size={13} /> : <Copy size={13} />}
+                                  {zCopiado ? 'Copiado' : 'Copiar'}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-[11.5px] text-amber-700 dark:text-amber-400">
+                              Instância salva, mas a variável NEXTAUTH_URL não está definida: não dá para montar a URL do webhook.
+                            </p>
+                          )
+                        )}
+                        <div className="flex items-end gap-2">
+                          <div className="flex-1">
+                            <label className="rotulo">Limite diário de envios</label>
+                            <input type="number" min={1} max={100} className="campo" value={zLimite}
+                              onChange={(e) => setZLimite(e.target.value)} />
+                          </div>
+                          <button type="button" onClick={salvarLimite} disabled={ocupado || !zLimite}
+                            className="btn-suave !py-2 !px-3 shrink-0 mb-1">
+                            <Check size={13} /> Salvar
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="mb-4 p-3 rounded-lg border border-brand-200 dark:border-brand-900 bg-brand-50/40 dark:bg-brand-900/10">
                       <p className="text-[12.5px] font-medium mb-2">Cobrança automática (Asaas)</p>

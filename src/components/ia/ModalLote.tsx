@@ -103,7 +103,7 @@ export default function ModalLote({
           </div>
           <p className="text-[12px] text-neutro-400">
             {ficam} paciente{ficam === 1 ? '' : 's'} · cerca de {dias} dia{dias === 1 ? '' : 's'} para concluir.
-            Nada é enviado sem você clicar em Enviar.
+            Aprovar não envia nada por si só.
           </p>
           {erro && <p className="text-[12px] text-amber-600">{erro}</p>}
           <button onClick={aprovar} disabled={salvando || ficam === 0 || !data} className="btn-marca w-full">

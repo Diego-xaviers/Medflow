@@ -12,6 +12,7 @@ import assert from 'node:assert/strict'
 import { apenasDaFila, iaConfigurada, primeiroNome, TETO_POR_CHAMADA } from './ia'
 import { dadosParaAnalise, podeRecalcular } from './iaAnalise'
 import type { Relatorio } from './relatorios'
+import { normalizarResposta, textoLembrete } from './iaConversa'
 
 // --- só o primeiro nome atravessa a fronteira ---
 assert.equal(primeiroNome('Maria das Dores Albuquerque'), 'Maria', 'nome composto vira o primeiro')
@@ -68,5 +69,22 @@ const agoraAnalise = new Date('2026-11-19T12:00:00Z')
 assert.equal(podeRecalcular(null, agoraAnalise), true, 'sem análise salva, pode calcular')
 assert.equal(podeRecalcular(new Date('2026-11-19T11:01:00Z'), agoraAnalise), false, '59 min: ainda não')
 assert.equal(podeRecalcular(new Date('2026-11-19T11:00:00Z'), agoraAnalise), true, '60 min: pode')
+
+// --- IA da conversa: resposta validada antes de sair ---
+assert.deepEqual(normalizarResposta({ classificacao: 'XYZ', resposta: 'oi' }), { classificacao: 'OUTRO', resposta: 'oi' }, 'classificação desconhecida vira OUTRO e mantém a resposta')
+assert.deepEqual(normalizarResposta({ classificacao: 'QUER_MARCAR', resposta: '' }), { classificacao: 'OUTRO', resposta: null }, 'resposta vazia vai para a equipe')
+assert.deepEqual(normalizarResposta({ classificacao: 'QUEIXA', resposta: '   ' }), { classificacao: 'OUTRO', resposta: null }, 'só espaço é vazia')
+assert.deepEqual(normalizarResposta({ classificacao: 'TUDO_BEM', resposta: 'a'.repeat(600) }), { classificacao: 'OUTRO', resposta: null }, 'resposta longa demais não sai')
+assert.deepEqual(normalizarResposta({ classificacao: 'PARAR', resposta: '' }), { classificacao: 'PARAR', resposta: null }, 'PARAR sem resposta continua PARAR')
+assert.deepEqual(normalizarResposta({ classificacao: 'PARAR', resposta: 'a'.repeat(600) }), { classificacao: 'PARAR', resposta: null }, 'PARAR com resposta longa continua PARAR')
+assert.deepEqual(normalizarResposta(null), { classificacao: 'OUTRO', resposta: null }, 'null vai para a equipe')
+assert.deepEqual(normalizarResposta({ classificacao: 'PARAR', resposta: 'Combinado, não vamos mais chamar.' }), { classificacao: 'PARAR', resposta: 'Combinado, não vamos mais chamar.' }, 'válido passa igual')
+for (const tipo of ['POS_VENDA', 'RECUPERACAO'] as const) {
+  const l = textoLembrete({ primeiroNome: 'Maria', assinatura: 'Assistente de pós-venda, da Ótica X', tipo })
+  assert.ok(l.startsWith('Maria'), 'lembrete começa pelo primeiro nome')
+  assert.ok(l.length <= 300, 'lembrete cabe em 300 caracteres')
+  assert.ok(textoLembrete({ primeiroNome: 'Maria', assinatura: 'x'.repeat(120), tipo }).length <= 300, 'lembrete com assinatura de 120 caracteres ainda cabe')
+  assert.ok(l.endsWith('Assistente de pós-venda, da Ótica X'), 'lembrete leva a assinatura')
+}
 
 console.log('ia: todos os checks passaram')

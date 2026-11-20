@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { registrarPagamento } from '@/lib/asaas'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { aoVirarUltraPago } from '@/lib/whatsappCiclo'
 
 /**
  * Webhook do Asaas: é por aqui que a fatura vira PAGA sozinha.
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
         ...(pagamento.customer ? [{ asaasClienteId: pagamento.customer as string }] : []),
       ],
     },
-    select: { id: true, nome: true },
+    select: { id: true, nome: true, plano: true },
   })
   if (!consultorio) return NextResponse.json({ ok: true, ignorado: true })
 
@@ -57,6 +58,14 @@ export async function POST(req: NextRequest) {
       detalhes: `${consultorio.nome} · ${fatura.competencia} · ${pagamento.billingType} · Asaas ${pagamento.id}`,
       consultorioId: consultorio.id,
     })
+  }
+
+  if (fatura.status === 'PAGA' && consultorio.plano === 'ULTRA') {
+    try {
+      await aoVirarUltraPago(consultorio.id)
+    } catch (erro) {
+      console.error('[asaas] falha ao preparar o WhatsApp:', erro) // o webhook segue devolvendo 200
+    }
   }
 
   return NextResponse.json({ ok: true })

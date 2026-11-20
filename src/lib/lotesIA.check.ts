@@ -10,6 +10,7 @@
 import assert from 'node:assert/strict'
 import {
   classificar,
+  ORDEM_LOTES,
   diasDoContato,
   liberarDoDia,
   motivoDoLote,
@@ -56,6 +57,19 @@ assert.equal(
   d('2025-06-01').toISOString(),
   'último exame é o máximo das três datas'
 )
+
+// --- sem exame há 6 a 12 meses ---
+assert.equal(classificar(ficha({ ultimaReceitaEmitida: d('2026-03-01') }), agora), 'INATIVO_6M', '~8,5 meses')
+assert.equal(classificar(ficha({ ultimaReceitaEmitida: d('2026-06-01') }), agora), null, '~5,5 meses: fora')
+assert.equal(classificar(ficha({ ultimaReceitaEmitida: d('2025-10-01') }), agora), 'EXAME_VENCIDO', 'passou de 12 meses')
+assert.equal(classificar(ficha({ ultimaReceitaEmitida: d('2026-03-01'), temConsultaFutura: true }), agora), null, 'com consulta marcada: fora')
+assert.equal(motivoDoLote('INATIVO_6M'), 'retorno')
+assert.equal(
+  classificar(ficha({ ultimaReceitaEmitida: d('2026-03-01'), validadeReceitaMaisNova: d('2026-09-01') }), agora),
+  'INATIVO_6M',
+  'exame de 6 a 12 meses ganha da receita vencida'
+)
+assert.deepEqual(ORDEM_LOTES, ['FALTOU', 'INATIVO_6M', 'EXAME_VENCIDO', 'RECEITA_VENCIDA', 'SUMIDO'])
 
 // --- Review Focus 1: sem data nenhuma não vira "sumido" ---
 assert.equal(classificar(ficha(), agora), null, 'paciente sem data de exame fica fora')
@@ -107,12 +121,12 @@ assert.equal(
 
 // --- receita vencida ---
 assert.equal(
-  classificar(ficha({ ultimaReceitaEmitida: d('2026-01-10'), validadeReceitaMaisNova: d('2026-09-01') }), agora),
+  classificar(ficha({ ultimaReceitaEmitida: d('2026-08-10'), validadeReceitaMaisNova: d('2026-09-01') }), agora),
   'RECEITA_VENCIDA',
-  'receita vencida com exame de menos de 1 ano'
+  'receita vencida com exame de menos de 6 meses'
 )
 assert.equal(
-  classificar(ficha({ ultimaReceitaEmitida: d('2026-01-10'), validadeReceitaMaisNova: d('2027-01-10') }), agora),
+  classificar(ficha({ ultimaReceitaEmitida: d('2026-08-10'), validadeReceitaMaisNova: d('2027-01-10') }), agora),
   null,
   'receita ainda válida: fora'
 )
@@ -151,7 +165,9 @@ assert.equal(liberarDoDia(aguardando.slice(0, 3), 20, inicioDoDia).length, 3, 'l
 
 // --- ritmo ---
 assert.equal(ritmoValido(3), 5)
-assert.equal(ritmoValido(80), 50)
+assert.equal(ritmoValido(80), 20)
+assert.equal(ritmoValido(21), 20)
+assert.equal(ritmoValido(20), 20)
 assert.equal(ritmoValido('x'), 20)
 assert.equal(ritmoValido(12.7), 12)
 assert.equal(ritmoValido(undefined), 20)

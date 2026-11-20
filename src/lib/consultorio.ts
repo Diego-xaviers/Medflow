@@ -79,3 +79,9 @@ export async function criarConsultorioComDono(dados: NovoConsultorio) {
     },
   })
 }
+
+/** Tira da resposta o que só o servidor pode ver da instância do WhatsApp. */
+export function semSegredosWhatsapp<T extends Record<string, any>>(c: T) {
+  const { whatsappInstanciaId, whatsappInstanciaToken, whatsappSegredoWebhook, ...resto } = c
+  return resto
+}
