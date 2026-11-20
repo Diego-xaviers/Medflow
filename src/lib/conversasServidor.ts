@@ -240,7 +240,10 @@ export async function rodadaDoConsultorio(
   await passo('lembretes', async () => {
     const abertas = await prisma.conversaIA.findMany({
       where: { consultorioId, status: 'ABERTA' },
-      select: { id: true, tipo: true, status: true, aberturaEnviadaEm: true, lembreteEnviadoEm: true, ultimaRespostaEm: true },
+      select: {
+        id: true, tipo: true, status: true, aberturaEnviadaEm: true, lembreteEnviadoEm: true, ultimaRespostaEm: true,
+        contatoLote: { select: { lote: { select: { status: true } } } },
+      },
     })
     for (const c of abertas) {
       const p = proximoPasso(c, agora)
@@ -249,7 +252,11 @@ export async function rodadaDoConsultorio(
           where: { id: c.id, consultorioId, status: 'ABERTA', ultimaRespostaEm: null },
           data: { status: 'SEM_RESPOSTA' },
         })
-      } else if (p === 'LEMBRETE' && (c.tipo === 'RECUPERACAO' || iaPosVendaLigada)) {
+      } else if (
+        p === 'LEMBRETE' &&
+        // Lote pausado segura também a segunda mensagem.
+        (c.tipo === 'RECUPERACAO' ? c.contatoLote?.lote.status === 'APROVADO' : iaPosVendaLigada)
+      ) {
         lembretes.push({ id: c.id, tipo: 'LEMBRETE', enviarEm: agora, lembrete: true })
       }
     }
@@ -288,6 +295,8 @@ export async function rodadaDoConsultorio(
 
   const porId = new Map(fila.map((i) => [i.id, i]))
   for (const id of cotaDoDia(fila, jaEnviadosHoje, limiteDiarioEnvios, agora)) {
+    // A IA pode demorar: a rodada que começou 17h59 não pode seguir enviando às 18h.
+    if (!dentroDaJanela(new Date(), fuso)) break
     const item = porId.get(id)!
     await passo(`enviar ${id}`, async () => {
       if (await enviarUma(consultorioId, clinica, id, item.lembrete, agora)) enviadas++

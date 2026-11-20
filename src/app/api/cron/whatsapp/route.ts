@@ -35,9 +35,15 @@ export async function GET(req: NextRequest) {
   let enviadas = 0
   let erros = 0
   for (const c of consultorios) {
-    const r = await rodadaDoConsultorio(c.id)
-    enviadas += r.enviadas
-    erros += r.erros
+    try {
+      const r = await rodadaDoConsultorio(c.id)
+      enviadas += r.enviadas
+      erros += r.erros
+    } catch (erro) {
+      // Uma clínica com problema (ex.: fuso inválido) não derruba as outras.
+      console.error('[cron-whatsapp]', c.id, erro)
+      erros++
+    }
   }
 
   return NextResponse.json({ consultorios: consultorios.length, enviadas, erros })
