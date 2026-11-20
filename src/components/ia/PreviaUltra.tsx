@@ -10,7 +10,7 @@ const VANTAGENS = [
   'Análise do consultório escrita pela IA',
   'Lotes de pacientes para reativar, prontos para aprovar',
   'Mensagem de WhatsApp escrita para cada paciente',
-  'Modo automático: os contatos do dia ficam prontos sozinhos',
+  'Envio automático pelo WhatsApp da clínica, só com a sua autorização',
 ]
 
 /**

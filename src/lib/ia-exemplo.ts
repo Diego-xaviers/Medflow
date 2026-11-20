@@ -12,8 +12,13 @@ const horasAtras = (h: number) => new Date(hoje.getTime() - h * 3_600_000).toISO
 
 export const PAINEL_IA_EXEMPLO: Painel = {
   liberado: true,
-  whatsapp: { status: 'SEM_INSTANCIA', numero: null, posVendaLigada: false, enviadasHoje: 0, limite: 20 },
-  aguardandoEquipe: [],
+  whatsapp: { status: 'CONECTADO', numero: '(92) 99999-0000', posVendaLigada: true, enviadasHoje: 12, limite: 20 },
+  aguardandoEquipe: [
+    {
+      id: 'ex-conversa', primeiroNome: 'Rita', motivo: 'Quer marcar um horário', prioridade: 'alta',
+      ultimaMensagem: 'Quero marcar para sexta de manhã, pode ser?', desde: horasAtras(1),
+    },
+  ],
   analise: {
     resumo:
       'A receita de novembro chegou a R$ 41.250,00, a maior dos últimos 6 meses, puxada por 225 consultas concluídas. ' +
@@ -44,6 +49,7 @@ export const PAINEL_IA_EXEMPLO: Painel = {
       titulo: 'Exame vencido há +1 ano',
       status: 'APROVADO',
       ritmoDiario: 20,
+      autorizado: true,
       total: 64,
       enviados: 12,
       agendaram: 3,
@@ -56,7 +62,7 @@ export const PAINEL_IA_EXEMPLO: Painel = {
         {
           id: 'ex-c2', pacienteId: 'ex-p2', pacienteNome: 'Caio Nogueira', telefone: '(92) 98222-3312',
           mensagem: 'Oi, Caio! Seu exame de vista completou um ano. Que tal revisar o grau antes de trocar os óculos? Posso ver um horário para você?',
-          prioridade: 'media', status: 'ENVIADO', dias: -395,
+          prioridade: 'media', status: 'ENVIADO', dias: -395, enviadaAs: '10h32',
         },
         {
           id: 'ex-c3', pacienteId: 'ex-p3', pacienteNome: 'Marta Vilela', telefone: '(92) 98333-4423',

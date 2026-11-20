@@ -1,15 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
-  Sparkles, RefreshCw, AlertCircle, Pause, Play, Send, CalendarCheck, X, BellOff, Wand2, Loader2, Zap, Users,
+  Sparkles, RefreshCw, AlertCircle, Pause, Play, Send, CalendarCheck, X, BellOff, Wand2, Loader2, Users, ShieldCheck,
 } from 'lucide-react'
-import { enviar } from '@/lib/fetcher'
+import { enviar, fetcher } from '@/lib/fetcher'
 import { linkWhatsApp } from '@/lib/whatsapp'
-import { RITMO_MAX, RITMO_MIN } from '@/lib/lotesIA'
 import type { ContatoDeHoje, LoteResumo, Painel } from '@/lib/lotesServidor'
 import ModalLote from './ModalLote'
+import ModalAutorizar from './ModalAutorizar'
+import CartaoWhatsapp from './CartaoWhatsapp'
+import AguardandoEquipe from './AguardandoEquipe'
 import { Contador } from './CarregandoIA'
 
 type PainelLiberado = Extract<Painel, { liberado: true }>
@@ -43,7 +45,16 @@ export default function PainelIA({
   aoAtualizarAnalise: () => void
 }) {
   const [loteAberto, setLoteAberto] = useState<string | null>(null)
+  const [loteAutorizar, setLoteAutorizar] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
+  const conectado = painel.whatsapp.status === 'CONECTADO'
+  const recarregar = useCallback(async () => {
+    try {
+      aoMudar(await fetcher('/api/ia/painel'))
+    } catch {
+      // Tenta de novo na próxima leitura do QR.
+    }
+  }, [aoMudar])
 
   async function acao(fn: () => Promise<Painel | void>) {
     setErro(null)
@@ -67,6 +78,13 @@ export default function PainelIA({
           <AlertCircle size={16} className="shrink-0 mt-0.5" /> {erro}
         </div>
       )}
+
+      <CartaoWhatsapp whatsapp={painel.whatsapp} aoMudar={aoMudar} aoConectar={recarregar} />
+
+      <AguardandoEquipe
+        itens={painel.aguardandoEquipe}
+        aoResolver={async (id) => aoMudar(await enviar(`/api/ia/conversas/${id}`, 'PATCH', { acao: 'resolvido' }))}
+      />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Análise */}
@@ -137,7 +155,7 @@ export default function PainelIA({
 
       {/* Em andamento */}
       {painel.andamento.map((l) => (
-        <LoteEmAndamento key={l.id} lote={l} acao={acao} />
+        <LoteEmAndamento key={l.id} lote={l} acao={acao} conectado={conectado} aoAutorizar={() => setLoteAutorizar(l.id)} />
       ))}
 
       {propostos.length === 0 && painel.andamento.length === 0 && (
@@ -156,6 +174,18 @@ export default function PainelIA({
             const novo = await enviar(`/api/ia/lotes/${loteAberto}`, 'PATCH', { acao: 'aprovar', ritmoDiario: ritmo, remover })
             aoMudar(novo)
             setLoteAberto(null)
+            if (conectado) setLoteAutorizar(loteAberto)
+          }}
+        />
+      )}
+
+      {loteAutorizar && (
+        <ModalAutorizar
+          loteId={loteAutorizar}
+          aoFechar={() => setLoteAutorizar(null)}
+          aoConfirmar={async (inicio) => {
+            aoMudar(await enviar(`/api/ia/lotes/${loteAutorizar}`, 'PATCH', { acao: 'autorizar', iniciaEm: inicio }))
+            setLoteAutorizar(null)
           }}
         />
       )}
@@ -163,7 +193,12 @@ export default function PainelIA({
   )
 }
 
-function LoteEmAndamento({ lote, acao }: { lote: LoteResumo; acao: (fn: () => Promise<Painel | void>) => Promise<void> }) {
+function LoteEmAndamento({ lote, acao, conectado, aoAutorizar }: {
+  lote: LoteResumo
+  acao: (fn: () => Promise<Painel | void>) => Promise<void>
+  conectado: boolean
+  aoAutorizar: () => void
+}) {
   const pct = lote.total ? Math.round((lote.enviados / lote.total) * 100) : 0
   const pausado = lote.status === 'PAUSADO'
   return (
@@ -178,6 +213,11 @@ function LoteEmAndamento({ lote, acao }: { lote: LoteResumo; acao: (fn: () => Pr
         <div className="w-full sm:w-40 h-1.5 rounded-full bg-neutro-100 dark:bg-neutro-800 overflow-hidden order-last sm:order-none">
           <motion.div className="h-full bg-brand-500 rounded-full" initial={false} animate={{ width: `${pct}%` }} />
         </div>
+        {conectado && !pausado && !lote.autorizado && (
+          <button onClick={aoAutorizar} className="btn-marca text-[12px] px-2.5 py-1.5">
+            <ShieldCheck size={13} /> Autorizar envio
+          </button>
+        )}
         <button
           onClick={() => acao(() => enviar(`/api/ia/lotes/${lote.id}`, 'PATCH', { acao: pausado ? 'retomar' : 'pausar' }))}
           className="btn-suave text-[12px] px-2.5 py-1.5">
@@ -190,14 +230,14 @@ function LoteEmAndamento({ lote, acao }: { lote: LoteResumo; acao: (fn: () => Pr
         </p>
       ) : (
         <ul className="divide-y divide-neutro-100 dark:divide-neutro-800">
-          {lote.hoje.map((c) => <Contato key={c.id} contato={c} acao={acao} />)}
+          {lote.hoje.map((c) => <Contato key={c.id} contato={c} acao={acao} conectado={conectado} />)}
         </ul>
       )}
     </section>
   )
 }
 
-function Contato({ contato, acao }: { contato: ContatoDeHoje; acao: (fn: () => Promise<Painel | void>) => Promise<void> }) {
+function Contato({ contato, acao, conectado }: { contato: ContatoDeHoje; acao: (fn: () => Promise<Painel | void>) => Promise<void>; conectado: boolean }) {
   const [mensagem, setMensagem] = useState(contato.mensagem ?? '')
   const [status, setStatus] = useState(contato.status)
   const [gerando, setGerando] = useState(false)
@@ -244,7 +284,9 @@ function Contato({ contato, acao }: { contato: ContatoDeHoje; acao: (fn: () => P
       )}
 
       <div className="flex flex-wrap gap-2 lg:flex-col lg:items-stretch">
-        {status === 'LIBERADO' ? (
+        {conectado && status === 'LIBERADO' ? (
+          <p className="text-[12px] text-neutro-400">Sai sozinho pelo WhatsApp</p>
+        ) : status === 'LIBERADO' ? (
           <a href={link ?? undefined} target="_blank" rel="noreferrer"
             onClick={(e) => { if (!link) { e.preventDefault(); return } marcar('ENVIADO') }}
             aria-disabled={!link}
@@ -253,6 +295,7 @@ function Contato({ contato, acao }: { contato: ContatoDeHoje; acao: (fn: () => P
           </a>
         ) : (
           <>
+            {conectado && contato.enviadaAs && <p className="text-[12px] text-neutro-500">Enviada às {contato.enviadaAs}</p>}
             <button onClick={() => marcar('AGENDOU')} className="btn-primario text-[12px] py-1.5"><CalendarCheck size={13} /> Agendou</button>
             <button onClick={() => marcar('RECUSOU')} className="btn-suave text-[12px] py-1.5"><X size={13} /> Recusou</button>
           </>

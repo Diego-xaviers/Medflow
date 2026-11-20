@@ -515,6 +515,8 @@ export interface ContatoDeHoje {
   prioridade: string | null
   status: string
   dias: number
+  /** "10h32" no horário da clínica; só em contato ENVIADO. */
+  enviadaAs?: string | null
 }
 
 export interface LoteResumo {
@@ -523,6 +525,8 @@ export interface LoteResumo {
   titulo: string
   status: string
   ritmoDiario: number
+  /** Aprovado e com a autorização de envio da clínica. */
+  autorizado: boolean
   total: number
   enviados: number
   agendaram: number
@@ -582,7 +586,7 @@ async function aguardandoEquipe(consultorioId: string) {
 
 /** Tudo que a tela `/ia` precisa, de uma vez. */
 export async function montarPainel(consultorioId: string) {
-  const [lotes, analise, whatsapp, equipe] = await Promise.all([
+  const [lotes, analise, whatsapp, equipe, consultorio] = await Promise.all([
     prisma.loteIA.findMany({
       where: { consultorioId, status: { in: ['PROPOSTO', 'APROVADO', 'PAUSADO'] } },
       orderBy: { criadoEm: 'asc' },
@@ -591,11 +595,13 @@ export async function montarPainel(consultorioId: string) {
         tipo: true,
         status: true,
         ritmoDiario: true,
+        autorizadoEm: true,
         contatos: {
           orderBy: { ordem: 'asc' },
           select: {
             id: true,
             status: true,
+            enviadoEm: true,
             mensagem: true,
             prioridade: true,
             dias: true,
@@ -611,7 +617,11 @@ export async function montarPainel(consultorioId: string) {
     }),
     dadosWhatsapp(consultorioId),
     aguardandoEquipe(consultorioId),
+    prisma.consultorio.findUniqueOrThrow({ where: { id: consultorioId }, select: { fusoHorario: true } }),
   ])
+  const horaCurta = (d: Date) =>
+    new Intl.DateTimeFormat('pt-BR', { timeZone: consultorio.fusoHorario, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .format(d).replace(':', 'h')
 
   const resumo = (l: (typeof lotes)[number]): LoteResumo => ({
     id: l.id,
@@ -619,6 +629,7 @@ export async function montarPainel(consultorioId: string) {
     titulo: TITULO_LOTE[l.tipo],
     status: l.status,
     ritmoDiario: l.ritmoDiario,
+    autorizado: !!l.autorizadoEm,
     total: l.contatos.length,
     enviados: l.contatos.filter((c) => ['ENVIADO', 'AGENDOU', 'RECUSOU'].includes(c.status)).length,
     agendaram: l.contatos.filter((c) => c.status === 'AGENDOU').length,
@@ -633,6 +644,7 @@ export async function montarPainel(consultorioId: string) {
         prioridade: c.prioridade,
         status: c.status,
         dias: c.dias,
+        enviadaAs: c.status === 'ENVIADO' && c.enviadoEm ? horaCurta(c.enviadoEm) : null,
       })),
   })
 
