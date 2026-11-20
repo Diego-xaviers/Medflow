@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { Loader2, MessageCircle } from 'lucide-react'
 import { fetcher, enviar } from '@/lib/fetcher'
@@ -26,17 +26,23 @@ export default function CartaoWhatsapp({
   aoConectar: () => void
 }) {
   const desconectado = whatsapp.status === 'DESCONECTADO'
-  const { data } = useSWR<Resposta>(desconectado ? '/api/ia/whatsapp' : null, fetcher, {
+  const { data, error: erroQr } = useSWR<Resposta>(desconectado ? '/api/ia/whatsapp' : null, fetcher, {
     refreshInterval: 20000,
     revalidateOnFocus: false,
   })
   const [autorizando, setAutorizando] = useState(false)
   const [ocupado, setOcupado] = useState(false)
+  const [confirmando, setConfirmando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const avisou = useRef(false)
 
-  // A rota já viu a leitura do QR; o painel ainda diz "desconectado".
+  // A rota já viu a leitura do QR; o painel ainda diz "desconectado". Avisa uma vez por transição.
   useEffect(() => {
-    if (desconectado && data?.status === 'CONECTADO') aoConectar()
+    if (!desconectado) avisou.current = false
+    else if (data?.status === 'CONECTADO' && !avisou.current) {
+      avisou.current = true
+      aoConectar()
+    }
   }, [desconectado, data?.status, aoConectar])
 
   if (whatsapp.status === 'SEM_INSTANCIA') return null
@@ -74,8 +80,8 @@ export default function CartaoWhatsapp({
             {data?.qrCode ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={data.qrCode} alt="Código QR para conectar o WhatsApp" className="w-full h-full object-contain" />
-            ) : data?.erroConexao ? (
-              <p className="text-[12px] text-amber-700">Não foi possível falar com o WhatsApp agora. Tente de novo em instantes.</p>
+            ) : data?.erroConexao || erroQr ? (
+              <p className="text-[12px] text-amber-700 dark:text-amber-400">Não foi possível falar com o WhatsApp agora. Tente de novo em instantes.</p>
             ) : (
               <p className="text-[12px] text-neutro-500 flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" /> Gerando o código…</p>
             )}
@@ -100,9 +106,17 @@ export default function CartaoWhatsapp({
             <p className="text-[13px] font-semibold flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-brand-500" /> Conectado{whatsapp.numero ? ` · ${whatsapp.numero}` : ''}
             </p>
-            <button onClick={() => patch({ acao: 'desconectar' })} disabled={ocupado} className="btn-suave text-[12px] px-2.5 py-1.5">
-              Desconectar
-            </button>
+            {confirmando ? (
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmando(false)} className="btn-suave text-[12px] px-2.5 py-1.5">Cancelar</button>
+                <button onClick={() => { setConfirmando(false); patch({ acao: 'desconectar' }) }} disabled={ocupado}
+                  className="btn-primario text-[12px] px-2.5 py-1.5">Confirmar desconexão</button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmando(true)} disabled={ocupado} className="btn-suave text-[12px] px-2.5 py-1.5">
+                Desconectar
+              </button>
+            )}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[13px]">Pós-venda: <span className="text-neutro-500">{whatsapp.posVendaLigada ? 'ligado' : 'desligado'}</span></p>
@@ -120,7 +134,7 @@ export default function CartaoWhatsapp({
         </div>
       )}
 
-      {erro && <p className="text-[12px] text-amber-600 mt-3">{erro}</p>}
+      {erro && <p className="text-[12px] text-amber-600 dark:text-amber-400 mt-3">{erro}</p>}
 
       {autorizando && (
         <ModalAutorizar

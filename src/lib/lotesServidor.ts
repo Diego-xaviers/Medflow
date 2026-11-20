@@ -517,6 +517,8 @@ export interface ContatoDeHoje {
   dias: number
   /** "10h32" no horário da clínica; só em contato ENVIADO. */
   enviadaAs?: string | null
+  /** O lote deste contato já está autorizado: com WhatsApp conectado, o envio sai sozinho. */
+  loteAutorizado: boolean
 }
 
 export interface LoteResumo {
@@ -586,7 +588,7 @@ async function aguardandoEquipe(consultorioId: string) {
 
 /** Tudo que a tela `/ia` precisa, de uma vez. */
 export async function montarPainel(consultorioId: string) {
-  const [lotes, analise, whatsapp, equipe, consultorio] = await Promise.all([
+  const [lotes, analise, whatsapp, equipe, consultorio, hoje] = await Promise.all([
     prisma.loteIA.findMany({
       where: { consultorioId, status: { in: ['PROPOSTO', 'APROVADO', 'PAUSADO'] } },
       orderBy: { criadoEm: 'asc' },
@@ -618,6 +620,7 @@ export async function montarPainel(consultorioId: string) {
     dadosWhatsapp(consultorioId),
     aguardandoEquipe(consultorioId),
     prisma.consultorio.findUniqueOrThrow({ where: { id: consultorioId }, select: { fusoHorario: true } }),
+    hojeDaClinica(consultorioId),
   ])
   const horaCurta = (d: Date) =>
     new Intl.DateTimeFormat('pt-BR', { timeZone: consultorio.fusoHorario, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
@@ -645,6 +648,7 @@ export async function montarPainel(consultorioId: string) {
         status: c.status,
         dias: c.dias,
         enviadaAs: c.status === 'ENVIADO' && c.enviadoEm ? horaCurta(c.enviadoEm) : null,
+        loteAutorizado: !!l.autorizadoEm,
       })),
   })
 
@@ -653,6 +657,8 @@ export async function montarPainel(consultorioId: string) {
     liberado: true as const,
     whatsapp,
     aguardandoEquipe: equipe,
+    /** Hoje no dia da clínica ("AAAA-MM-DD"): início padrão e mínimo da autorização. */
+    hoje,
     analise: analise
       ? { ...(analise.conteudo as unknown as AnaliseConsultorio), criadoEm: analise.criadoEm.toISOString() }
       : null,

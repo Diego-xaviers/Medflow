@@ -13,6 +13,7 @@ const horasAtras = (h: number) => new Date(hoje.getTime() - h * 3_600_000).toISO
 export const PAINEL_IA_EXEMPLO: Painel = {
   liberado: true,
   whatsapp: { status: 'CONECTADO', numero: '(92) 99999-0000', posVendaLigada: true, enviadasHoje: 12, limite: 20 },
+  hoje: hoje.toISOString().slice(0, 10),
   aguardandoEquipe: [
     {
       id: 'ex-conversa', primeiroNome: 'Rita', motivo: 'Quer marcar um horário', prioridade: 'alta',
@@ -57,17 +58,17 @@ export const PAINEL_IA_EXEMPLO: Painel = {
         {
           id: 'ex-c1', pacienteId: 'ex-p1', pacienteNome: 'Helena Barros', telefone: '(92) 98111-2201',
           mensagem: 'Oi, Helena! Já faz mais de um ano do seu último exame de vista aqui na Ótica Visão Clara. Quer que eu reserve um horário para você esta semana?',
-          prioridade: 'alta', status: 'LIBERADO', dias: -410,
+          prioridade: 'alta', status: 'LIBERADO', dias: -410, loteAutorizado: true,
         },
         {
           id: 'ex-c2', pacienteId: 'ex-p2', pacienteNome: 'Caio Nogueira', telefone: '(92) 98222-3312',
           mensagem: 'Oi, Caio! Seu exame de vista completou um ano. Que tal revisar o grau antes de trocar os óculos? Posso ver um horário para você?',
-          prioridade: 'media', status: 'ENVIADO', dias: -395, enviadaAs: '10h32',
+          prioridade: 'media', status: 'ENVIADO', dias: -395, loteAutorizado: true, enviadaAs: '10h32',
         },
         {
           id: 'ex-c3', pacienteId: 'ex-p3', pacienteNome: 'Marta Vilela', telefone: '(92) 98333-4423',
           mensagem: 'Oi, Marta! Já passou um ano do seu exame aqui na Ótica Visão Clara. Quer aproveitar para revisar a visão? Posso reservar um horário para você?',
-          prioridade: 'media', status: 'LIBERADO', dias: -380,
+          prioridade: 'media', status: 'LIBERADO', dias: -380, loteAutorizado: true,
         },
       ],
     },

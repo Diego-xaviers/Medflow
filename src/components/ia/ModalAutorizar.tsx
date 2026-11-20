@@ -5,11 +5,6 @@ import useSWR from 'swr'
 import { Loader2, ShieldCheck } from 'lucide-react'
 import { fetcher } from '@/lib/fetcher'
 
-function hojeISO() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 /**
  * A confirmação que vale como ordem de envio. Com `loteId`, mostra a data de
  * início e o texto que o servidor vai gravar; sem ele, mostra o `texto` dado
@@ -17,16 +12,19 @@ function hojeISO() {
  */
 export default function ModalAutorizar({
   loteId,
+  hoje = '',
   texto,
   aoFechar,
   aoConfirmar,
 }: {
   loteId?: string
+  /** Hoje no dia da clínica ("AAAA-MM-DD"), vindo do painel. */
+  hoje?: string
   texto?: string
   aoFechar: () => void
   aoConfirmar: (inicio: string) => Promise<void>
 }) {
-  const [inicio, setInicio] = useState(hojeISO)
+  const [inicio, setInicio] = useState(hoje)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const previa = useSWR<{ texto: string }>(
@@ -61,16 +59,16 @@ export default function ModalAutorizar({
         {loteId && (
           <div className="flex items-center justify-between gap-3">
             <label htmlFor="inicio-envio" className="text-[13px] font-medium">Começar em</label>
-            <input id="inicio-envio" type="date" min={hojeISO()} value={inicio} onChange={(e) => setInicio(e.target.value)}
+            <input id="inicio-envio" type="date" min={hoje} value={inicio} onChange={(e) => setInicio(e.target.value)}
               className="text-[13px] rounded-lg border border-neutro-200 dark:border-neutro-700 bg-white dark:bg-neutro-800 px-2.5 py-1.5" />
           </div>
         )}
 
         <div className="text-[13.5px] leading-relaxed whitespace-pre-line text-neutro-700 dark:text-neutro-300 min-h-[60px]">
-          {exibido ?? (previa.error ? <span className="text-amber-600">{previa.error.message}</span> : 'Carregando…')}
+          {exibido ?? (previa.error ? <span className="text-amber-600 dark:text-amber-400">{previa.error.message}</span> : 'Carregando…')}
         </div>
 
-        {erro && <p className="text-[12px] text-amber-600">{erro}</p>}
+        {erro && <p className="text-[12px] text-amber-600 dark:text-amber-400">{erro}</p>}
         <div className="flex gap-2 justify-end">
           <button onClick={aoFechar} className="btn-suave">Não, voltar</button>
           <button onClick={confirmar} disabled={salvando || !exibido} className="btn-marca">

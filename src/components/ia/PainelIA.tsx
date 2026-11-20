@@ -12,18 +12,11 @@ import ModalLote from './ModalLote'
 import ModalAutorizar from './ModalAutorizar'
 import CartaoWhatsapp from './CartaoWhatsapp'
 import AguardandoEquipe from './AguardandoEquipe'
+import { haQuanto } from './haQuanto'
 import { Contador } from './CarregandoIA'
 
 type PainelLiberado = Extract<Painel, { liberado: true }>
 
-function haQuanto(iso: string) {
-  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60_000)
-  if (min < 1) return 'agora'
-  if (min < 60) return `há ${min} min`
-  const h = Math.round(min / 60)
-  if (h < 24) return `há ${h} h`
-  return `há ${Math.round(h / 24)} dia(s)`
-}
 
 const COR_PRIORIDADE: Record<string, string> = {
   alta: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
@@ -83,7 +76,7 @@ export default function PainelIA({
 
       <AguardandoEquipe
         itens={painel.aguardandoEquipe}
-        aoResolver={async (id) => aoMudar(await enviar(`/api/ia/conversas/${id}`, 'PATCH', { acao: 'resolvido' }))}
+        aoResolver={(id) => acao(() => enviar(`/api/ia/conversas/${id}`, 'PATCH', { acao: 'resolvido' }))}
       />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -182,6 +175,7 @@ export default function PainelIA({
       {loteAutorizar && (
         <ModalAutorizar
           loteId={loteAutorizar}
+          hoje={painel.hoje}
           aoFechar={() => setLoteAutorizar(null)}
           aoConfirmar={async (inicio) => {
             aoMudar(await enviar(`/api/ia/lotes/${loteAutorizar}`, 'PATCH', { acao: 'autorizar', iniciaEm: inicio }))
@@ -284,7 +278,8 @@ function Contato({ contato, acao, conectado }: { contato: ContatoDeHoje; acao: (
       )}
 
       <div className="flex flex-wrap gap-2 lg:flex-col lg:items-stretch">
-        {conectado && status === 'LIBERADO' ? (
+        {/* Lote autorizado sai sozinho; liberado antes da conexão segue com o wa.me da Etapa 1. */}
+        {conectado && contato.loteAutorizado && status === 'LIBERADO' ? (
           <p className="text-[12px] text-neutro-400">Sai sozinho pelo WhatsApp</p>
         ) : status === 'LIBERADO' ? (
           <a href={link ?? undefined} target="_blank" rel="noreferrer"
