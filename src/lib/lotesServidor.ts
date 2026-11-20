@@ -14,6 +14,7 @@ import { partesNoFuso } from './agenda'
 import { primeiroNome, sugerirContatos, TETO_POR_CHAMADA, type CandidatoContato } from './ia'
 import { analisarConsultorio, dadosParaAnalise, podeRecalcular, type AnaliseConsultorio } from './iaAnalise'
 import { calcularRelatorio } from './relatorios'
+import { espacar, janelaDeEnvio } from './whatsappRegras'
 import {
   classificar,
   diasDoContato,
@@ -21,6 +22,7 @@ import {
   motivoDoLote,
   podeLiberar,
   ORDEM_LOTES,
+  RITMO_MAX,
   TITULO_LOTE,
   type FichaPaciente,
   type TipoLote,
@@ -150,23 +152,17 @@ async function montarFichas(db: Db, consultorioId: string, agora: Date): Promise
  * Refaz os lotes PROPOSTOS do consultório. Um lote por tipo, com id estável:
  * a tela pode estar com o lote aberto enquanto o painel recarrega.
  *
- * Lotes aprovados ou pausados nunca são refeitos. Com o modo automático
- * ligado, os pacientes novos entram no lote aberto do mesmo tipo (ou num lote
- * que já nasce aprovado) — um lote andando por tipo, para o ritmo do dia
- * continuar sendo o que a clínica escolheu.
+ * Lotes aprovados ou pausados nunca são refeitos. A IA nunca aprova lote nem
+ * engorda lote andando: quem já está num lote aberto fica fora (`emLoteAberto`).
  */
 export async function proporLotes(consultorioId: string, agora = new Date()): Promise<void> {
   await comTrava(consultorioId, async (tx) => {
-    const [fichas, consultorio, lotes] = await Promise.all([
+    const [fichas, lotes] = await Promise.all([
       montarFichas(tx, consultorioId, agora),
-      tx.consultorio.findUniqueOrThrow({
-        where: { id: consultorioId },
-        select: { iaModoAutomatico: true, iaRitmoAutomatico: true },
-      }),
       tx.loteIA.findMany({
-        where: { consultorioId, status: { in: ['PROPOSTO', 'APROVADO'] } },
+        where: { consultorioId, status: 'PROPOSTO' },
         orderBy: { criadoEm: 'asc' },
-        select: { id: true, tipo: true, status: true },
+        select: { id: true, tipo: true },
       }),
     ])
 
@@ -181,8 +177,7 @@ export async function proporLotes(consultorioId: string, agora = new Date()): Pr
 
     for (const tipo of ORDEM_LOTES) {
       const membros = (porTipo.get(tipo) ?? []).sort((a, b) => a.dias - b.dias)
-      const proposto = lotes.find((l) => l.tipo === tipo && l.status === 'PROPOSTO')
-      const andando = lotes.find((l) => l.tipo === tipo && l.status === 'APROVADO')
+      const proposto = lotes.find((l) => l.tipo === tipo)
 
       if (proposto) await tx.contatoLote.deleteMany({ where: { loteId: proposto.id, consultorioId } })
 
@@ -191,29 +186,14 @@ export async function proporLotes(consultorioId: string, agora = new Date()): Pr
         continue
       }
 
-      let loteId: string
-      let ordemInicial = 0
-      if (consultorio.iaModoAutomatico && andando) {
-        if (proposto) await tx.loteIA.delete({ where: { id: proposto.id } })
-        loteId = andando.id
-        const ultimo = await tx.contatoLote.aggregate({ where: { loteId }, _max: { ordem: true } })
-        ordemInicial = (ultimo._max.ordem ?? -1) + 1
-      } else {
-        loteId = proposto?.id ?? (await tx.loteIA.create({ data: { consultorioId, tipo }, select: { id: true } })).id
-        if (consultorio.iaModoAutomatico) {
-          await tx.loteIA.update({
-            where: { id: loteId },
-            data: { status: 'APROVADO', ritmoDiario: consultorio.iaRitmoAutomatico, aprovadoEm: agora },
-          })
-        }
-      }
+      const loteId = proposto?.id ?? (await tx.loteIA.create({ data: { consultorioId, tipo }, select: { id: true } })).id
 
       await tx.contatoLote.createMany({
         data: membros.map((m, i) => ({
           loteId,
           consultorioId,
           pacienteId: m.ficha.id,
-          ordem: ordemInicial + i,
+          ordem: i,
           dias: m.dias,
         })),
         skipDuplicates: true,
@@ -302,9 +282,13 @@ export async function escreverPendentes(consultorioId: string): Promise<{ escrit
 }
 
 /**
- * Libera os contatos de hoje em cada lote aprovado. Abrir o painel várias
- * vezes no mesmo dia não passa do ritmo (`liberarDoDia`). Não chama a IA:
- * as mensagens vêm depois, em partes (`escreverPendentes`).
+ * Libera os contatos de hoje em cada lote aprovado, autorizado e já iniciado.
+ * Rodar várias vezes no mesmo dia não passa do ritmo (`liberarDoDia`). Não
+ * chama a IA: as mensagens vêm depois, em partes (`escreverPendentes`).
+ *
+ * Cada liberado ganha um `enviarEm` espalhado na janela de hoje. Fim de semana
+ * e depois das 18h não liberam: senão os liberados do sábado e do domingo se
+ * somariam aos de segunda e a fila cresceria mais rápido que a cota diária.
  *
  * Antes de liberar, confere quem mudou desde a aprovação: quem marcou
  * consulta vira "agendou"; inativado, sem telefone ou que pediu para não
@@ -315,7 +299,7 @@ export async function liberarHoje(consultorioId: string, agora = new Date()): Pr
     const [consultorio, lotes, futuras] = await Promise.all([
       tx.consultorio.findUniqueOrThrow({ where: { id: consultorioId }, select: { fusoHorario: true } }),
       tx.loteIA.findMany({
-        where: { consultorioId, status: 'APROVADO' },
+        where: { consultorioId, status: 'APROVADO', autorizadoEm: { not: null }, iniciaEm: { lte: agora } },
         select: {
           id: true,
           ritmoDiario: true,
@@ -334,6 +318,8 @@ export async function liberarHoje(consultorioId: string, agora = new Date()): Pr
       }),
     ])
     const inicio = inicioDoDiaNoFuso(consultorio.fusoHorario, agora)
+    const janela = janelaDeEnvio(agora, consultorio.fusoHorario)
+    const liberaHoje = janela.de.getTime() - inicio.getTime() < 86_400_000
     const comConsulta = new Set(futuras.map((f) => f.pacienteId))
 
     for (const lote of lotes) {
@@ -355,11 +341,13 @@ export async function liberarHoje(consultorioId: string, agora = new Date()): Pr
         }
       }
 
-      const ids = liberarDoDia(lote.contatos, lote.ritmoDiario, inicio)
-      if (ids.length) {
+      // Lotes antigos podem ter ritmo até 50 (o máximo de antes).
+      const ids = liberaHoje ? liberarDoDia(lote.contatos, Math.min(lote.ritmoDiario, RITMO_MAX), inicio) : []
+      const horarios = espacar(ids.length, janela.de, janela.ate)
+      for (const [i, id] of ids.entries()) {
         await tx.contatoLote.updateMany({
-          where: { id: { in: ids }, consultorioId, status: 'AGUARDANDO' },
-          data: { status: 'LIBERADO', liberadoEm: agora },
+          where: { id, consultorioId, status: 'AGUARDANDO' },
+          data: { status: 'LIBERADO', liberadoEm: agora, enviarEm: horarios[i] },
         })
       }
 

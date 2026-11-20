@@ -4,7 +4,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { cotaDoDia, dentroDaJanela, entraNoPosVenda, espacar, proximoPasso, type ItemFila } from './whatsappRegras'
+import { cotaDoDia, dentroDaJanela, entraNoPosVenda, espacar, janelaDeEnvio, proximoPasso, type ItemFila } from './whatsappRegras'
 
 const fuso = 'America/Sao_Paulo'
 const agora = new Date('2026-11-19T15:00:00Z')
@@ -32,6 +32,22 @@ assert.equal(dentroDaJanela(new Date('2026-11-23T11:00:00Z'), fuso), true) // se
 assert.equal(dentroDaJanela(new Date('2026-11-23T10:59:00Z'), fuso), false) // seg 7h59
 assert.equal(dentroDaJanela(new Date('2026-11-23T21:00:00Z'), fuso), false) // seg 18h
 assert.equal(dentroDaJanela(new Date('2026-11-21T14:00:00Z'), fuso), false) // sáb
+// Cuiabá é UTC-4: 11h30Z ainda é 7h30 lá (em SP já seria 8h30)
+assert.equal(dentroDaJanela(new Date('2026-11-23T11:30:00Z'), 'America/Cuiaba'), false)
+assert.equal(dentroDaJanela(new Date('2026-11-23T12:00:00Z'), 'America/Cuiaba'), true)
+// seg 02h UTC = domingo 23h em SP
+assert.equal(dentroDaJanela(new Date('2026-11-23T02:00:00Z'), fuso), false)
+
+// janela de envio do dia (liberarHoje): fora dela cai no próximo dia útil
+const janela = (iso: string) => {
+  const j = janelaDeEnvio(new Date(iso), fuso)
+  return [j.de.toISOString(), j.ate.toISOString()]
+}
+assert.deepEqual(janela('2026-11-23T13:00:00.000Z'), ['2026-11-23T13:00:00.000Z', '2026-11-23T21:00:00.000Z']) // seg 10h
+assert.deepEqual(janela('2026-11-23T22:00:00.000Z'), ['2026-11-24T11:00:00.000Z', '2026-11-24T21:00:00.000Z']) // seg 19h → ter
+assert.deepEqual(janela('2026-11-27T22:00:00.000Z'), ['2026-11-30T11:00:00.000Z', '2026-11-30T21:00:00.000Z']) // sex 19h → seg
+assert.deepEqual(janela('2026-11-23T09:00:00.000Z'), ['2026-11-23T11:00:00.000Z', '2026-11-23T21:00:00.000Z']) // seg 6h → 8h
+assert.deepEqual(janela('2026-11-21T14:00:00.000Z'), ['2026-11-23T11:00:00.000Z', '2026-11-23T21:00:00.000Z']) // sáb → seg
 
 const h = espacar(20, new Date('2026-11-23T11:00:00Z'), new Date('2026-11-23T21:00:00Z'), () => 0.5)
 assert.equal(h.length, 20)

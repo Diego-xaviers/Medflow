@@ -6,6 +6,7 @@
  * sai mensagem e precisam ser testáveis (`whatsappRegras.check.ts`).
  */
 
+import { instanteNoFuso, partesNoFuso } from './agenda'
 import { telefoneValido } from './lotesIA'
 
 const HORA_MS = 3_600_000
@@ -26,7 +27,7 @@ function horaEDiaNoFuso(d: Date, fuso: string): { hora: number; diaSemana: numbe
 }
 
 /** Dia do calendário da clínica, como número de dias (só serve para diferença). */
-function diaNoFuso(d: Date, fuso: string): number {
+export function diaNoFuso(d: Date, fuso: string): number {
   const [a, m, dia] = new Intl.DateTimeFormat('en-CA', {
     timeZone: fuso,
     year: 'numeric',
@@ -43,6 +44,25 @@ function diaNoFuso(d: Date, fuso: string): number {
 export function dentroDaJanela(agora: Date, fuso: string): boolean {
   const { hora, diaSemana } = horaEDiaNoFuso(agora, fuso)
   return diaSemana >= 1 && diaSemana <= 5 && hora >= 8 && hora < 18
+}
+
+/**
+ * Onde cabem os envios liberados agora: do instante atual (ou das 8h) até as
+ * 18h de hoje; depois das 18h ou no fim de semana, o próximo dia útil inteiro.
+ */
+export function janelaDeEnvio(agora: Date, fuso: string): { de: Date; ate: Date } {
+  const p = partesNoFuso(fuso, agora)
+  for (let soma = 0; ; soma++) {
+    // Date.UTC normaliza o dia 32 em dia 1 do mês seguinte; só serve para o calendário.
+    const d = new Date(Date.UTC(p.ano, p.mes - 1, p.dia + soma))
+    const semana = d.getUTCDay()
+    if (semana === 0 || semana === 6) continue
+    const [ano, mes, dia] = [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()]
+    const de = instanteNoFuso(fuso, ano, mes, dia, 8)
+    const ate = instanteNoFuso(fuso, ano, mes, dia, 18)
+    if (agora >= ate) continue
+    return { de: agora > de ? agora : de, ate }
+  }
 }
 
 /**
