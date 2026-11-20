@@ -21,7 +21,11 @@ export async function aoVirarUltraPago(consultorioId: string): Promise<void> {
   })
 }
 
-/** Saiu do Ultra: nada mais sai. Não apaga id/token (a instância é cancelada à mão). */
+/**
+ * Saiu do Ultra: nada mais sai. Não apaga id/token (a instância é cancelada à
+ * mão), mas volta a SEM_INSTANCIA: assim o cron não tenta credenciais mortas e,
+ * se voltar ao Ultra, `aoVirarUltraPago` pede a instância de novo.
+ */
 export async function aoSairDoUltra(consultorioId: string): Promise<void> {
   await prisma.loteIA.updateMany({ where: { consultorioId, status: 'APROVADO' }, data: { status: 'PAUSADO' } })
   await prisma.conversaIA.updateMany({
@@ -30,7 +34,7 @@ export async function aoSairDoUltra(consultorioId: string): Promise<void> {
   })
   const c = await prisma.consultorio.update({
     where: { id: consultorioId },
-    data: { iaPosVendaLigada: false },
+    data: { iaPosVendaLigada: false, whatsappStatus: 'SEM_INSTANCIA' },
     select: { nome: true },
   })
   await notificar({

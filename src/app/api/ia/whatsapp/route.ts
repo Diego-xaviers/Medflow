@@ -6,7 +6,11 @@ import { registrarAuditoria } from '@/lib/auditoria'
 import { dadosWhatsapp, montarPainel } from '@/lib/lotesServidor'
 import { instanciaDo } from '@/lib/conversasServidor'
 import { buscarQrCode, desconectar, estaConectado } from '@/lib/whatsappProvedor'
+import { TEXTO_POS_VENDA } from '@/lib/whatsappRegras'
 import { exigirAssistente } from '../acesso'
+
+/** Depois de a clínica pedir para desconectar, o GET não volta a marcar conectado por este tempo. */
+const RESPEITO_DESCONEXAO_MS = 10 * 60_000
 
 /** Situação do WhatsApp. O QR só vem com a clínica desconectada; token e id da instância nunca saem. */
 export async function GET() {
@@ -24,7 +28,21 @@ export async function GET() {
       try {
         // Não depende só do webhook de conexão: pergunta antes de mostrar o QR.
         const { conectado, numero } = await estaConectado(instancia)
-        if (conectado) {
+        // O provedor pode ter falhado ao desconectar: "conectado" logo depois do
+        // pedido da clínica não religa o envio. A leitura do QR religa pelo webhook.
+        const pediuAgora = conectado
+          ? await prisma.logAuditoria.findFirst({
+              where: {
+                consultorioId,
+                acao: 'WHATSAPP_DESCONECTADO',
+                criadoEm: { gte: new Date(Date.now() - RESPEITO_DESCONEXAO_MS) },
+              },
+              select: { id: true },
+            })
+          : null
+        if (pediuAgora) {
+          erroConexao = true
+        } else if (conectado) {
           await prisma.consultorio.update({
             where: { id: consultorioId },
             data: { whatsappStatus: 'CONECTADO', ...(numero ? { whatsappNumero: numero } : {}) },
@@ -78,6 +96,8 @@ export async function PATCH(req: NextRequest) {
         acao: dados.ligar ? 'AUTORIZAR_POS_VENDA' : 'DESLIGAR_POS_VENDA',
         entidade: 'Consultorio',
         entidadeId: consultorioId,
+        // A prova do que a clínica aceitou: o mesmo texto que a tela mostrou.
+        detalhes: dados.ligar ? TEXTO_POS_VENDA : null,
         usuarioId,
         consultorioId,
       })

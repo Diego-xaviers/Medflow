@@ -99,6 +99,33 @@ export function cotaDoDia(fila: ItemFila[], jaEnviadosHoje: number, limite: numb
     .map((i) => i.id)
 }
 
+/**
+ * Quantos envios cabem nesta rodada: as vagas do dia divididas pelas rodadas
+ * de hora em hora que ainda restam até as 18h (contando esta). Sem isso, o
+ * atrasado sai todo de uma vez às 8h, em rajada, no número da clínica.
+ */
+export function enviosDaRodada(vagas: number, agora: Date, fuso: string): number {
+  if (vagas <= 0) return 0
+  const rodadas = Math.max(1, 18 - horaEDiaNoFuso(agora, fuso).hora)
+  return Math.ceil(vagas / rodadas)
+}
+
+/**
+ * Conversa aberta de recuperação que chegou a hora do lembrete: lote pausado
+ * segura; lote descartado (ou contato que sumiu) encerra; aprovado ou já
+ * concluído (o lote conclui logo depois da última abertura) lembra.
+ */
+export function lembreteDaRecuperacao(statusDoLote: string | null): 'LEMBRAR' | 'SEGURAR' | 'ENCERRAR' {
+  if (statusDoLote === 'PAUSADO') return 'SEGURAR'
+  if (statusDoLote === null || statusDoLote === 'DESCARTADO') return 'ENCERRAR'
+  return 'LEMBRAR'
+}
+
+/** Pós-venda que não saiu até 14 dias depois da consulta (dias da clínica) não sai mais. */
+export function posVendaVencido(dataHora: Date, agora: Date, fuso: string): boolean {
+  return diaNoFuso(agora, fuso) - diaNoFuso(dataHora, fuso) > 14
+}
+
 export type PassoConversa = 'NADA' | 'LEMBRETE' | 'ENCERRAR'
 
 /** Conversa aberta sem resposta: lembra 3 dias depois, encerra 3 dias depois do lembrete. */
@@ -206,12 +233,16 @@ export function statusAposSalvar(atual: string): string {
 }
 
 /** "5511987654321" → "(11) 98765-4321". Formato desconhecido: os próprios dígitos. */
-function numeroLegivel(numero: string): string {
+export function numeroLegivel(numero: string): string {
   const d = numero.replace(/\D/g, '')
   const local = d.length > 11 && d.startsWith('55') ? d.slice(2) : d
   const m = local.match(/^(\d{2})(\d{4,5})(\d{4})$/)
   return m ? `(${m[1]}) ${m[2]}-${m[3]}` : d
 }
+
+/** O texto que a clínica aceita ao ligar o pós-venda; a auditoria grava este mesmo texto. */
+export const TEXTO_POS_VENDA =
+  'Você autoriza a IA a enviar uma mensagem de acompanhamento 7 dias após cada consulta com receita?'
 
 /**
  * O texto que a clínica aceita ao autorizar um lote: é a prova de que ela

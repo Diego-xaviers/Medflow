@@ -362,10 +362,12 @@ export async function liberarHoje(consultorioId: string, agora = new Date()): Pr
     const [consultorio, lotes, futuras] = await Promise.all([
       tx.consultorio.findUniqueOrThrow({
         where: { id: consultorioId },
-        select: { fusoHorario: true, whatsappStatus: true },
+        select: { fusoHorario: true, whatsappStatus: true, limiteDiarioEnvios: true },
       }),
       tx.loteIA.findMany({
         where: { consultorioId, status: 'APROVADO' },
+        // Quem autorizou antes passa na frente quando a cota do dia não dá para todos.
+        orderBy: [{ autorizadoEm: { sort: 'asc', nulls: 'last' } }, { criadoEm: 'asc' }],
         select: {
           id: true,
           ritmoDiario: true,
@@ -391,6 +393,16 @@ export async function liberarHoje(consultorioId: string, agora = new Date()): Pr
     const janelaEHoje = janela.de.getTime() - inicio.getTime() < 86_400_000
     const comConsulta = new Set(futuras.map((f) => f.pacienteId))
 
+    // Conectado, todos os lotes somados não liberam mais que o limite diário:
+    // conta o que já saiu da fila hoje e o liberado de antes que ainda espera.
+    // Senão cada lote soltava o seu ritmo e a fila crescia mais que a cota.
+    const todos = lotes.flatMap((l) => l.contatos)
+    let vagasDoDia = Math.max(
+      0,
+      consultorio.limiteDiarioEnvios -
+        todos.filter((c) => (c.liberadoEm && c.liberadoEm >= inicio) || c.status === 'LIBERADO').length
+    )
+
     for (const lote of lotes) {
       const liberaHoje = !automatico || (!!lote.autorizadoEm && !!lote.iniciaEm && lote.iniciaEm <= agora && janelaEHoje)
       const fora = { AGENDOU: [] as string[], NAO_CONTATAR: [] as string[] }
@@ -412,7 +424,11 @@ export async function liberarHoje(consultorioId: string, agora = new Date()): Pr
       }
 
       // Lotes antigos podem ter ritmo até 50 (o máximo de antes).
-      const ids = liberaHoje ? liberarDoDia(lote.contatos, Math.min(lote.ritmoDiario, RITMO_MAX), inicio) : []
+      let ids = liberaHoje ? liberarDoDia(lote.contatos, Math.min(lote.ritmoDiario, RITMO_MAX), inicio) : []
+      if (automatico) {
+        ids = ids.slice(0, vagasDoDia)
+        vagasDoDia -= ids.length
+      }
       const horarios = espacar(ids.length, janela.de, janela.ate)
       for (const [i, id] of ids.entries()) {
         await tx.contatoLote.updateMany({
@@ -449,16 +465,29 @@ export async function marcarAgendouSeEmLote(consultorioId: string, pacienteId: s
       where: { consultorioId, pacienteId, status: { in: ['ABERTA', 'COM_EQUIPE'] } },
       data: { status: 'RESOLVIDA' },
     }),
+    // A que nem saiu não sai mais: o paciente já marcou.
+    prisma.conversaIA.updateMany({
+      where: { consultorioId, pacienteId, status: 'AGUARDANDO_ENVIO' },
+      data: { status: 'ENCERRADA' },
+    }),
   ])
 }
 
-/** "Não quero receber": vale para o paciente, em todo lote, para sempre. */
-export async function naoContatarMais(consultorioId: string, pacienteId: string): Promise<void> {
+/**
+ * "Não quero receber": vale para o paciente, em todo lote, para sempre. As
+ * conversas dele que esperam envio ou resposta nossa se encerram; `exceto`
+ * deixa de fora a conversa que o webhook encerra por conta própria.
+ */
+export async function naoContatarMais(consultorioId: string, pacienteId: string, exceto?: string): Promise<void> {
   await prisma.$transaction([
     prisma.paciente.updateMany({ where: { id: pacienteId, consultorioId }, data: { aceitaContato: false } }),
     prisma.contatoLote.updateMany({
       where: { consultorioId, pacienteId, status: { in: ['AGUARDANDO', 'LIBERADO', 'ENVIADO'] } },
       data: { status: 'NAO_CONTATAR' },
+    }),
+    prisma.conversaIA.updateMany({
+      where: { consultorioId, pacienteId, status: { in: ['AGUARDANDO_ENVIO', 'ABERTA'] }, ...(exceto && { id: { not: exceto } }) },
+      data: { status: 'ENCERRADA' },
     }),
   ])
 }

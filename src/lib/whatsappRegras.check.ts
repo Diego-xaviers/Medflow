@@ -12,7 +12,11 @@ import {
   ehEcoNosso,
   statusAposSalvar,
   entraNoPosVenda,
+  enviosDaRodada,
   espacar,
+  lembreteDaRecuperacao,
+  numeroLegivel,
+  posVendaVencido,
   janelaDeEnvio,
   mesmoTelefone,
   proximoPasso,
@@ -169,5 +173,26 @@ assert.ok(!auth({ numero: null }).includes('pelo WhatsApp'))
 assert.ok(auth({ numero: null }).includes('a 25/11. Você autoriza'))
 assert.ok(auth({ numero: '12345' }).includes('pelo WhatsApp 12345'))
 assert.ok(auth({ total: 1 }).includes('1 paciente.'))
+
+// enviosDaRodada (seg 23/11, São Paulo = UTC-3)
+assert.equal(enviosDaRodada(20, new Date('2026-11-23T11:00:00Z'), fuso), 2) // 8h: 10 rodadas
+assert.equal(enviosDaRodada(20, new Date('2026-11-23T20:30:00Z'), fuso), 20) // 17h30: última
+assert.equal(enviosDaRodada(0, new Date('2026-11-23T11:00:00Z'), fuso), 0)
+assert.equal(enviosDaRodada(-3, new Date('2026-11-23T11:00:00Z'), fuso), 0)
+assert.equal(enviosDaRodada(5, new Date('2026-11-23T16:00:00Z'), fuso), 1) // 13h: 5 rodadas
+
+// lembreteDaRecuperacao
+assert.equal(lembreteDaRecuperacao('APROVADO'), 'LEMBRAR')
+assert.equal(lembreteDaRecuperacao('CONCLUIDO'), 'LEMBRAR')
+assert.equal(lembreteDaRecuperacao('PAUSADO'), 'SEGURAR')
+assert.equal(lembreteDaRecuperacao('DESCARTADO'), 'ENCERRAR')
+assert.equal(lembreteDaRecuperacao(null), 'ENCERRAR')
+
+// posVendaVencido
+assert.equal(posVendaVencido(diasAtras(14), hoje, fuso), false)
+assert.equal(posVendaVencido(diasAtras(15), hoje, fuso), true)
+assert.equal(posVendaVencido(diasAtras(7), hoje, fuso), false)
+
+assert.equal(numeroLegivel('5511987654321'), '(11) 98765-4321')
 
 console.log('whatsapp: todos os checks passaram')

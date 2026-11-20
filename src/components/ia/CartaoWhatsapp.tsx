@@ -5,12 +5,11 @@ import useSWR from 'swr'
 import { Loader2, MessageCircle } from 'lucide-react'
 import { fetcher, enviar } from '@/lib/fetcher'
 import type { Painel } from '@/lib/lotesServidor'
+import { numeroLegivel, TEXTO_POS_VENDA } from '@/lib/whatsappRegras'
 import ModalAutorizar from './ModalAutorizar'
 
 type Zap = Extract<Painel, { liberado: true }>['whatsapp']
 type Resposta = Zap & { qrCode: string | null; erroConexao?: boolean }
-
-const TEXTO_POS_VENDA = 'Você autoriza a IA a enviar uma mensagem de acompanhamento 7 dias após cada consulta com receita?'
 
 /**
  * O WhatsApp da clínica no topo do painel. Desconectado, busca o QR a cada
@@ -104,7 +103,7 @@ export default function CartaoWhatsapp({
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[13px] font-semibold flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-brand-500" /> Conectado{whatsapp.numero ? ` · ${whatsapp.numero}` : ''}
+              <span className="w-2 h-2 rounded-full bg-brand-500" /> Conectado{whatsapp.numero ? ` · ${numeroLegivel(whatsapp.numero)}` : ''}
             </p>
             {confirmando ? (
               <div className="flex gap-2">
