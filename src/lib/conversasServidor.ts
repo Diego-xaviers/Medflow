@@ -52,8 +52,10 @@ export async function instanciaDo(consultorioId: string): Promise<Instancia | nu
 }
 
 /**
- * Envia e grava a mensagem. Só lança se nada saiu: depois que o provedor
- * aceitou, uma falha ao gravar vira log — reenviar seria mensagem duplicada.
+ * Grava, envia e completa o `idProvedor`. A linha nasce ANTES do provedor:
+ * o eco do webhook pode chegar antes de o envio voltar, e `ehEcoNosso` precisa
+ * achar o texto. Só lança se nada saiu (e aí a linha é apagada); depois que o
+ * provedor aceitou, uma falha ao gravar o id vira log — reenviar duplicaria.
  */
 export async function enviarNaConversa(
   consultorioId: string,
@@ -71,13 +73,25 @@ export async function enviarNaConversa(
   const telefone = telefoneE164(conversa?.paciente.telefone)
   if (!instancia || !telefone) throw new ErroProvedor()
 
-  const { idProvedor } = await enviarTexto(instancia, telefone, texto)
+  const { id } = await prisma.mensagemIA.create({
+    data: { conversaId, consultorioId, direcao: 'SAIDA', autor, texto },
+    select: { id: true },
+  })
+
+  let idProvedor: string
   try {
-    await prisma.mensagemIA.create({
-      data: { conversaId, consultorioId, direcao: 'SAIDA', autor, texto, idProvedor },
-    })
+    ;({ idProvedor } = await enviarTexto(instancia, telefone, texto))
   } catch (erro) {
-    console.error('[whatsapp] mensagem enviada, mas não gravada:', conversaId, erro)
+    await prisma.mensagemIA
+      .deleteMany({ where: { id, consultorioId } })
+      .catch((e) => console.error('[whatsapp] envio falhou e a mensagem não foi apagada:', id, e))
+    throw erro
+  }
+
+  try {
+    await prisma.mensagemIA.updateMany({ where: { id, consultorioId }, data: { idProvedor } })
+  } catch (erro) {
+    console.error('[whatsapp] mensagem enviada, mas o id não foi gravado:', conversaId, erro)
   }
 }
 
@@ -536,6 +550,14 @@ async function depoisDeGravar(
   if (conversa.status === 'COM_EQUIPE') return
 
   await prisma.conversaIA.updateMany({ where: { id, consultorioId }, data: { ultimaRespostaEm: agora } })
+
+  // Sem o plano ou com a conta bloqueada a IA não responde: a equipe assume, sem aviso.
+  const c = await prisma.consultorio.findUniqueOrThrow({ where: { id: consultorioId }, select: { plano: true } })
+  if (!temRecurso(c.plano as PlanoNome, 'iaPosVenda') || (await situacaoDaConta(consultorioId)).bloqueado) {
+    await prisma.conversaIA.updateMany({ where: { id, consultorioId, status: 'ABERTA' }, data: { status: 'COM_EQUIPE' } })
+    return
+  }
+
   if (texto === null) return passarParaEquipe(id, 'Mandou áudio ou imagem', 'normal')
 
   const [consultorio, mensagens] = await Promise.all([
@@ -547,6 +569,7 @@ async function depoisDeGravar(
     }),
   ])
 
+  // shortcut: duas mensagens seguidas do paciente rodam a IA em paralelo e podem sair duas respostas; upgrade: trava por conversa (ex. advisory lock) ou responder só à última mensagem
   let r: Awaited<ReturnType<typeof responderConversa>>
   try {
     r = await responderConversa({
