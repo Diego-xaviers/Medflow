@@ -217,7 +217,8 @@ export async function rodadaDoConsultorio(
         status: 'LIBERADO',
         mensagem: { not: null },
         conversa: { is: null },
-        lote: { status: 'APROVADO' },
+        // Liberado à mão antes de conectar (Etapa 1) não sai sozinho sem autorização.
+        lote: { status: 'APROVADO', autorizadoEm: { not: null }, iniciaEm: { lte: agora } },
       },
       select: { id: true, pacienteId: true, enviarEm: true },
     })
@@ -272,7 +273,10 @@ export async function rodadaDoConsultorio(
           // Lote pausado e pós-venda desligado seguram o que ainda não saiu.
           OR: [
             ...(iaPosVendaLigada ? [{ tipo: 'POS_VENDA' as const }] : []),
-            { tipo: 'RECUPERACAO', contatoLote: { status: 'LIBERADO', lote: { status: 'APROVADO' } } },
+            {
+              tipo: 'RECUPERACAO',
+              contatoLote: { status: 'LIBERADO', lote: { status: 'APROVADO', autorizadoEm: { not: null } } },
+            },
           ],
         },
         select: { id: true, tipo: true, enviarEm: true },
@@ -362,6 +366,7 @@ async function enviarUma(
         ? await escreverAberturaPosVenda({ clinica, assinatura, primeiroNome: nome })
         : c.contatoLote?.mensagem
     if (!texto) throw new Error('contato sem mensagem')
+    // shortcut: provedor aceitou mas deu timeout/sem id → desfaz e reenvia na próxima rodada (duplicada); upgrade: consultar status da mensagem no provedor antes de reenviar
     await enviarNaConversa(consultorioId, conversaId, texto, 'IA')
   } catch (erro) {
     await desfazer()

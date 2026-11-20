@@ -282,13 +282,15 @@ export async function escreverPendentes(consultorioId: string): Promise<{ escrit
 }
 
 /**
- * Libera os contatos de hoje em cada lote aprovado, autorizado e já iniciado.
- * Rodar várias vezes no mesmo dia não passa do ritmo (`liberarDoDia`). Não
- * chama a IA: as mensagens vêm depois, em partes (`escreverPendentes`).
+ * Libera os contatos de hoje em cada lote aprovado. Rodar várias vezes no
+ * mesmo dia não passa do ritmo (`liberarDoDia`). Não chama a IA: as mensagens
+ * vêm depois, em partes (`escreverPendentes`).
  *
- * Cada liberado ganha um `enviarEm` espalhado na janela de hoje. Fim de semana
- * e depois das 18h não liberam: senão os liberados do sábado e do domingo se
- * somariam aos de segunda e a fila cresceria mais rápido que a cota diária.
+ * Sem WhatsApp conectado vale a Etapa 1: a equipe envia pelo wa.me, sem
+ * autorização. Conectado, só lote autorizado e já iniciado, e cada liberado
+ * ganha um `enviarEm` na janela de hoje. Aí fim de semana e depois das 18h
+ * não liberam: senão sábado e domingo se somariam à segunda e a fila
+ * cresceria mais rápido que a cota diária.
  *
  * Antes de liberar, confere quem mudou desde a aprovação: quem marcou
  * consulta vira "agendou"; inativado, sem telefone ou que pediu para não
@@ -297,12 +299,17 @@ export async function escreverPendentes(consultorioId: string): Promise<{ escrit
 export async function liberarHoje(consultorioId: string, agora = new Date()): Promise<void> {
   await comTrava(consultorioId, async (tx) => {
     const [consultorio, lotes, futuras] = await Promise.all([
-      tx.consultorio.findUniqueOrThrow({ where: { id: consultorioId }, select: { fusoHorario: true } }),
+      tx.consultorio.findUniqueOrThrow({
+        where: { id: consultorioId },
+        select: { fusoHorario: true, whatsappStatus: true },
+      }),
       tx.loteIA.findMany({
-        where: { consultorioId, status: 'APROVADO', autorizadoEm: { not: null }, iniciaEm: { lte: agora } },
+        where: { consultorioId, status: 'APROVADO' },
         select: {
           id: true,
           ritmoDiario: true,
+          autorizadoEm: true,
+          iniciaEm: true,
           contatos: {
             select: {
               id: true, ordem: true, status: true, liberadoEm: true,
@@ -319,10 +326,12 @@ export async function liberarHoje(consultorioId: string, agora = new Date()): Pr
     ])
     const inicio = inicioDoDiaNoFuso(consultorio.fusoHorario, agora)
     const janela = janelaDeEnvio(agora, consultorio.fusoHorario)
-    const liberaHoje = janela.de.getTime() - inicio.getTime() < 86_400_000
+    const automatico = consultorio.whatsappStatus === 'CONECTADO'
+    const janelaEHoje = janela.de.getTime() - inicio.getTime() < 86_400_000
     const comConsulta = new Set(futuras.map((f) => f.pacienteId))
 
     for (const lote of lotes) {
+      const liberaHoje = !automatico || (!!lote.autorizadoEm && !!lote.iniciaEm && lote.iniciaEm <= agora && janelaEHoje)
       const fora = { AGENDOU: [] as string[], NAO_CONTATAR: [] as string[] }
       for (const c of lote.contatos) {
         if (c.status !== 'AGUARDANDO') continue
