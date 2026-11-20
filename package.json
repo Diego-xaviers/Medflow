@@ -16,7 +16,8 @@
     "check:cobranca": "tsx src/lib/cobranca.check.ts",
     "check:ia": "tsx src/lib/ia.check.ts",
     "check:lotes": "tsx src/lib/lotesIA.check.ts",
-    "check": "npm run check:planos && npm run check:rotas && npm run check:cadastro && npm run check:cobranca && npm run check:ia && npm run check:lotes"
+    "check:whatsapp": "tsx src/lib/whatsappRegras.check.ts",
+    "check": "npm run check:planos && npm run check:rotas && npm run check:cadastro && npm run check:cobranca && npm run check:ia && npm run check:lotes && npm run check:whatsapp"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
