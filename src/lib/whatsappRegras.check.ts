@@ -17,6 +17,7 @@ import {
   mesmoTelefone,
   proximoPasso,
   tituloDaEquipe,
+  textoDaAutorizacao,
   type ItemFila,
 } from './whatsappRegras'
 
@@ -146,5 +147,27 @@ assert.equal(statusAposSalvar('SEM_INSTANCIA'), 'DESCONECTADO')
 assert.equal(statusAposSalvar('EM_CONFIGURACAO'), 'DESCONECTADO')
 assert.equal(statusAposSalvar('CONECTADO'), 'CONECTADO')
 assert.equal(statusAposSalvar('DESCONECTADO'), 'DESCONECTADO')
+
+// textoDaAutorizacao
+const auth = (over: Partial<Parameters<typeof textoDaAutorizacao>[0]> = {}) =>
+  textoDaAutorizacao({
+    titulo: 'Sem exame há 6 a 12 meses',
+    total: 48,
+    ritmo: 20,
+    inicio: new Date('2026-11-23T03:00:00Z'), // seg 23/11 00:00 em São Paulo
+    numero: '5511987654321',
+    fuso,
+    ...over,
+  })
+assert.equal(
+  auth(),
+  'Lote: Sem exame há 6 a 12 meses · 48 pacientes. A IA vai enviar 20 mensagens por dia, de 8h às 18h, espaçadas ao longo do dia, de 23/11 a 25/11, pelo WhatsApp (11) 98765-4321. Você autoriza o envio de mensagens para este lote?',
+)
+assert.ok(auth({ inicio: new Date('2026-11-27T03:00:00Z') }).includes('de 27/11 a 01/12'))
+assert.ok(auth({ inicio: new Date('2026-11-28T03:00:00Z') }).includes('de 30/11 a 02/12')) // sábado: começa segunda
+assert.ok(!auth({ numero: null }).includes('pelo WhatsApp'))
+assert.ok(auth({ numero: null }).includes('a 25/11. Você autoriza'))
+assert.ok(auth({ numero: '12345' }).includes('pelo WhatsApp 12345'))
+assert.ok(auth({ total: 1 }).includes('1 paciente.'))
 
 console.log('whatsapp: todos os checks passaram')

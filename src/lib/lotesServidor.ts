@@ -10,11 +10,12 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from './prisma'
 import { ErroDeNegocio } from './api'
-import { partesNoFuso } from './agenda'
+import { instanteNoFuso, partesNoFuso } from './agenda'
 import { primeiroNome, sugerirContatos, TETO_POR_CHAMADA, type CandidatoContato } from './ia'
 import { analisarConsultorio, dadosParaAnalise, podeRecalcular, type AnaliseConsultorio } from './iaAnalise'
 import { calcularRelatorio } from './relatorios'
-import { espacar, janelaDeEnvio } from './whatsappRegras'
+import { hojeDaClinica } from './datas'
+import { espacar, janelaDeEnvio, textoDaAutorizacao } from './whatsappRegras'
 import {
   classificar,
   diasDoContato,
@@ -221,6 +222,66 @@ export async function aprovarLote(
       where: { id: loteId },
       data: { status: 'APROVADO', ritmoDiario, aprovadoPorId: usuarioId, aprovadoEm: new Date() },
     })
+  })
+}
+
+/**
+ * Início do envio: o começo de `dia` ("AAAA-MM-DD") no fuso da clínica.
+ * Hoje ou depois, no dia da clínica; formato inválido ou dia passado é recusado.
+ */
+export async function iniciaEmDoDia(consultorioId: string, dia: string): Promise<Date> {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dia)
+  if (!m) throw new ErroDeNegocio('Escolha o dia de início do envio.')
+  const [{ fusoHorario }, hoje] = await Promise.all([
+    prisma.consultorio.findUniqueOrThrow({ where: { id: consultorioId }, select: { fusoHorario: true } }),
+    hojeDaClinica(consultorioId),
+  ])
+  if (dia < hoje) throw new ErroDeNegocio('O dia de início não pode ser antes de hoje.')
+  return instanteNoFuso(fusoHorario, Number(m[1]), Number(m[2]), Number(m[3]), 0)
+}
+
+/** O texto da autorização, montado só aqui: a prévia e a gravação usam esta mesma função. */
+export async function textoDoLote(db: Db, consultorioId: string, loteId: string, iniciaEm: Date): Promise<string> {
+  const [lote, c] = await Promise.all([
+    db.loteIA.findFirst({
+      where: { id: loteId, consultorioId },
+      select: { tipo: true, ritmoDiario: true, _count: { select: { contatos: true } } },
+    }),
+    db.consultorio.findUniqueOrThrow({ where: { id: consultorioId }, select: { fusoHorario: true, whatsappNumero: true } }),
+  ])
+  if (!lote) throw new ErroDeNegocio('Lote não encontrado. Recarregue a página.')
+  return textoDaAutorizacao({
+    titulo: TITULO_LOTE[lote.tipo],
+    total: lote._count.contatos,
+    ritmo: Math.min(lote.ritmoDiario, RITMO_MAX),
+    inicio: iniciaEm,
+    numero: c.whatsappNumero,
+    fuso: c.fusoHorario,
+  })
+}
+
+/** A clínica autoriza o envio de um lote já aprovado. Devolve o texto gravado. */
+export async function autorizarLote(
+  consultorioId: string,
+  loteId: string,
+  usuarioId: string,
+  iniciaEm: Date
+): Promise<string> {
+  return comTrava(consultorioId, async (tx) => {
+    const [lote, c] = await Promise.all([
+      tx.loteIA.findFirst({ where: { id: loteId, consultorioId }, select: { status: true, autorizadoEm: true } }),
+      tx.consultorio.findUniqueOrThrow({ where: { id: consultorioId }, select: { whatsappStatus: true } }),
+    ])
+    if (!lote) throw new ErroDeNegocio('Lote não encontrado. Recarregue a página.')
+    if (c.whatsappStatus !== 'CONECTADO') throw new ErroDeNegocio('Conecte o WhatsApp da clínica antes de autorizar o envio.')
+    if (lote.status !== 'APROVADO') throw new ErroDeNegocio('Aprove o lote antes de autorizar o envio.')
+    if (lote.autorizadoEm) throw new ErroDeNegocio('Este lote já foi autorizado.')
+    const texto = await textoDoLote(tx, consultorioId, loteId, iniciaEm)
+    await tx.loteIA.update({
+      where: { id: loteId },
+      data: { autorizadoPorId: usuarioId, autorizadoEm: new Date(), iniciaEm, textoAutorizacao: texto },
+    })
+    return texto
   })
 }
 
@@ -468,9 +529,60 @@ export interface LoteResumo {
   hoje: ContatoDeHoje[]
 }
 
+/** Aberturas + lembretes de hoje (dia da clínica): a mesma conta do cron para a cota. */
+export async function enviadasHoje(consultorioId: string, fuso: string, agora = new Date()): Promise<number> {
+  const inicio = inicioDoDiaNoFuso(fuso, agora)
+  const [aberturas, lembretes] = await Promise.all([
+    prisma.conversaIA.count({ where: { consultorioId, aberturaEnviadaEm: { gte: inicio } } }),
+    prisma.conversaIA.count({ where: { consultorioId, lembreteEnviadoEm: { gte: inicio } } }),
+  ])
+  return aberturas + lembretes
+}
+
+/** O WhatsApp da clínica como a tela vê: nunca o token nem o id da instância. */
+export async function dadosWhatsapp(consultorioId: string) {
+  const c = await prisma.consultorio.findUniqueOrThrow({
+    where: { id: consultorioId },
+    select: { whatsappStatus: true, whatsappNumero: true, iaPosVendaLigada: true, limiteDiarioEnvios: true, fusoHorario: true },
+  })
+  return {
+    status: c.whatsappStatus,
+    numero: c.whatsappNumero,
+    posVendaLigada: c.iaPosVendaLigada,
+    enviadasHoje: await enviadasHoje(consultorioId, c.fusoHorario),
+    limite: c.limiteDiarioEnvios,
+  }
+}
+
+/** Conversas que a IA passou para a equipe, as de prioridade alta primeiro. */
+async function aguardandoEquipe(consultorioId: string) {
+  const conversas = await prisma.conversaIA.findMany({
+    where: { consultorioId, status: 'COM_EQUIPE' },
+    orderBy: { atualizadoEm: 'asc' },
+    select: {
+      id: true,
+      motivoEquipe: true,
+      prioridade: true,
+      atualizadoEm: true,
+      paciente: { select: { nome: true } },
+      mensagens: { where: { autor: 'PACIENTE' }, orderBy: { criadoEm: 'desc' }, take: 1, select: { texto: true } },
+    },
+  })
+  return conversas
+    .map((c) => ({
+      id: c.id,
+      primeiroNome: primeiroNome(c.paciente.nome),
+      motivo: c.motivoEquipe ?? 'Precisa da equipe',
+      prioridade: c.prioridade === 'alta' ? ('alta' as const) : ('normal' as const),
+      ultimaMensagem: (c.mensagens[0]?.texto ?? '').slice(0, 160),
+      desde: c.atualizadoEm.toISOString(),
+    }))
+    .sort((a, b) => Number(b.prioridade === 'alta') - Number(a.prioridade === 'alta'))
+}
+
 /** Tudo que a tela `/ia` precisa, de uma vez. */
 export async function montarPainel(consultorioId: string) {
-  const [lotes, analise, consultorio] = await Promise.all([
+  const [lotes, analise, whatsapp, equipe] = await Promise.all([
     prisma.loteIA.findMany({
       where: { consultorioId, status: { in: ['PROPOSTO', 'APROVADO', 'PAUSADO'] } },
       orderBy: { criadoEm: 'asc' },
@@ -497,10 +609,8 @@ export async function montarPainel(consultorioId: string) {
       orderBy: { criadoEm: 'desc' },
       select: { conteudo: true, criadoEm: true },
     }),
-    prisma.consultorio.findUniqueOrThrow({
-      where: { id: consultorioId },
-      select: { iaModoAutomatico: true, iaRitmoAutomatico: true },
-    }),
+    dadosWhatsapp(consultorioId),
+    aguardandoEquipe(consultorioId),
   ])
 
   const resumo = (l: (typeof lotes)[number]): LoteResumo => ({
@@ -529,8 +639,8 @@ export async function montarPainel(consultorioId: string) {
   const ordem = (t: TipoLote) => ORDEM_LOTES.indexOf(t)
   return {
     liberado: true as const,
-    modoAutomatico: consultorio.iaModoAutomatico,
-    ritmoAutomatico: consultorio.iaRitmoAutomatico,
+    whatsapp,
+    aguardandoEquipe: equipe,
     analise: analise
       ? { ...(analise.conteudo as unknown as AnaliseConsultorio), criadoEm: analise.criadoEm.toISOString() }
       : null,

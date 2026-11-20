@@ -204,3 +204,43 @@ export function tituloDaEquipe(primeiroNome: string, motivo: string): string {
 export function statusAposSalvar(atual: string): string {
   return atual === 'SEM_INSTANCIA' || atual === 'EM_CONFIGURACAO' ? 'DESCONECTADO' : atual
 }
+
+/** "5511987654321" → "(11) 98765-4321". Formato desconhecido: os próprios dígitos. */
+function numeroLegivel(numero: string): string {
+  const d = numero.replace(/\D/g, '')
+  const local = d.length > 11 && d.startsWith('55') ? d.slice(2) : d
+  const m = local.match(/^(\d{2})(\d{4,5})(\d{4})$/)
+  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : d
+}
+
+/**
+ * O texto que a clínica aceita ao autorizar um lote: é a prova de que ela
+ * mandou enviar. Dias úteis a partir de `inicio` (sábado e domingo pulam para
+ * segunda), ceil(total / ritmo) dias, datas dd/MM no fuso da clínica.
+ */
+export function textoDaAutorizacao(l: {
+  titulo: string
+  total: number
+  ritmo: number
+  inicio: Date
+  numero: string | null
+  fuso: string
+}): string {
+  const dias = Math.max(1, Math.ceil(l.total / Math.max(1, l.ritmo)))
+  const p = partesNoFuso(l.fuso, l.inicio)
+  const d = new Date(Date.UTC(p.ano, p.mes - 1, p.dia))
+  const util = () => d.getUTCDay() !== 0 && d.getUTCDay() !== 6
+  while (!util()) d.setUTCDate(d.getUTCDate() + 1)
+  const fmt = (x: Date) => `${String(x.getUTCDate()).padStart(2, '0')}/${String(x.getUTCMonth() + 1).padStart(2, '0')}`
+  const primeiro = fmt(d)
+  for (let n = 1; n < dias; ) {
+    d.setUTCDate(d.getUTCDate() + 1)
+    if (util()) n++
+  }
+  const por = l.numero ? `, pelo WhatsApp ${numeroLegivel(l.numero)}` : ''
+  return (
+    `Lote: ${l.titulo} · ${l.total} ${l.total === 1 ? 'paciente' : 'pacientes'}. ` +
+    `A IA vai enviar ${l.ritmo} mensagens por dia, de 8h às 18h, espaçadas ao longo do dia, de ${primeiro} a ${fmt(d)}${por}. ` +
+    'Você autoriza o envio de mensagens para este lote?'
+  )
+}

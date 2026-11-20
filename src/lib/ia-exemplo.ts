@@ -12,8 +12,8 @@ const horasAtras = (h: number) => new Date(hoje.getTime() - h * 3_600_000).toISO
 
 export const PAINEL_IA_EXEMPLO: Painel = {
   liberado: true,
-  modoAutomatico: false,
-  ritmoAutomatico: 20,
+  whatsapp: { status: 'SEM_INSTANCIA', numero: null, posVendaLigada: false, enviadasHoje: 0, limite: 20 },
+  aguardandoEquipe: [],
   analise: {
     resumo:
       'A receita de novembro chegou a R$ 41.250,00, a maior dos últimos 6 meses, puxada por 225 consultas concluídas. ' +

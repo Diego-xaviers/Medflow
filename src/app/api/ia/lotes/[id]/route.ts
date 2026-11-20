@@ -4,15 +4,20 @@ import { prisma } from '@/lib/prisma'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { ritmoValido, TITULO_LOTE } from '@/lib/lotesIA'
-import { aprovarLote, comTrava, liberarHoje, montarPainel } from '@/lib/lotesServidor'
+import { aprovarLote, autorizarLote, comTrava, iniciaEmDoDia, liberarHoje, montarPainel, textoDoLote } from '@/lib/lotesServidor'
 import { exigirAssistente } from '../../acesso'
 
 type Params = { params: { id: string } }
 
 /** A lista do lote, para a clínica conferir antes de aprovar. */
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
   return rota(async () => {
     const { consultorioId } = await exigirAssistente()
+    // O que a tela mostra para autorizar é exatamente o que será gravado.
+    if (req.nextUrl.searchParams.get('previa') === 'autorizacao') {
+      const iniciaEm = await iniciaEmDoDia(consultorioId, req.nextUrl.searchParams.get('inicio') ?? '')
+      return { texto: await textoDoLote(prisma, consultorioId, params.id, iniciaEm) }
+    }
     const lote = await prisma.loteIA.findFirst({
       where: { id: params.id, consultorioId },
       select: {
@@ -37,13 +42,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 const corpo = z.object({
-  acao: z.enum(['aprovar', 'pausar', 'retomar', 'descartar']),
+  acao: z.enum(['aprovar', 'pausar', 'retomar', 'descartar', 'autorizar']),
+  /** Só em `autorizar`: "AAAA-MM-DD", hoje ou depois (dia da clínica). */
+  iniciaEm: z.string().optional(),
   ritmoDiario: z.unknown().optional(),
   /** Ids de PACIENTE: o lote proposto é refeito a cada abertura e os ids de contato mudam. */
   remover: z.array(z.string()).max(1000).optional(),
 })
 
-const DE_PARA: Record<z.infer<typeof corpo>['acao'], { de: string[]; para: 'APROVADO' | 'PAUSADO' | 'DESCARTADO' }> = {
+const DE_PARA: Record<Exclude<z.infer<typeof corpo>['acao'], 'autorizar'>, { de: string[]; para: 'APROVADO' | 'PAUSADO' | 'DESCARTADO' }> = {
   aprovar: { de: ['PROPOSTO'], para: 'APROVADO' },
   pausar: { de: ['APROVADO'], para: 'PAUSADO' },
   retomar: { de: ['PAUSADO'], para: 'APROVADO' },
@@ -53,9 +60,23 @@ const DE_PARA: Record<z.infer<typeof corpo>['acao'], { de: string[]; para: 'APRO
 export async function PATCH(req: NextRequest, { params }: Params) {
   return rota(async () => {
     const { consultorioId, usuarioId } = await exigirAssistente()
-    const { acao, ritmoDiario, remover } = corpo.parse(await req.json())
-    const regra = DE_PARA[acao]
+    const { acao, ritmoDiario, remover, iniciaEm } = corpo.parse(await req.json())
 
+    if (acao === 'autorizar') {
+      const texto = await autorizarLote(consultorioId, params.id, usuarioId, await iniciaEmDoDia(consultorioId, iniciaEm ?? ''))
+      registrarAuditoria({
+        acao: 'AUTORIZAR_ENVIO_LOTE',
+        entidade: 'LoteIA',
+        entidadeId: params.id,
+        detalhes: texto,
+        usuarioId,
+        consultorioId,
+      })
+      await liberarHoje(consultorioId)
+      return montarPainel(consultorioId)
+    }
+
+    const regra = DE_PARA[acao]
     if (acao === 'aprovar') {
       await aprovarLote(consultorioId, params.id, usuarioId, ritmoValido(ritmoDiario), remover ?? [])
     } else {

@@ -12,7 +12,7 @@ import { situacaoDaConta } from './cobranca'
 import { temRecurso, type PlanoNome } from './planos'
 import { primeiroNome } from './ia'
 import { escreverAberturaPosVenda, responderConversa, textoLembrete, NOME_IA, type Turno } from './iaConversa'
-import { escreverPendentes, inicioDoDiaNoFuso, liberarHoje, naoContatarMais } from './lotesServidor'
+import { enviadasHoje, escreverPendentes, liberarHoje, naoContatarMais } from './lotesServidor'
 import { equipeDoConsultorio, notificar } from './notificacoes'
 import { enviarTexto, ErroProvedor, telefoneE164, type EventoWhatsapp, type Instancia } from './whatsappProvedor'
 import {
@@ -289,10 +289,8 @@ export async function rodadaDoConsultorio(
   let fila: Item[] = []
   let jaEnviadosHoje = 0
   await passo('montar fila', async () => {
-    const inicio = inicioDoDiaNoFuso(fuso, agora)
-    const [aberturas, lembretesHoje, aguardando] = await Promise.all([
-      prisma.conversaIA.count({ where: { consultorioId, aberturaEnviadaEm: { gte: inicio } } }),
-      prisma.conversaIA.count({ where: { consultorioId, lembreteEnviadoEm: { gte: inicio } } }),
+    const [enviadasAntes, aguardando] = await Promise.all([
+      enviadasHoje(consultorioId, fuso, agora),
       prisma.conversaIA.findMany({
         where: {
           consultorioId,
@@ -310,7 +308,7 @@ export async function rodadaDoConsultorio(
         select: { id: true, tipo: true, enviarEm: true },
       }),
     ])
-    jaEnviadosHoje = aberturas + lembretesHoje
+    jaEnviadosHoje = enviadasAntes
     fila = [...aguardando.map((c) => ({ id: c.id, tipo: c.tipo, enviarEm: c.enviarEm ?? agora, lembrete: false })), ...lembretes]
   })
 

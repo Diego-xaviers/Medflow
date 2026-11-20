@@ -106,7 +106,6 @@ export default function PainelIA({
           )}
         </section>
 
-        <ModoAutomatico painel={painel} aoSalvar={(modo, ritmo) => acao(() => enviar('/api/ia/config', 'PATCH', { modoAutomatico: modo, ritmo }))} />
       </div>
 
       {/* Lotes sugeridos */}
@@ -161,54 +160,6 @@ export default function PainelIA({
         />
       )}
     </div>
-  )
-}
-
-function ModoAutomatico({ painel, aoSalvar }: { painel: PainelLiberado; aoSalvar: (modo: boolean, ritmo: number) => Promise<void> }) {
-  const [ritmo, setRitmo] = useState(painel.ritmoAutomatico)
-  const [salvando, setSalvando] = useState(false)
-  const ligado = painel.modoAutomatico
-  // Um pedido por vez: cliques rápidos não disparam várias rodadas de lotes.
-  async function salvar(modo: boolean, r: number) {
-    if (salvando) return
-    setSalvando(true)
-    try { await aoSalvar(modo, r) } finally { setSalvando(false) }
-  }
-  return (
-    <section className={`cartao p-5 ${ligado ? 'ring-1 ring-brand-400/60' : ''}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${ligado ? 'bg-brand-500 text-brand-950' : 'bg-neutro-100 dark:bg-neutro-800 text-neutro-500'}`}>
-            <Zap size={16} strokeWidth={2.2} />
-          </div>
-          <div className="min-w-0">
-            <h2 className="titulo-secao">Modo automático</h2>
-            <p className={`text-[11px] ${ligado ? 'text-brand-600' : 'text-neutro-400'}`}>{ligado ? 'Ligado' : 'Desligado'}</p>
-          </div>
-        </div>
-        <button role="switch" aria-checked={ligado} disabled={salvando} onClick={() => salvar(!ligado, ritmo)}
-          className={`relative w-11 h-6 rounded-full transition-colors shrink-0 disabled:opacity-60 ${ligado ? 'bg-brand-500' : 'bg-neutro-200 dark:bg-neutro-700'}`}>
-          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${ligado ? 'translate-x-5' : ''}`} />
-        </button>
-      </div>
-      <p className="text-[12.5px] text-neutro-500 dark:text-neutro-400 mt-3 leading-relaxed">
-        A IA aprova os lotes novos sozinha e deixa os contatos de cada dia prontos, com a mensagem escrita.
-      </p>
-      <div className="flex items-center justify-between gap-3 mt-3">
-        <span className="text-[12px] text-neutro-500">Contatos por dia</span>
-        <div className="flex items-center gap-2">
-          <input type="range" min={RITMO_MIN} max={RITMO_MAX} step={5} value={ritmo}
-            onChange={(e) => setRitmo(Number(e.target.value))}
-            onMouseUp={() => ligado && salvar(true, ritmo)} onTouchEnd={() => ligado && salvar(true, ritmo)}
-            onKeyUp={() => ligado && salvar(true, ritmo)} disabled={salvando}
-            className="w-24 accent-brand-600" aria-label="Contatos por dia no modo automático" />
-          <span className="w-7 text-right text-[13px] font-semibold numerico">{ritmo}</span>
-        </div>
-      </div>
-      <p className="text-[11px] text-neutro-400 mt-3 border-t border-neutro-100 dark:border-neutro-800 pt-3">
-        Envio sem clique pelo WhatsApp: em breve, com o WhatsApp oficial. Por enquanto você envia cada mensagem com um toque.
-      </p>
-    </section>
   )
 }
 
