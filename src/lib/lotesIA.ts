@@ -29,7 +29,7 @@ export interface FichaPaciente {
   emLoteAberto: boolean
 }
 
-export const ORDEM_LOTES: TipoLote[] = ['FALTOU', 'EXAME_VENCIDO', 'RECEITA_VENCIDA', 'SUMIDO']
+export const ORDEM_LOTES: TipoLote[] = ['FALTOU', 'INATIVO_6M', 'EXAME_VENCIDO', 'RECEITA_VENCIDA', 'SUMIDO']
 
 export const TITULO_LOTE: Record<TipoLote, string> = {
   EXAME_VENCIDO: 'Exame vencido há +1 ano',
@@ -41,10 +41,11 @@ export const TITULO_LOTE: Record<TipoLote, string> = {
 
 export const RITMO_PADRAO = 20
 export const RITMO_MIN = 5
-export const RITMO_MAX = 50
+export const RITMO_MAX = 20
 
 const DIA = 86_400_000
 const DIAS_FALTA = 60
+const MESES_INATIVO = 6
 const MESES_VENCIDO = 12
 const MESES_SUMIDO = 24
 
@@ -80,6 +81,8 @@ export function classificar(f: FichaPaciente, agora: Date): TipoLote | null {
   if (exame) {
     if (exame < mesesAtras(agora, MESES_SUMIDO)) return 'SUMIDO'
     if (exame < mesesAtras(agora, MESES_VENCIDO)) return 'EXAME_VENCIDO'
+    // Checado depois do vencido: quem passou de 12 meses já caiu acima.
+    if (exame < mesesAtras(agora, MESES_INATIVO)) return 'INATIVO_6M'
   }
 
   if (f.validadeReceitaMaisNova && f.validadeReceitaMaisNova < agora) return 'RECEITA_VENCIDA'
