@@ -24,6 +24,16 @@ Na Recuperação, o lote guarda a janela exibida na autorização em `LoteIA.hor
 
 O SQL da 2b inclui a nova coluna em `lotes_ia`. A migração foi executada duas vezes em PostgreSQL em memória com o schema anterior. Colunas, índices e restrições coincidiram com o schema gerado pelo Prisma. Ainda faltam a validação em uma branch Neon e com uma instância de WhatsApp de teste, a aplicação do SQL em produção e o deploy. As verificações locais cobrem as regras e as rotas com dados simulados, além das telas em navegador de desktop e em largura de celular.
 
+## Homologação local de 21/11/2026
+
+Na versão `4ed2598`, o build de produção foi executado em localhost com NextAuth e Prisma ligados a um PostgreSQL em memória (PGlite). Foram usadas três clínicas fictícias, duas Ultra e uma Básico, com login por senha. O banco partiu do schema da Etapa 2 e recebeu a migração da 2b duas vezes.
+
+- **Atividade dos contatos.** Um lote concluído com 51 envios no mesmo instante apareceu em duas páginas de 50 e 1, sem repetir nem perder contatos. O agendamento persistiu após nova consulta. A API rejeitou uma alteração baseada no estado anterior e um pedido da outra clínica. O plano Básico recebeu HTTP 402 ao abrir a atividade.
+- **Agentes e base.** A configuração do agente de recuperação persistiu apenas na clínica que a editou. O teste com a palavra “humano” acionou o repasse. O item de conhecimento foi criado e excluído pela clínica de origem. A tentativa de edição pela outra clínica recebeu HTTP 404.
+- **Conversas.** A sequência assumir, devolver à IA e resolver passou pelas rotas autenticadas. Outra clínica recebeu HTTP 404 ao tentar ler a conversa. A tentativa de responder à conversa resolvida com WhatsApp desconectado recebeu HTTP 400, e o histórico permaneceu vazio.
+
+Os testes externos com Neon e WhatsApp continuam pendentes.
+
 ## O que já está em produção (não quebrar)
 
 - `main` em `365a27d` + docs. Deploy de produção na Vercel (projeto `medflow`)
