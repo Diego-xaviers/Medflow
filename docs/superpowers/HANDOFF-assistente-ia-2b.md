@@ -22,7 +22,7 @@ Sem configuração salva, as aberturas e os lembretes seguem de segunda a sexta,
 
 Na Recuperação, o lote guarda a janela exibida na autorização em `LoteIA.horarioAutorizado`. O envio exige que o horário esteja dentro dessa janela e da configuração atual. Para autorizações anteriores à 2b, a janela autorizada é a de segunda a sexta, das 8h às 18h.
 
-O SQL da 2b inclui a nova coluna em `lotes_ia`. A migração foi executada duas vezes em PostgreSQL em memória com o schema anterior. Colunas, índices e restrições coincidiram com o schema gerado pelo Prisma. Ainda faltam a validação em uma branch Neon e com uma instância de WhatsApp de teste, a aplicação do SQL em produção e o deploy. As verificações locais cobrem as regras e as rotas com dados simulados, além das telas em navegador de desktop e em largura de celular.
+O SQL da 2b inclui a nova coluna em `lotes_ia`. A migração foi executada duas vezes em PostgreSQL em memória com o schema anterior. Colunas, índices e restrições coincidiram com o schema gerado pelo Prisma. A validação da migração no Neon está registrada abaixo. Ainda faltam a homologação do WhatsApp, o backup pré-2b, a aplicação em produção e o deploy. As verificações locais cobrem as regras e as rotas com dados simulados, além das telas em navegador de desktop e em largura de celular.
 
 ## Homologação local de 21/11/2026
 
@@ -32,7 +32,11 @@ Na versão `4ed2598`, o build de produção foi executado em localhost com NextA
 - **Agentes e base.** A configuração do agente de recuperação persistiu apenas na clínica que a editou. O teste com a palavra “humano” acionou o repasse. O item de conhecimento foi criado e excluído pela clínica de origem. A tentativa de edição pela outra clínica recebeu HTTP 404.
 - **Conversas.** A sequência assumir, devolver à IA e resolver passou pelas rotas autenticadas. Outra clínica recebeu HTTP 404 ao tentar ler a conversa. A tentativa de responder à conversa resolvida com WhatsApp desconectado recebeu HTTP 400, e o histórico permaneceu vazio.
 
-Os testes externos com Neon e WhatsApp continuam pendentes.
+## Homologação da migração no Neon
+
+Em 21/11/2026, a migração da 2b foi executada em duas transações sucessivas no banco `neondb` da branch `teste-assistente-ia-2` (`br-muddy-rain-acs4gyyo`). Antes da primeira execução, as tabelas de conversas, mensagens e lotes da Etapa 2 existiam e a tabela de agentes ainda não existia. Após a segunda execução, a conferência do catálogo encontrou as 24 colunas previstas (21 nas duas tabelas novas e três nas existentes) e os quatro índices das tabelas novas, incluindo a unicidade por consultório e tipo de agente.
+
+O Neon recusou criar a branch de backup pré-2b porque o projeto atingiu o limite de branches. A branch de teste existente foi reutilizada. O backup pré-2b e a migração de produção continuam pendentes. O envio e o recebimento também dependem de uma instância de WhatsApp de homologação e de um número destinatário de teste.
 
 ## O que já está em produção (não quebrar)
 
