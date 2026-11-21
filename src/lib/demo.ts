@@ -17,7 +17,7 @@
  */
 
 import { listaExemplo, type Aba } from './caixaConversas'
-import { AGENTES_EXEMPLO, CONHECIMENTO_EXEMPLO, PAINEL_IA_EXEMPLO } from './ia-exemplo'
+import { ATIVIDADE_EXEMPLO, AGENTES_EXEMPLO, CONHECIMENTO_EXEMPLO, PAINEL_IA_EXEMPLO } from './ia-exemplo'
 
 /* ───────────────────────── Datas vivas ───────────────────────── */
 
@@ -448,6 +448,7 @@ const RESPOSTAS: Record<string, () => unknown> = {
   '/api/financeiro/resumo': () => RESUMO,
   '/api/campanhas': () => CAMPANHAS,
   '/api/relatorios': () => RELATORIOS,
+  '/api/ia/atividade': () => ATIVIDADE_EXEMPLO,
   '/api/ia/painel': () => PAINEL_IA_EXEMPLO,
   '/api/ia/agentes': () => AGENTES_EXEMPLO,
   '/api/ia/conhecimento': () => CONHECIMENTO_EXEMPLO,

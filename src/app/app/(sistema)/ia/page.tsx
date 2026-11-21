@@ -5,6 +5,7 @@ import useSWR from 'swr'
 import { Sparkles, Play, Loader2 } from 'lucide-react'
 import { fetcher, enviar } from '@/lib/fetcher'
 import type { Painel } from '@/lib/lotesServidor'
+import AtividadeContatos from '@/components/ia/AtividadeContatos'
 import PainelIA from '@/components/ia/PainelIA'
 import PreviaUltra from '@/components/ia/PreviaUltra'
 import Agentes from '@/components/ia/Agentes'
@@ -142,6 +143,8 @@ export default function PaginaAssistenteIA() {
       {aba === 'agentes' && liberado && !primeiraVez && (
         <PainelIA painel={data} aoMudar={(p) => mutate(p, { revalidate: false })} aoAtualizarAnalise={comecar} />
       )}
+
+      {aba === 'agentes' && liberado && <AtividadeContatos />}
 
       {trabalhando && <CarregandoIA resultado={resultado} erro={erroIA} aoTerminar={terminar} />}
     </div>

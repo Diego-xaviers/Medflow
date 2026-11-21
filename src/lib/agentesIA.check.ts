@@ -4,6 +4,15 @@ import { dentroDoHorario, janelaDoHorario, proximoPassoCadencia, rodadasRestante
 
 import { GRUPOS, TRANSICOES, listaExemplo, mascararTelefone } from './caixaConversas'
 
+import { situacaoContato } from './atividadeContato'
+import { ATIVIDADE_EXEMPLO } from './ia-exemplo'
+
+const [equipe, aguardando, agendou] = ATIVIDADE_EXEMPLO.contatos
+assert.equal(situacaoContato(equipe).grupo, 'equipe')
+assert.equal(situacaoContato(agendou).titulo, 'Agendou')
+assert.equal(situacaoContato({ ...aguardando, conversa: null }).titulo, 'Envio manual registrado')
+assert.equal(situacaoContato({ ...aguardando, aceitaContato: false }).titulo, 'Contato suspenso')
+
 const padrao = PADRAO_AGENTE('POS_VENDA')
 assert.deepEqual(configDoAgente(null, 'POS_VENDA'), padrao)
 assert.equal(completude(padrao), 100)

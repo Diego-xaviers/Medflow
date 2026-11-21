@@ -6,6 +6,7 @@
  */
 
 import { PADRAO_AGENTE, completude } from './agentesIA'
+import type { AtividadeContato } from './atividadeContato'
 import type { Painel } from './lotesServidor'
 
 const hoje = new Date()
@@ -57,11 +58,6 @@ export const PAINEL_IA_EXEMPLO: Painel = {
           prioridade: 'alta', status: 'LIBERADO', dias: -410, loteAutorizado: true,
         },
         {
-          id: 'ex-c2', pacienteId: 'ex-p2', pacienteNome: 'Caio Nogueira', telefone: '(92) 98222-3312',
-          mensagem: 'Oi, Caio! Seu exame de vista completou um ano. Que tal revisar o grau antes de trocar os óculos? Posso ver um horário para você?',
-          prioridade: 'media', status: 'ENVIADO', dias: -395, loteAutorizado: true, enviadaAs: '10h32',
-        },
-        {
           id: 'ex-c3', pacienteId: 'ex-p3', pacienteNome: 'Marta Vilela', telefone: '(92) 98333-4423',
           mensagem: 'Oi, Marta! Já passou um ano do seu exame aqui na Ótica Visão Clara. Quer aproveitar para revisar a visão? Posso reservar um horário para você?',
           prioridade: 'media', status: 'LIBERADO', dias: -380, loteAutorizado: true,
@@ -87,3 +83,18 @@ export const CONHECIMENTO_EXEMPLO = [
   { id: 'ex-endereco', titulo: 'Endereço e como chegar', texto: 'A entrada da clínica fica na Rua das Flores, 120, ao lado da praça. A recepção fica no térreo.', ordem: 0 },
   { id: 'ex-horario', titulo: 'Horário de atendimento', texto: 'Atendemos de segunda a sexta, das 8h às 18h, e no sábado, das 8h ao meio-dia.', ordem: 1 },
 ]
+
+export const ATIVIDADE_EXEMPLO = {
+  fuso: 'America/Manaus', mais: false,
+  contatos: [
+    { id: 'ex-c2', nome: 'Caio Nogueira', status: 'ENVIADO', lote: 'Exame vencido há +1 ano', aceitaContato: true,
+      liberadoEm: horasAtras(3), enviadoEm: horasAtras(2), conversa: { status: 'COM_EQUIPE', motivo: 'Quer marcar um horário',
+        respostaEm: horasAtras(1), lembreteEm: null, primeiraSaida: 'Oi, Caio! Gostaria de falar com a equipe para agendar o retorno?' } },
+    { id: 'ex-c4', nome: 'Beatriz Lima', status: 'ENVIADO', lote: 'Receita vencida', aceitaContato: true,
+      liberadoEm: horasAtras(26), enviadoEm: horasAtras(25), conversa: { status: 'ABERTA', motivo: null,
+        respostaEm: null, lembreteEm: null, primeiraSaida: 'Olá, Beatriz. Podemos passar seu contato para a equipe de agendamento?' } },
+    { id: 'ex-c5', nome: 'Luís Almeida', status: 'AGENDOU', lote: 'Exame vencido há +1 ano', aceitaContato: true,
+      liberadoEm: horasAtras(99), enviadoEm: horasAtras(98), conversa: { status: 'RESOLVIDA', motivo: null,
+        respostaEm: horasAtras(23), lembreteEm: horasAtras(25), primeiraSaida: 'Oi, Luís. Gostaria que a recepção entrasse em contato?' } },
+  ] satisfies AtividadeContato[],
+}

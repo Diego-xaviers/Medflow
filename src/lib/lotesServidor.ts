@@ -534,8 +534,6 @@ export interface ContatoDeHoje {
   prioridade: string | null
   status: string
   dias: number
-  /** "10h32" no horário da clínica; só em contato ENVIADO. */
-  enviadaAs?: string | null
   /** O lote deste contato já está autorizado: com WhatsApp conectado, o envio sai sozinho. */
   loteAutorizado: boolean
 }
@@ -581,7 +579,7 @@ export async function dadosWhatsapp(consultorioId: string) {
 
 /** Tudo que a tela `/ia` precisa, de uma vez. */
 export async function montarPainel(consultorioId: string) {
-  const [lotes, analise, whatsapp, equipe, consultorio, hoje] = await Promise.all([
+  const [lotes, analise, whatsapp, equipe, hoje] = await Promise.all([
     prisma.loteIA.findMany({
       where: { consultorioId, status: { in: ['PROPOSTO', 'APROVADO', 'PAUSADO'] } },
       orderBy: { criadoEm: 'asc' },
@@ -596,7 +594,6 @@ export async function montarPainel(consultorioId: string) {
           select: {
             id: true,
             status: true,
-            enviadoEm: true,
             mensagem: true,
             prioridade: true,
             dias: true,
@@ -612,13 +609,8 @@ export async function montarPainel(consultorioId: string) {
     }),
     dadosWhatsapp(consultorioId),
     prisma.conversaIA.count({ where: { consultorioId, status: 'COM_EQUIPE' } }),
-    prisma.consultorio.findUniqueOrThrow({ where: { id: consultorioId }, select: { fusoHorario: true } }),
     hojeDaClinica(consultorioId),
   ])
-  const horaCurta = (d: Date) =>
-    new Intl.DateTimeFormat('pt-BR', { timeZone: consultorio.fusoHorario, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
-      .format(d).replace(':', 'h')
-
   const resumo = (l: (typeof lotes)[number]): LoteResumo => ({
     id: l.id,
     tipo: l.tipo,
@@ -630,7 +622,7 @@ export async function montarPainel(consultorioId: string) {
     enviados: l.contatos.filter((c) => ['ENVIADO', 'AGENDOU', 'RECUSOU'].includes(c.status)).length,
     agendaram: l.contatos.filter((c) => c.status === 'AGENDOU').length,
     hoje: l.contatos
-      .filter((c) => c.status === 'LIBERADO' || c.status === 'ENVIADO')
+      .filter((c) => c.status === 'LIBERADO')
       .map((c) => ({
         id: c.id,
         pacienteId: c.paciente.id,
@@ -640,7 +632,6 @@ export async function montarPainel(consultorioId: string) {
         prioridade: c.prioridade,
         status: c.status,
         dias: c.dias,
-        enviadaAs: c.status === 'ENVIADO' && c.enviadoEm ? horaCurta(c.enviadoEm) : null,
         loteAutorizado: !!l.autorizadoEm,
       })),
   })
