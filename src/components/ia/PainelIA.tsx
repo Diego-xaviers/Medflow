@@ -1,17 +1,15 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Sparkles, RefreshCw, AlertCircle, Pause, Play, Send, CalendarCheck, X, BellOff, Wand2, Loader2, Users, ShieldCheck,
 } from 'lucide-react'
-import { enviar, fetcher } from '@/lib/fetcher'
+import { enviar } from '@/lib/fetcher'
 import { linkWhatsApp } from '@/lib/whatsapp'
 import type { ContatoDeHoje, LoteResumo, Painel } from '@/lib/lotesServidor'
 import ModalLote from './ModalLote'
 import ModalAutorizar from './ModalAutorizar'
-import CartaoWhatsapp from './CartaoWhatsapp'
-import AguardandoEquipe from './AguardandoEquipe'
 import { haQuanto } from './haQuanto'
 import { Contador } from './CarregandoIA'
 
@@ -41,14 +39,6 @@ export default function PainelIA({
   const [loteAutorizar, setLoteAutorizar] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const conectado = painel.whatsapp.status === 'CONECTADO'
-  const recarregar = useCallback(async () => {
-    try {
-      aoMudar(await fetcher('/api/ia/painel'))
-    } catch {
-      // Tenta de novo na próxima leitura do QR.
-    }
-  }, [aoMudar])
-
   async function acao(fn: () => Promise<Painel | void>) {
     setErro(null)
     try {
@@ -72,14 +62,7 @@ export default function PainelIA({
         </div>
       )}
 
-      <CartaoWhatsapp whatsapp={painel.whatsapp} aoMudar={aoMudar} aoConectar={recarregar} />
-
-      <AguardandoEquipe
-        itens={painel.aguardandoEquipe}
-        aoResolver={(id) => acao(() => enviar(`/api/ia/conversas/${id}`, 'PATCH', { acao: 'resolvido' }))}
-      />
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div>
         {/* Análise */}
         <section className="cartao p-5 relative overflow-hidden">
           <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-brand-400/10 blur-2xl pointer-events-none" />
@@ -177,8 +160,8 @@ export default function PainelIA({
           loteId={loteAutorizar}
           hoje={painel.hoje}
           aoFechar={() => setLoteAutorizar(null)}
-          aoConfirmar={async (inicio) => {
-            aoMudar(await enviar(`/api/ia/lotes/${loteAutorizar}`, 'PATCH', { acao: 'autorizar', iniciaEm: inicio }))
+          aoConfirmar={async (inicio, textoConfirmado) => {
+            aoMudar(await enviar(`/api/ia/lotes/${loteAutorizar}`, 'PATCH', { acao: 'autorizar', iniciaEm: inicio, textoConfirmado }))
             setLoteAutorizar(null)
           }}
         />

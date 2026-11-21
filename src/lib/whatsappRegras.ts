@@ -10,24 +10,10 @@ import { instanteNoFuso, partesNoFuso } from './agenda'
 import { telefoneValido } from './lotesIA'
 import type { Classificacao } from './iaConversa'
 import { telefoneE164 } from './whatsapp'
+import { normalizar, SECOES, HORARIO_PADRAO, type BlocoHorario } from './agentesIA'
 
 const HORA_MS = 3_600_000
 const DIA_MS = 24 * HORA_MS
-const ESPERA_MS = 72 * HORA_MS // 3 dias entre abertura, lembrete e encerramento
-
-/** Hora (0-23) e dia da semana (0=dom) de um instante no fuso da clínica. */
-function horaEDiaNoFuso(d: Date, fuso: string): { hora: number; diaSemana: number } {
-  const partes = new Intl.DateTimeFormat('en-US', {
-    timeZone: fuso,
-    hour: 'numeric',
-    weekday: 'short',
-    hourCycle: 'h23',
-  }).formatToParts(d)
-  const hora = Number(partes.find((p) => p.type === 'hour')!.value)
-  const sem = partes.find((p) => p.type === 'weekday')!.value
-  return { hora, diaSemana: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(sem) }
-}
-
 /** Dia do calendário da clínica, como número de dias (só serve para diferença). */
 export function diaNoFuso(d: Date, fuso: string): number {
   const [a, m, dia] = new Intl.DateTimeFormat('en-CA', {
@@ -42,29 +28,72 @@ export function diaNoFuso(d: Date, fuso: string): number {
   return Date.UTC(a, m - 1, dia) / DIA_MS
 }
 
-/** Aberturas e lembretes só saem das 8h às 18h, de segunda a sexta. */
-export function dentroDaJanela(agora: Date, fuso: string): boolean {
-  const { hora, diaSemana } = horaEDiaNoFuso(agora, fuso)
-  return diaSemana >= 1 && diaSemana <= 5 && hora >= 8 && hora < 18
+function horarioEmMinutos(hora: string): number {
+  const [h, m] = hora.split(':').map(Number)
+  return h * 60 + m
 }
 
-/**
- * Onde cabem os envios liberados agora: do instante atual (ou das 8h) até as
- * 18h de hoje; depois das 18h ou no fim de semana, o próximo dia útil inteiro.
- */
-export function janelaDeEnvio(agora: Date, fuso: string): { de: Date; ate: Date } {
+/** O lote só pode sair nos horários que a clínica aceitou e que o agente permite hoje. */
+export function horarioDoLote(atual: BlocoHorario[], autorizado: unknown): BlocoHorario[] {
+  const salvo = SECOES.horario.safeParse({ horario: autorizado ?? HORARIO_PADRAO })
+  if (!salvo.success) return []
+  return atual.flatMap((a) => salvo.data.horario.flatMap((b) => {
+    const dias = a.dias.filter((d) => b.dias.includes(d))
+    const de = a.de > b.de ? a.de : b.de
+    const ate = a.ate < b.ate ? a.ate : b.ate
+    return dias.length && de < ate ? [{ dias, de, ate }] : []
+  }))
+}
+
+export function dentroDoHorario(agora: Date, fuso: string, blocos: BlocoHorario[]): boolean {
+  const { hora, minuto, diaDaSemana } = partesNoFuso(fuso, agora)
+  const minutos = hora * 60 + minuto
+  return blocos.some(({ dias, de, ate }) =>
+    dias.includes(diaDaSemana) && minutos >= horarioEmMinutos(de) && minutos < horarioEmMinutos(ate))
+}
+
+export function janelaDoHorario(agora: Date, fuso: string, blocos: BlocoHorario[]): { de: Date; ate: Date } | null {
   const p = partesNoFuso(fuso, agora)
-  for (let soma = 0; ; soma++) {
-    // Date.UTC normaliza o dia 32 em dia 1 do mês seguinte; só serve para o calendário.
-    const d = new Date(Date.UTC(p.ano, p.mes - 1, p.dia + soma))
-    const semana = d.getUTCDay()
-    if (semana === 0 || semana === 6) continue
-    const [ano, mes, dia] = [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()]
-    const de = instanteNoFuso(fuso, ano, mes, dia, 8)
-    const ate = instanteNoFuso(fuso, ano, mes, dia, 18)
-    if (agora >= ate) continue
-    return { de: agora > de ? agora : de, ate }
+  for (let soma = 0; soma <= 7; soma++) {
+    const dia = new Date(Date.UTC(p.ano, p.mes - 1, p.dia + soma))
+    const instante = (hora: string) => {
+      const [h, m] = hora.split(':').map(Number)
+      return instanteNoFuso(fuso, dia.getUTCFullYear(), dia.getUTCMonth() + 1, dia.getUTCDate(), h, m)
+    }
+    const janelas = blocos
+      .filter(({ dias }) => dias.includes(dia.getUTCDay()))
+      .map(({ de, ate }) => ({ de: instante(de), ate: instante(ate) }))
+      .filter(({ de, ate }) => ate > agora && ate > de)
+      .sort((a, b) => a.de.getTime() - b.de.getTime())
+
+    const primeira = janelas[0]
+    if (!primeira) continue
+    let ate = primeira.ate
+    for (const janela of janelas.slice(1)) {
+      if (janela.de > ate) break
+      if (janela.ate > ate) ate = janela.ate
+    }
+    return { de: agora > primeira.de ? agora : primeira.de, ate }
   }
+  return null
+}
+
+export function rodadasRestantesNoHorario(agora: Date, fuso: string, blocos: BlocoHorario[]): number {
+  const { ano, mes, dia } = partesNoFuso(fuso, agora)
+  let rodadas = 0
+  for (let rodada = agora; ; rodada = new Date(rodada.getTime() + HORA_MS)) {
+    const local = partesNoFuso(fuso, rodada)
+    if (local.ano !== ano || local.mes !== mes || local.dia !== dia) return rodadas
+    if (dentroDoHorario(rodada, fuso, blocos)) rodadas++
+  }
+}
+
+export function dentroDaJanela(agora: Date, fuso: string): boolean {
+  return dentroDoHorario(agora, fuso, HORARIO_PADRAO)
+}
+
+export function janelaDeEnvio(agora: Date, fuso: string): { de: Date; ate: Date } {
+  return janelaDoHorario(agora, fuso, HORARIO_PADRAO)!
 }
 
 /**
@@ -104,9 +133,9 @@ export function cotaDoDia(fila: ItemFila[], jaEnviadosHoje: number, limite: numb
  * de hora em hora que ainda restam até as 18h (contando esta). Sem isso, o
  * atrasado sai todo de uma vez às 8h, em rajada, no número da clínica.
  */
-export function enviosDaRodada(vagas: number, agora: Date, fuso: string): number {
+export function enviosDaRodada(vagas: number, agora: Date, fuso: string, horario = HORARIO_PADRAO): number {
   if (vagas <= 0) return 0
-  const rodadas = Math.max(1, 18 - horaEDiaNoFuso(agora, fuso).hora)
+  const rodadas = Math.max(1, rodadasRestantesNoHorario(agora, fuso, horario))
   return Math.ceil(vagas / rodadas)
 }
 
@@ -138,12 +167,33 @@ export function proximoPasso(
   },
   agora: Date,
 ): PassoConversa {
-  if (c.status !== 'ABERTA' || c.ultimaRespostaEm) return 'NADA'
-  if (c.lembreteEnviadoEm) {
-    return agora.getTime() - c.lembreteEnviadoEm.getTime() >= ESPERA_MS ? 'ENCERRAR' : 'NADA'
-  }
-  if (c.aberturaEnviadaEm && agora.getTime() - c.aberturaEnviadaEm.getTime() >= ESPERA_MS) return 'LEMBRETE'
-  return 'NADA'
+  const passo = proximoPassoCadencia({
+    ...c,
+    ultimoLembreteEm: c.lembreteEnviadoEm,
+    lembretesEnviados: c.lembreteEnviadoEm ? 1 : 0,
+  }, [3], agora)
+  return passo === 'FIM' ? 'ENCERRAR' : passo
+}
+
+export function proximoPassoCadencia(
+  c: {
+    status: string
+    aberturaEnviadaEm: Date | null
+    ultimoLembreteEm: Date | null
+    lembretesEnviados: number
+    ultimaRespostaEm: Date | null
+  },
+  cadenciaDias: number[],
+  agora: Date,
+): 'NADA' | 'LEMBRETE' | 'FIM' {
+  const ultimoEnvio = c.ultimoLembreteEm ?? c.aberturaEnviadaEm
+  if (c.status !== 'ABERTA' || c.ultimaRespostaEm || !ultimoEnvio) return 'NADA'
+
+  const lembretesEnviados = Math.max(c.lembretesEnviados, c.ultimoLembreteEm ? 1 : 0)
+  const proximoIntervalo = cadenciaDias[lembretesEnviados]
+  const espera = proximoIntervalo ?? cadenciaDias.at(-1) ?? 3
+  if (agora.getTime() - ultimoEnvio.getTime() < espera * DIA_MS) return 'NADA'
+  return proximoIntervalo === undefined ? 'FIM' : 'LEMBRETE'
 }
 
 /** Pós-venda: consulta concluída com receita, de 7 a 14 dias atrás (dias da clínica). */
@@ -185,6 +235,14 @@ export function mesmoTelefone(a: string | null, b: string | null): boolean {
 export function doTelefone<T>(itens: T[], telefoneDe: (i: T) => string | null, telefoneEvento: string): T[] {
   const alvo = telefoneE164(telefoneEvento)
   return itens.filter((i) => mesmoTelefone(telefoneE164(telefoneDe(i)), alvo))
+}
+
+/** Pedidos inequívocos de saída valem inclusive em conversas assumidas pela equipe. */
+export function pediuParar(texto: string | null): boolean {
+  if (!texto) return false
+  const t = normalizar(texto)
+  return /^(?:parar|sair|stop|descadastrar)[.!\s]*$/.test(t) ||
+    /\b(?:parem? de (?:me )?(?:enviar|mandar) mensagens|nao (?:me (?:mande|envie)(?:m)? mais mensagens|quero (?:mais receber|receber mais) (?:suas |essas )?mensagens)|quero parar de receber mensagens)\b/.test(t)
 }
 
 export const ECO_MS = 5 * 60_000
@@ -256,11 +314,13 @@ export function textoDaAutorizacao(l: {
   inicio: Date
   numero: string | null
   fuso: string
+  horario?: BlocoHorario[]
 }): string {
   const dias = Math.max(1, Math.ceil(l.total / Math.max(1, l.ritmo)))
   const p = partesNoFuso(l.fuso, l.inicio)
   const d = new Date(Date.UTC(p.ano, p.mes - 1, p.dia))
-  const util = () => d.getUTCDay() !== 0 && d.getUTCDay() !== 6
+  const blocos = l.horario?.length ? l.horario : HORARIO_PADRAO
+  const util = () => blocos.some((b) => b.dias.includes(d.getUTCDay()))
   while (!util()) d.setUTCDate(d.getUTCDate() + 1)
   const fmt = (x: Date) => `${String(x.getUTCDate()).padStart(2, '0')}/${String(x.getUTCMonth() + 1).padStart(2, '0')}`
   const primeiro = fmt(d)
@@ -268,10 +328,15 @@ export function textoDaAutorizacao(l: {
     d.setUTCDate(d.getUTCDate() + 1)
     if (util()) n++
   }
+  const padrao = blocos.length === 1 && blocos[0].de === '08:00' && blocos[0].ate === '18:00' &&
+    [...new Set(blocos[0].dias)].sort().join() === '1,2,3,4,5'
+  const nomes = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
+  const horario = padrao ? 'de 8h às 18h' : blocos.map(({ dias, de, ate }) =>
+    `${dias.map((dia) => nomes[dia]).join('/')} das ${de} às ${ate}`).join(', ')
   const por = l.numero ? `, pelo WhatsApp ${numeroLegivel(l.numero)}` : ''
   return (
     `Lote: ${l.titulo} · ${l.total} ${l.total === 1 ? 'paciente' : 'pacientes'}. ` +
-    `A IA vai enviar ${l.ritmo} mensagens por dia, de 8h às 18h, espaçadas ao longo do dia, de ${primeiro} a ${fmt(d)}${por}. ` +
+    `A IA vai enviar ${l.ritmo} mensagens por dia, ${horario}, espaçadas ao longo do dia, de ${primeiro} a ${fmt(d)}${por}. ` +
     'Você autoriza o envio de mensagens para este lote?'
   )
 }

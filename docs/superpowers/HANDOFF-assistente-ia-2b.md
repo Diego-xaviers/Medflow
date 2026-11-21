@@ -14,30 +14,15 @@ Para quem continuar (Cursor / outro Claude). Leia isto inteiro antes de mexer.
 - **Regras que continuam valendo:** a seção "O que não pode acontecer" de
   `docs/superpowers/specs/2026-11-20-assistente-ia-etapa2-design.md`.
 
-## Estado em 21/11/2026
+## Estado da branch após a implementação
 
-| Tarefa | Status |
-|---|---|
-| 1. Banco (schema + `prisma/ajustes/2026-11-21-assistente-ia-agentes.sql`) | **Feita e revisada** (commit `0a7c094`). SQL **ainda não aplicado** em nenhum banco. |
-| 2. Regras puras (`src/lib/agentesIA.ts`, horário/cadência/gatilhos em `whatsappRegras.ts`) | A fazer |
-| 3. Servidor dos agentes e da base (`agentesServidor.ts`, prompt em `iaConversa.ts`) | A fazer |
-| 4. Cron, lotes e webhook usam a configuração | A fazer |
-| 5. APIs (`/api/ia/agentes`, `/api/ia/conhecimento`, `/api/conversas`) | A fazer |
-| 6. Tela de Agentes no formato do SGM | A fazer |
-| 7. Aba Base de Conhecimento | A fazer |
-| 8. Tela de Conversas + remover Lembretes | A fazer |
-| 9. Demo e prévia | A fazer |
+A branch contém as tarefas 1 a 9. O cartão do WhatsApp mostra o estado de configuração para clínicas Ultra que ainda não têm instância. Em Conversas, a equipe pode assumir, responder pelo WhatsApp, devolver à IA e resolver o atendimento. As rotas antigas de Lembretes redirecionam para a caixa de conversas.
 
-**Ordem sugerida se faltar tempo** (o que o dono mais sente falta):
-1. Primeiro, um conserto rápido e independente: em `src/components/ia/CartaoWhatsapp.tsx`, a linha
-   `if (whatsapp.status === 'SEM_INSTANCIA') return null` esconde o QR code
-   de clínicas Ultra antigas, como a MasterClin. Trocar por mostrar
-   "Estamos configurando o seu Assistente IA" (o mesmo de `EM_CONFIGURACAO`).
-   No Admin, o bloco "WhatsApp (Z-API)" já aparece para Ultra. Conferir se
-   aparece também com `SEM_INSTANCIA`.
-2. Tarefa 8 (Conversas), que é a tela que mais aparece para o dono.
-3. Tarefas 2 a 6, que são a configuração da IA.
-4. Tarefas 7 e 9.
+Sem configuração salva, as aberturas e os lembretes seguem de segunda a sexta, das 8h às 18h no fuso da clínica, com um lembrete após três dias. Alterar o agente permite definir os dias, a janela e até três lembretes. O cron roda a cada hora. Um bloco entre duas rodadas pode ficar sem envio.
+
+Na Recuperação, o lote guarda a janela exibida na autorização em `LoteIA.horarioAutorizado`. O envio exige que o horário esteja dentro dessa janela e da configuração atual. Para autorizações anteriores à 2b, a janela autorizada é a de segunda a sexta, das 8h às 18h.
+
+O SQL da 2b inclui a nova coluna em `lotes_ia`. A migração foi executada duas vezes em PostgreSQL em memória com o schema anterior. Colunas, índices e restrições coincidiram com o schema gerado pelo Prisma. Ainda faltam a validação em uma branch Neon e com uma instância de WhatsApp de teste, a aplicação do SQL em produção e o deploy. As verificações locais cobrem as regras e as rotas com dados simulados, além das telas em navegador de desktop e em largura de celular.
 
 ## O que já está em produção (não quebrar)
 

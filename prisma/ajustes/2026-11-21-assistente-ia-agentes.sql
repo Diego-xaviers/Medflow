@@ -1,6 +1,6 @@
 -- Assistente IA (etapa 2b): agentes, conversas da equipe e base de conhecimento.
 --
--- Só acrescenta: um tipo novo, duas colunas novas (anulável / com DEFAULT) e
+-- Só acrescenta: um tipo novo, três colunas novas (anulável / com DEFAULT) e
 -- duas tabelas novas (agentes_ia, conhecimento_ia). Nada é alterado nem
 -- apagado. Pode rodar mais de uma vez.
 
@@ -9,6 +9,7 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 ALTER TABLE "conversas_ia" ADD COLUMN IF NOT EXISTS "lembretesEnviados" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "lotes_ia" ADD COLUMN IF NOT EXISTS "horarioAutorizado" JSONB;
 ALTER TABLE "mensagens_ia" ADD COLUMN IF NOT EXISTS "autorUsuarioId" TEXT;
 
 CREATE TABLE IF NOT EXISTS "agentes_ia" (

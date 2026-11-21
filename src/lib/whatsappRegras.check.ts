@@ -8,6 +8,8 @@ import {
   acaoDaResposta,
   cotaDoDia,
   dentroDaJanela,
+  horarioDoLote,
+  pediuParar,
   doTelefone,
   ehEcoNosso,
   statusAposSalvar,
@@ -25,6 +27,14 @@ import {
   type ItemFila,
   aindaNaFila,
 } from './whatsappRegras'
+
+const fimDeSemana = [{ dias: [6], de: '09:00', ate: '14:00' }]
+assert.deepEqual(horarioDoLote(fimDeSemana, null), [])
+assert.deepEqual(horarioDoLote(fimDeSemana, [{ dias: [5, 6], de: '10:00', ate: '19:00' }]),
+  [{ dias: [6], de: '10:00', ate: '14:00' }])
+assert.deepEqual(horarioDoLote(fimDeSemana, { invalido: true }), [])
+assert.ok(pediuParar('Humano, pare de me mandar mensagens!'))
+assert.ok(!pediuParar('Quero falar com um humano.'))
 
 const fuso = 'America/Sao_Paulo'
 const agora = new Date('2026-11-19T15:00:00Z')

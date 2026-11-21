@@ -5,6 +5,7 @@
  * desfocada que Básico e Pro veem. Nenhum paciente aqui existe.
  */
 
+import { PADRAO_AGENTE, completude } from './agentesIA'
 import type { Painel } from './lotesServidor'
 
 const hoje = new Date()
@@ -14,12 +15,7 @@ export const PAINEL_IA_EXEMPLO: Painel = {
   liberado: true,
   whatsapp: { status: 'CONECTADO', numero: '(92) 99999-0000', posVendaLigada: true, enviadasHoje: 12, limite: 20 },
   hoje: hoje.toISOString().slice(0, 10),
-  aguardandoEquipe: [
-    {
-      id: 'ex-conversa', primeiroNome: 'Rita', motivo: 'Quer marcar um horário', prioridade: 'alta',
-      ultimaMensagem: 'Quero marcar para sexta de manhã, pode ser?', desde: horasAtras(1),
-    },
-  ],
+  aguardandoEquipe: 1,
   analise: {
     resumo:
       'A receita de novembro chegou a R$ 41.250,00, a maior dos últimos 6 meses, puxada por 225 consultas concluídas. ' +
@@ -74,3 +70,20 @@ export const PAINEL_IA_EXEMPLO: Painel = {
     },
   ],
 }
+
+export const AGENTES_EXEMPLO = {
+  liberado: true,
+  fusoHorario: 'America/Manaus',
+  equipe: [{ id: 'user-3', nome: 'Juliana (recepção)' }],
+  whatsapp: PAINEL_IA_EXEMPLO.whatsapp,
+  agentes: (['POS_VENDA', 'RECUPERACAO'] as const).map(tipo => {
+    const config = PADRAO_AGENTE(tipo)
+    return { config, completude: completude(config), estatisticas: tipo === 'POS_VENDA'
+      ? { conversas: 54, hoje: 8, resposta30d: 72 } : { conversas: 38, hoje: 4, resposta30d: 61 } }
+  }),
+}
+
+export const CONHECIMENTO_EXEMPLO = [
+  { id: 'ex-endereco', titulo: 'Endereço e como chegar', texto: 'A entrada da clínica fica na Rua das Flores, 120, ao lado da praça. A recepção fica no térreo.', ordem: 0 },
+  { id: 'ex-horario', titulo: 'Horário de atendimento', texto: 'Atendemos de segunda a sexta, das 8h às 18h, e no sábado, das 8h ao meio-dia.', ordem: 1 },
+]

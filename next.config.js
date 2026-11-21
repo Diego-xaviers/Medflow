@@ -25,6 +25,11 @@ const csp = [
 ].join('; ')
 
 const nextConfig = {
+  async redirects() {
+    return ['/lembretes', '/app/lembretes', '/demo/lembretes'].map(source => ({
+      source, destination: source.startsWith('/demo/') ? '/demo/conversas' : '/app/conversas', permanent: false,
+    }))
+  },
   reactStrictMode: true,
   async headers() {
     return [

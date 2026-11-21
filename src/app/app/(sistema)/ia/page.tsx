@@ -7,6 +7,9 @@ import { fetcher, enviar } from '@/lib/fetcher'
 import type { Painel } from '@/lib/lotesServidor'
 import PainelIA from '@/components/ia/PainelIA'
 import PreviaUltra from '@/components/ia/PreviaUltra'
+import Agentes from '@/components/ia/Agentes'
+import AbasAssistente, { type AbaAssistente } from '@/components/ia/AbasAssistente'
+import BaseConhecimento from '@/components/ia/BaseConhecimento'
 import CartaoWhatsapp from '@/components/ia/CartaoWhatsapp'
 import CarregandoIA from '@/components/ia/CarregandoIA'
 
@@ -21,6 +24,7 @@ export default function PaginaAssistenteIA() {
   const { data, error, isLoading, mutate } = useSWR<RespostaPainel>('/api/ia/painel', fetcher, {
     revalidateOnFocus: false,
   })
+  const [aba, setAba] = useState<AbaAssistente>('agentes')
   const [trabalhando, setTrabalhando] = useState(false)
   const [resultado, setResultado] = useState<Painel | null>(null)
   const [erroIA, setErroIA] = useState<string | null>(null)
@@ -80,7 +84,7 @@ export default function PaginaAssistenteIA() {
           <h1 className="titulo-pagina flex items-center gap-2.5">
             <Sparkles size={22} className="text-brand-500" strokeWidth={2.2} /> Assistente IA
           </h1>
-          <p className="subtitulo mt-1">Quem trazer de volta, em que ordem e com qual mensagem</p>
+          <p className="subtitulo mt-1">Configure o atendimento pelo WhatsApp da clínica.</p>
         </div>
       </div>
 
@@ -97,15 +101,19 @@ export default function PaginaAssistenteIA() {
         </div>
       )}
 
-      {data && !data.liberado && <PreviaUltra />}
-
-      {primeiraVez && (
-        <div className="mb-5">
+      {data && <AbasAssistente aba={aba} aoMudar={setAba} />}
+      {data && !data.liberado && <PreviaUltra aba={aba} />}
+      {liberado && aba === 'agentes' && (
+        <Agentes painel={data} aoMudar={(p) => mutate(p, { revalidate: false })} aoConectar={() => mutate()} />
+      )}
+      {liberado && aba === 'base' && (
+        <div className="space-y-5">
           <CartaoWhatsapp whatsapp={data.whatsapp} aoMudar={(p) => mutate(p, { revalidate: false })} aoConectar={() => mutate()} />
+          <BaseConhecimento />
         </div>
       )}
 
-      {primeiraVez && (
+      {aba === 'agentes' && primeiraVez && (
         <div className="cartao relative overflow-hidden px-6 py-14 sm:py-20 text-center">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(0,220,130,0.14),transparent_60%)] pointer-events-none" />
           <div className="relative">
@@ -124,14 +132,14 @@ export default function PaginaAssistenteIA() {
         </div>
       )}
 
-      {escrevendo !== null && (
+      {aba === 'agentes' && escrevendo !== null && (
         <div className="mb-4 flex items-center gap-2 text-[13px] text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/40 border border-brand-200/60 dark:border-brand-900 px-4 py-2.5 rounded-lg">
           <Loader2 size={14} className="animate-spin" /> A IA está escrevendo as mensagens de hoje
           {escrevendo > 0 && <span className="text-neutro-500">· faltam {escrevendo}</span>}
         </div>
       )}
 
-      {liberado && !primeiraVez && (
+      {aba === 'agentes' && liberado && !primeiraVez && (
         <PainelIA painel={data} aoMudar={(p) => mutate(p, { revalidate: false })} aoAtualizarAnalise={comecar} />
       )}
 

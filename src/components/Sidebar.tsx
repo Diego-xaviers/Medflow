@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import { useSession } from 'next-auth/react'
 import {
   LayoutGrid, CalendarDays, Users, FileText, Receipt, Send, Wallet,
-  Bell, BarChart3, LifeBuoy, Sparkles, Settings, UserCircle, UsersRound, Building2, Network,
+  MessageSquare, BarChart3, LifeBuoy, Sparkles, Settings, UserCircle, UsersRound, Building2, Network,
 } from 'lucide-react'
 import { podeAbrir, type PapelUsuario } from '@/lib/permissoes'
 import { planoLibera, type PlanoNome } from '@/lib/planos'
@@ -23,7 +23,7 @@ export const principais = [
 
 export const operacao = [
   { label: 'Financeiro', icon: Wallet, href: '/financeiro' },
-  { label: 'Lembretes', icon: Bell, href: '/lembretes' },
+  { label: 'Conversas', icon: MessageSquare, href: '/conversas' },
   { label: 'Assistente IA', icon: Sparkles, href: '/ia' },
   { label: 'Relatórios', icon: BarChart3, href: '/relatorios' },
   { label: 'Suporte', icon: LifeBuoy, href: '/suporte' },
@@ -129,7 +129,7 @@ export default function Sidebar({ aoNavegar, variante = 'fixa' }: { aoNavegar?: 
       podeAbrir(papel, i.href, sessao?.user?.telas, sessao?.user?.redeId) &&
       planoLibera(plano, i.href))
     // O Assistente IA aparece para todos, mas avisa que é do Ultra.
-    .map((i) => (i.href === '/ia' && plano && plano !== 'ULTRA' ? { ...i, selo: 'Ultra' } : i))
+    .map((i) => (['/ia', '/conversas'].includes(i.href) && plano && plano !== 'ULTRA' ? { ...i, selo: 'Ultra' } : i))
 
   const principaisVisiveis = visiveis(principais)
   const operacaoVisiveis = visiveis(operacao)

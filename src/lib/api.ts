@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
 import { ErroNaoAutorizado, ErroSemPermissao, ErroPagamentoPendente, ErroPlanoInsuficiente } from './tenant'
 
-/** Erro de regra de negócio — vira 400 com mensagem legível pro usuário. */
+/** Erro de regra de negócio com mensagem legível e status HTTP (400 por padrão). */
 export class ErroDeNegocio extends Error {
-  status = 400
+  constructor(mensagem: string, readonly status = 400) {
+    super(mensagem)
+  }
 }
 
 /**
@@ -38,7 +40,7 @@ export async function rota<T>(fn: () => Promise<T>) {
       return NextResponse.json({ erro: erro.message }, { status: 402 })
     }
     if (erro instanceof ErroDeNegocio) {
-      return NextResponse.json({ erro: erro.message }, { status: 400 })
+      return NextResponse.json({ erro: erro.message }, { status: erro.status })
     }
     // Não é erro: é como o Next avisa a si mesmo, durante o build, que a rota
     // leu headers/cookies e portanto não pode ser pré-renderizada. Precisa

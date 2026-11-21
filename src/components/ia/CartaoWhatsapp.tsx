@@ -5,8 +5,7 @@ import useSWR from 'swr'
 import { Loader2, MessageCircle } from 'lucide-react'
 import { fetcher, enviar } from '@/lib/fetcher'
 import type { Painel } from '@/lib/lotesServidor'
-import { numeroLegivel, TEXTO_POS_VENDA } from '@/lib/whatsappRegras'
-import ModalAutorizar from './ModalAutorizar'
+import { numeroLegivel } from '@/lib/whatsappRegras'
 
 type Zap = Extract<Painel, { liberado: true }>['whatsapp']
 type Resposta = Zap & { qrCode: string | null; erroConexao?: boolean }
@@ -29,7 +28,6 @@ export default function CartaoWhatsapp({
     refreshInterval: 20000,
     revalidateOnFocus: false,
   })
-  const [autorizando, setAutorizando] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -43,8 +41,6 @@ export default function CartaoWhatsapp({
       aoConectar()
     }
   }, [desconectado, data?.status, aoConectar])
-
-  if (whatsapp.status === 'SEM_INSTANCIA') return null
 
   async function patch(corpo: object) {
     setOcupado(true)
@@ -67,9 +63,9 @@ export default function CartaoWhatsapp({
         <h2 className="titulo-secao">WhatsApp da clínica</h2>
       </div>
 
-      {whatsapp.status === 'EM_CONFIGURACAO' && (
+      {(whatsapp.status === 'SEM_INSTANCIA' || whatsapp.status === 'EM_CONFIGURACAO') && (
         <p className="text-[13px] text-neutro-600 dark:text-neutro-400">
-          Estamos configurando o seu Assistente IA. Enquanto isso, vá cadastrando seus pacientes — quanto mais completo o cadastro, melhor a IA trabalha.
+          Estamos configurando o seu Assistente IA. Enquanto isso, configure os agentes e cadastre seus pacientes.
         </p>
       )}
 
@@ -117,34 +113,12 @@ export default function CartaoWhatsapp({
               </button>
             )}
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[13px]">Pós-venda: <span className="text-neutro-500">{whatsapp.posVendaLigada ? 'ligado' : 'desligado'}</span></p>
-            {whatsapp.posVendaLigada ? (
-              <button onClick={() => patch({ acao: 'posVenda', ligar: false })} disabled={ocupado} className="btn-suave text-[12px] px-2.5 py-1.5">
-                Desligar pós-venda
-              </button>
-            ) : (
-              <button onClick={() => setAutorizando(true)} disabled={ocupado} className="btn-suave text-[12px] px-2.5 py-1.5">
-                Ligar pós-venda
-              </button>
-            )}
-          </div>
           <p className="text-[12.5px] text-neutro-500 numerico">Enviadas hoje: {whatsapp.enviadasHoje} de {whatsapp.limite}</p>
         </div>
       )}
 
       {erro && <p className="text-[12px] text-amber-600 dark:text-amber-400 mt-3">{erro}</p>}
 
-      {autorizando && (
-        <ModalAutorizar
-          texto={TEXTO_POS_VENDA}
-          aoFechar={() => setAutorizando(false)}
-          aoConfirmar={async () => {
-            aoMudar(await enviar('/api/ia/whatsapp', 'PATCH', { acao: 'posVenda', ligar: true }))
-            setAutorizando(false)
-          }}
-        />
-      )}
     </section>
   )
 }

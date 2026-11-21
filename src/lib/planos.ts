@@ -44,7 +44,6 @@ export const ORDEM_PLANOS: PlanoNome[] = ['BASICO', 'PRO', 'ULTRA']
 const PLANO_MINIMO: Record<string, PlanoNome> = {
   '/encaminhamentos': 'PRO',
   '/financeiro': 'PRO',
-  '/lembretes': 'PRO',
   '/relatorios': 'PRO',
   // '/ia' fica de fora de propósito: o Assistente IA abre para todos os
   // planos, como vitrine do Ultra. Quem trava é o recurso `iaPosVenda`,

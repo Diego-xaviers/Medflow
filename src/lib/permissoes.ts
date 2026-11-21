@@ -28,14 +28,14 @@ const ROTAS: Record<PapelUsuario, string[] | '*'> = {
   // item no menu dele e o clique morria num 403 vindo da API.
   DONO: [
     '/', '/agenda', '/pacientes', '/prontuarios', '/receitas', '/encaminhamentos',
-    '/financeiro', '/lembretes', '/ia', '/relatorios', '/suporte',
+    '/financeiro', '/conversas', '/ia', '/relatorios', '/suporte',
     '/equipe', '/configuracoes', '/perfil', '/cobranca',
   ],
 
   // A atendente toca a operação inteira, menos a administração da equipe.
   ATENDENTE: [
     '/', '/agenda', '/pacientes', '/prontuarios', '/receitas', '/encaminhamentos',
-    '/financeiro', '/lembretes', '/ia', '/relatorios', '/suporte',
+    '/financeiro', '/conversas', '/ia', '/relatorios', '/suporte',
     '/configuracoes', '/perfil', '/cobranca',
   ],
 
@@ -70,7 +70,7 @@ export const TELAS_CONFIGURAVEIS = [
   { href: '/receitas', rotulo: 'Receitas' },
   { href: '/encaminhamentos', rotulo: 'Encaminhamentos' },
   { href: '/financeiro', rotulo: 'Financeiro' },
-  { href: '/lembretes', rotulo: 'Lembretes' },
+  { href: '/conversas', rotulo: 'Conversas' },
   { href: '/ia', rotulo: 'Assistente IA' },
   { href: '/relatorios', rotulo: 'Relatórios' },
 ]

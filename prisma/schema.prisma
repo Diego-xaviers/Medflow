@@ -912,6 +912,8 @@ model LoteIA {
   autorizadoPorId  String?
   autorizadoEm     DateTime?
   textoAutorizacao String?
+  /// Horário aceito pela clínica; lotes anteriores seguem seg–sex, das 8h às 18h.
+  horarioAutorizado Json?
   criadoEm         DateTime      @default(now())
   contatos         ContatoLote[]
 

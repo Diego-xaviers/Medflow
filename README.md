@@ -185,12 +185,8 @@ tela ou rota nova que receba `AAAA-MM-DD`, use esses helpers.
 
 ## As telas de operação
 
-- **Lembretes** — fila de contatos derivada dos dados existentes: consultas
-  das próximas 48h a confirmar, faltas ainda sem remarcação, receitas vencendo,
-  pacientes sem consulta há mais de 12 meses e cobranças em atraso. Não existe
-  tabela de lembrete e não existe botão de "marcar como feito": o item some
-  quando o motivo dele deixa de existir. Cada linha abre o WhatsApp com a
-  mensagem já escrita — o envio é manual, por decisão de quem atende.
+- **Conversas** reúne os atendimentos de pós-venda e recuperação do plano Ultra.
+  A equipe acompanha as mensagens, assume uma conversa e responde pelo WhatsApp conectado.
 - **Relatórios** — período livre (ou atalhos de 1 a 12 meses), com faturamento,
   comparecimento, origem dos pacientes, tipos de lente, ranking por vendedora e
   maiores receitas. Tudo somado no banco via `aggregate`/`groupBy`.

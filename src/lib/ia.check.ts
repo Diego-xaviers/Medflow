@@ -71,6 +71,11 @@ assert.equal(podeRecalcular(new Date('2026-11-19T11:01:00Z'), agoraAnalise), fal
 assert.equal(podeRecalcular(new Date('2026-11-19T11:00:00Z'), agoraAnalise), true, '60 min: pode')
 
 // --- IA da conversa: resposta validada antes de sair ---
+for (const texto of ['O exame custa R$ 200.', 'Tem promoção de Natal.', 'Pingue duas gotas.']) {
+  assert.deepEqual(normalizarResposta({ classificacao: 'TUDO_BEM', resposta: texto }), { classificacao: 'OUTRO', resposta: null })
+}
+assert.deepEqual(normalizarResposta({ classificacao: 'PARAR', resposta: 'Aproveite o desconto.' }), { classificacao: 'PARAR', resposta: null })
+assert.equal(normalizarResposta({ classificacao: 'OUTRO', resposta: 'Aceitamos cartão ou Pix.' }).resposta, 'Aceitamos cartão ou Pix.')
 assert.deepEqual(normalizarResposta({ classificacao: 'XYZ', resposta: 'oi' }), { classificacao: 'OUTRO', resposta: 'oi' }, 'classificação desconhecida vira OUTRO e mantém a resposta')
 assert.deepEqual(normalizarResposta({ classificacao: 'QUER_MARCAR', resposta: '' }), { classificacao: 'OUTRO', resposta: null }, 'resposta vazia vai para a equipe')
 assert.deepEqual(normalizarResposta({ classificacao: 'QUEIXA', resposta: '   ' }), { classificacao: 'OUTRO', resposta: null }, 'só espaço é vazia')
