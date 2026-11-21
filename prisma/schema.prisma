@@ -97,11 +97,13 @@ model Consultorio {
 
   /// Assistente IA: aprova lotes novos sozinho e prepara os contatos do dia.
   /// O envio automático (sem clique) chega com o WhatsApp oficial, na etapa 2.
-  iaModoAutomatico  Boolean       @default(false)
-  iaRitmoAutomatico Int           @default(20)
+  iaModoAutomatico  Boolean              @default(false)
+  iaRitmoAutomatico Int                  @default(20)
   contatosLote      ContatoLote[]
   analisesIA        AnaliseIA[]
   conversasIA       ConversaIA[]
+  agentesIA         AgenteIA[]
+  conhecimentoIA    ItemConhecimentoIA[]
 
   /// WhatsApp via Z-API (etapa 2): uma instância por consultório. O segredo
   /// vai na URL do webhook para identificar a clínica sem confiar no corpo.
@@ -1005,7 +1007,9 @@ model ConversaIA {
   motivoEquipe      String?
   prioridade        String?
   aberturaEnviadaEm DateTime?
+  /// Horário do ÚLTIMO lembrete; a contagem fica em lembretesEnviados.
   lembreteEnviadoEm DateTime?
+  lembretesEnviados Int            @default(0)
   ultimaRespostaEm  DateTime?
   criadoEm          DateTime       @default(now())
   atualizadoEm      DateTime       @updatedAt
@@ -1017,17 +1021,61 @@ model ConversaIA {
 }
 
 model MensagemIA {
-  id            String          @id @default(cuid())
-  conversaId    String
-  conversa      ConversaIA      @relation(fields: [conversaId], references: [id], onDelete: Cascade)
-  consultorioId String
-  direcao       DirecaoMensagem
-  autor         AutorMensagemIA
-  texto         String          @db.Text
+  id             String          @id @default(cuid())
+  conversaId     String
+  conversa       ConversaIA      @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  consultorioId  String
+  direcao        DirecaoMensagem
+  autor          AutorMensagemIA
+  texto          String          @db.Text
+  /// Usuário da equipe que escreveu (autor EQUIPE).
+  autorUsuarioId String?
   /// Id da mensagem na Z-API: barra entrega duplicada do webhook.
-  idProvedor    String?         @unique
-  criadoEm      DateTime        @default(now())
+  idProvedor     String?         @unique
+  criadoEm       DateTime        @default(now())
 
   @@index([conversaId, criadoEm])
   @@map("mensagens_ia")
+}
+
+enum TomIA {
+  AMIGAVEL
+  PROFISSIONAL
+  DIRETO
+  ENTUSIASMADO
+}
+
+model AgenteIA {
+  id                      String       @id @default(cuid())
+  consultorioId           String
+  consultorio             Consultorio  @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+  tipo                    TipoConversa
+  nome                    String
+  tom                     TomIA        @default(AMIGAVEL)
+  gatilhos                String[]
+  desinteresseNaoContatar Boolean      @default(false)
+  horario                 Json
+  cadenciaDias            Int[]
+  seNaoResponderEquipe    Boolean      @default(false)
+  notificarUsuarioId      String?
+  ativo                   Boolean      @default(true)
+  criadoEm                DateTime     @default(now())
+  atualizadoEm            DateTime     @updatedAt
+
+  @@unique([consultorioId, tipo])
+  @@map("agentes_ia")
+}
+
+model ItemConhecimentoIA {
+  id            String      @id @default(cuid())
+  consultorioId String
+  consultorio   Consultorio @relation(fields: [consultorioId], references: [id], onDelete: Cascade)
+  titulo        String
+  texto         String      @db.Text
+  ordem         Int         @default(0)
+  criadoEm      DateTime    @default(now())
+  atualizadoEm  DateTime    @updatedAt
+
+  @@index([consultorioId, ordem])
+  @@map("conhecimento_ia")
 }
