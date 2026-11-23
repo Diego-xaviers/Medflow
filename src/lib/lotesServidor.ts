@@ -19,7 +19,7 @@ import { calcularRelatorio } from './relatorios'
 import { hojeDaClinica } from './datas'
 import { carregarAgente, textoDaBase } from './agentesServidor'
 import { HORARIO_PADRAO } from './agentesIA'
-import { aindaNaFila, diaNoFuso, espacar, horarioDoLote, janelaDoHorario, textoDaAutorizacao } from './whatsappRegras'
+import { aindaNaFila, diaNoFuso, espacar, horarioDoLote, janelaDoHorario, prazoDaConfiguracao, textoDaAutorizacao, textoDoPrazo } from './whatsappRegras'
 import {
   classificar,
   diasDoContato,
@@ -566,9 +566,17 @@ export async function enviadasHoje(consultorioId: string, fuso: string, agora = 
 export async function dadosWhatsapp(consultorioId: string) {
   const c = await prisma.consultorio.findUniqueOrThrow({
     where: { id: consultorioId },
-    select: { whatsappStatus: true, whatsappNumero: true, iaPosVendaLigada: true, limiteDiarioEnvios: true, fusoHorario: true },
+    select: {
+      whatsappStatus: true, whatsappNumero: true, iaPosVendaLigada: true, limiteDiarioEnvios: true, fusoHorario: true,
+      whatsappConfiguracaoDesde: true,
+    },
   })
+  const emConfiguracao = c.whatsappStatus === 'SEM_INSTANCIA' || c.whatsappStatus === 'EM_CONFIGURACAO'
+  const prazo = emConfiguracao ? prazoDaConfiguracao(c.whatsappConfiguracaoDesde) : null
   return {
+    /** "24/11 às 09:00" no fuso da clínica; null sem prazo (ou já configurado). */
+    prontoAte: prazo ? textoDoPrazo(prazo.prazo, c.fusoHorario) : null,
+    prazoVencido: prazo?.atrasado ?? false,
     status: c.whatsappStatus,
     numero: c.whatsappNumero,
     posVendaLigada: c.iaPosVendaLigada,

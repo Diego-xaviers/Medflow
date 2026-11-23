@@ -64,9 +64,17 @@ export default function CartaoWhatsapp({
       </div>
 
       {(whatsapp.status === 'SEM_INSTANCIA' || whatsapp.status === 'EM_CONFIGURACAO') && (
-        <p className="text-[13px] text-neutro-600 dark:text-neutro-400">
-          Estamos configurando o seu Assistente IA. Enquanto isso, configure os agentes e cadastre seus pacientes.
-        </p>
+        <div className="text-[13px] text-neutro-600 dark:text-neutro-400 space-y-1">
+          <p>
+            Estamos configurando o seu Assistente IA. Ele fica pronto em até 24 horas
+            {whatsapp.prontoAte && !whatsapp.prazoVencido ? <>, até <strong className="font-semibold text-neutro-800 dark:text-neutro-100">{whatsapp.prontoAte}</strong></> : ''}.
+          </p>
+          <p>
+            {whatsapp.prazoVencido
+              ? 'Estamos finalizando os últimos ajustes. Assim que terminar, o código para conectar o WhatsApp aparece aqui.'
+              : 'Quando estiver pronto, o código para conectar o WhatsApp aparece aqui. Enquanto isso, configure os agentes e cadastre seus pacientes.'}
+          </p>
+        </div>
       )}
 
       {desconectado && (

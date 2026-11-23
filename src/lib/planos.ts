@@ -119,7 +119,7 @@ export const INCLUI: Record<PlanoNome, string[]> = {
   ULTRA: [
     'Tudo do Pro',
     'Usuários ilimitados',
-    'Pós-venda com IA',
+    'Assistente IA no WhatsApp (ativo em até 24 h)',
     'CRM integrado',
     'Análise de crescimento',
   ],

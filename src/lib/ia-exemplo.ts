@@ -14,7 +14,7 @@ const horasAtras = (h: number) => new Date(hoje.getTime() - h * 3_600_000).toISO
 
 export const PAINEL_IA_EXEMPLO: Painel = {
   liberado: true,
-  whatsapp: { status: 'CONECTADO', numero: '(92) 99999-0000', posVendaLigada: true, enviadasHoje: 12, limite: 20 },
+  whatsapp: { status: 'CONECTADO', numero: '(92) 99999-0000', posVendaLigada: true, enviadasHoje: 12, limite: 20, prontoAte: null, prazoVencido: false },
   hoje: hoje.toISOString().slice(0, 10),
   aguardandoEquipe: 1,
   analise: {

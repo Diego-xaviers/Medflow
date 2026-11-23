@@ -112,6 +112,8 @@ model Consultorio {
   whatsappInstanciaToken    String?
   whatsappSegredoWebhook    String?        @unique
   whatsappNumero            String?
+  /// Quando o Ultra foi pago e a instância entrou na fila: a clínica tem a promessa de 24 h.
+  whatsappConfiguracaoDesde DateTime?
   /// Pós-venda automático: só liga com autorização registrada de quem aceitou.
   iaPosVendaLigada          Boolean        @default(false)
   iaPosVendaAutorizadaPorId String?

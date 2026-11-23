@@ -85,3 +85,7 @@ O Neon recusou criar a branch de backup pré-2b porque o projeto atingiu o limit
   sair duplicada (marcado `shortcut:`).
 - Termos de uso: o dono precisa confirmar a frase "o Medflow não se
   responsabiliza".
+
+## Prazo de 24 h da instância (23/11/2026)
+
+O Ultra pago grava `consultorios.whatsappConfiguracaoDesde` (coluna nova no SQL da 2b) e a clínica vê "fica pronto em até 24 horas, até dd/mm às hh:mm". No Admin, o topo mostra a fila "WhatsApp para configurar" (prazo restante e atraso em vermelho) e o bloco do consultório traz o passo a passo: criar a instância, colar ID e token e colar a URL do webhook em Ao receber, Ao conectar e Ao desconectar. Clínicas que já estavam em configuração antes da coluna aparecem sem prazo.

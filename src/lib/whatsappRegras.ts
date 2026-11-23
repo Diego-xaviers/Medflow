@@ -285,6 +285,40 @@ export function tituloDaEquipe(primeiroNome: string, motivo: string): string {
   return `${primeiroNome} ${motivo.charAt(0).toLowerCase()}${motivo.slice(1)}`
 }
 
+/** Prazo prometido à clínica entre o Ultra pago e o WhatsApp pronto para conectar. */
+export const PRAZO_CONFIGURACAO_HORAS = 24
+
+/** Prazo da instância: início + 24 h; `atrasado` quando já passou. Sem início, sem prazo. */
+export function prazoDaConfiguracao(
+  desde: Date | string | null | undefined,
+  agora: Date = new Date(),
+): { prazo: Date; restanteMs: number; atrasado: boolean } | null {
+  if (!desde) return null
+  const inicio = new Date(desde)
+  if (Number.isNaN(inicio.getTime())) return null
+  const prazo = new Date(inicio.getTime() + PRAZO_CONFIGURACAO_HORAS * 3_600_000)
+  const restanteMs = prazo.getTime() - agora.getTime()
+  return { prazo, restanteMs, atrasado: restanteMs <= 0 }
+}
+
+/** "23/11 às 15:40" no fuso da clínica. */
+export function textoDoPrazo(prazo: Date, fuso: string): string {
+  const partes = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: fuso, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(prazo)
+  const v = (t: string) => partes.find((p) => p.type === t)?.value ?? ''
+  return `${v('day')}/${v('month')} às ${v('hour')}:${v('minute')}`
+}
+
+/** "faltam 5h 20min" / "atrasado 1h 05min", para a fila do admin. */
+export function textoDoRestante(restanteMs: number): string {
+  const min = Math.floor(Math.abs(restanteMs) / 60_000)
+  const h = Math.floor(min / 60)
+  const m = String(min % 60).padStart(2, '0')
+  const tempo = h > 0 ? `${h}h ${m}min` : `${min % 60}min`
+  return restanteMs > 0 ? `faltam ${tempo}` : `atrasado ${tempo}`
+}
+
 /** Status depois de salvar id/token: só quem ainda não configurou vira DESCONECTADO; conectado segue conectado. */
 export function statusAposSalvar(atual: string): string {
   return atual === 'SEM_INSTANCIA' || atual === 'EM_CONFIGURACAO' ? 'DESCONECTADO' : atual

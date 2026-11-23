@@ -60,6 +60,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         configurado: Boolean(whatsappInstanciaId && whatsappInstanciaToken),
         urlWebhook: urlDoWebhook(whatsappSegredoWebhook),
         limiteDiarioEnvios: c.limiteDiarioEnvios,
+        configuracaoDesde: c.whatsappConfiguracaoDesde,
       },
       valorMensalidade: c.valorMensalidade ? Number(c.valorMensalidade) : null,
       faturas: c.faturas.map((f) => ({ ...f, valor: Number(f.valor) })),
