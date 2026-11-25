@@ -6,11 +6,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Building2, Plus, X, Loader2, Link2, Check, Users, CalendarCheck2,
   UserRound, KeyRound, Copy, ExternalLink, Settings, Trash2, Wallet,
-  LockOpen, Lock,
+  LockOpen, Lock, Clock, AlertTriangle,
 } from 'lucide-react'
 import { fetcher, enviar } from '@/lib/fetcher'
 import { data, moeda } from '@/lib/formato'
 import RedesAdmin from '@/components/RedesAdmin'
+import { prazoDaConfiguracao, textoDoRestante } from '@/lib/whatsappRegras'
 
 const vazio = {
   nomeConsultorio: '', telefone: '', endereco: '',
@@ -79,6 +80,8 @@ export default function AdminPage() {
       </div>
 
       <ParametrosPix />
+
+      <FilaInstancias consultorios={consultorios ?? []} aoConfigurar={setGerenciando} />
 
       <RedesAdmin consultorios={consultorios ?? []} />
 
@@ -548,6 +551,21 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
                             {c.whatsapp.numero ? ` · ${c.whatsapp.numero}` : ''}
                           </span>
                         </div>
+                        <PrazoInstancia status={c.whatsapp.status} desde={c.whatsapp.configuracaoDesde} />
+                        {!c.whatsapp.configurado && (
+                          <ol className="text-[11.5px] text-neutro-600 dark:text-neutro-400 list-decimal list-inside space-y-0.5">
+                            <li>
+                              No painel da Z-API, crie uma instância com o nome da clínica.{' '}
+                              <a href="https://app.z-api.io" target="_blank" rel="noreferrer"
+                                className="text-brand-700 dark:text-brand-400 underline inline-flex items-center gap-0.5">
+                                Abrir painel <ExternalLink size={10} />
+                              </a>
+                            </li>
+                            <li>Copie o ID da instância e o Token e cole abaixo. Clique em Salvar instância.</li>
+                            <li>Copie a URL do webhook que aparece e cole na instância em &quot;Ao receber&quot;, &quot;Ao conectar&quot; e &quot;Ao desconectar&quot;.</li>
+                            <li>Pronto: a clínica é avisada e lê o código QR na tela do Assistente IA.</li>
+                          </ol>
+                        )}
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <label className="rotulo">ID da instância</label>
@@ -568,7 +586,7 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
                         {c.whatsapp.configurado && (
                           c.whatsapp.urlWebhook ? (
                             <div>
-                              <label className="rotulo">URL do webhook (colar na instância)</label>
+                              <label className="rotulo">URL do webhook (colar em Ao receber, Ao conectar e Ao desconectar)</label>
                               <div className="flex items-center gap-2">
                                 <input readOnly className="campo font-mono text-[11px]" value={c.whatsapp.urlWebhook}
                                   onFocus={(e) => e.currentTarget.select()} />
@@ -954,5 +972,57 @@ function ParametrosPix() {
         </form>
       )}
     </section>
+  )
+}
+
+/** Ultra pago esperando instância: a clínica tem a promessa de 24 h. */
+function FilaInstancias({ consultorios, aoConfigurar }: { consultorios: any[]; aoConfigurar: (id: string) => void }) {
+  const fila = consultorios
+    .filter((c) => c.plano === 'ULTRA' && (c.whatsappStatus === 'EM_CONFIGURACAO' || c.whatsappStatus === 'SEM_INSTANCIA'))
+    .map((c) => ({ c, prazo: prazoDaConfiguracao(c.whatsappConfiguracaoDesde) }))
+    .sort((a, b) => (a.prazo?.restanteMs ?? Infinity) - (b.prazo?.restanteMs ?? Infinity))
+  if (fila.length === 0) return null
+  return (
+    <section className="cartao p-4 mb-4 border-brand-200 dark:border-brand-900">
+      <div className="flex items-center gap-2 mb-1">
+        <Clock size={15} className="text-brand-600 dark:text-brand-400" />
+        <h2 className="text-[14px] font-semibold">WhatsApp para configurar ({fila.length})</h2>
+      </div>
+      <p className="text-[11.5px] text-neutro-500 mb-3">
+        Clínicas Ultra esperando a instância. O prazo prometido é de 24 h a partir do pagamento.
+      </p>
+      <ul className="space-y-1.5">
+        {fila.map(({ c, prazo }) => (
+          <li key={c.id} className="flex items-center justify-between gap-3 text-[13px]">
+            <span className="min-w-0 truncate">{c.nome}</span>
+            <span className="flex items-center gap-2 shrink-0">
+              <span className={`etiqueta ${prazo?.atrasado
+                ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400'
+                : 'bg-neutro-100 dark:bg-neutro-800 text-neutro-600 dark:text-neutro-300'}`}>
+                {prazo ? textoDoRestante(prazo.restanteMs) : 'sem pagamento confirmado'}
+              </span>
+              <button type="button" onClick={() => aoConfigurar(c.id)} className="btn-suave !py-1.5 !px-2.5">
+                Configurar
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function PrazoInstancia({ status, desde }: { status: string; desde: string | null }) {
+  if (status !== 'EM_CONFIGURACAO' && status !== 'SEM_INSTANCIA') return null
+  const prazo = prazoDaConfiguracao(desde)
+  if (!prazo) {
+    return <p className="text-[11.5px] text-neutro-500">Sem pagamento do Ultra confirmado: o prazo de 24 h começa no pagamento.</p>
+  }
+  return (
+    <p className={`text-[11.5px] flex items-center gap-1.5 ${prazo.atrasado ? 'text-red-700 dark:text-red-400' : 'text-neutro-600 dark:text-neutro-400'}`}>
+      {prazo.atrasado ? <AlertTriangle size={12} /> : <Clock size={12} />}
+      Prazo de 24 h: {textoDoRestante(prazo.restanteMs)}
+      {' '}({prazo.prazo.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})
+    </p>
   )
 }

@@ -48,8 +48,7 @@ export default function PacientesPage() {
   const [detalheId, setDetalheId] = useState<string | null>(null)
 
   // Permite chegar aqui já com a ficha aberta: /pacientes?paciente=<id>.
-  // É assim que os Lembretes levam direto para a pessoa certa. Lemos da
-  // window em vez de useSearchParams para não precisar de <Suspense> só
+  // Lemos da window em vez de useSearchParams para não precisar de <Suspense> só
   // por causa disto — o que quebraria o build da página.
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('paciente')

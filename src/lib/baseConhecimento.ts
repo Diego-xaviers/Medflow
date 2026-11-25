@@ -41,7 +41,7 @@ export const BASE: ItemConhecimento[] = [
     id: 'falta',
     pergunta: 'O paciente não apareceu. O que eu faço?',
     resposta:
-      'Na Agenda, passe o mouse sobre o atendimento e clique no X para marcar como Falta. A partir daí ele entra automaticamente em Lembretes → Remarcar faltas, com a mensagem de WhatsApp já escrita. Se ele remarcar, some da lista sozinho.',
+      'Na Agenda, passe o mouse sobre o atendimento e clique no X para marcar como Falta. Se o paciente quiser remarcar, registre a nova consulta na Agenda.',
     termos: ['falta', 'faltou', 'nao apareceu', 'remarcar', 'ausencia', 'desmarcar', 'cancelar'],
   },
   {
@@ -76,7 +76,7 @@ export const BASE: ItemConhecimento[] = [
     id: 'financeiro',
     pergunta: 'O que entra nos números do Financeiro e dos Relatórios?',
     resposta:
-      'Receitas e despesas contam apenas lançamentos marcados como PAGO. O que está PENDENTE aparece separado, como valor a receber — e quando passa da data, vira lembrete de cobrança. A taxa de comparecimento compara consultas concluídas com faltas, ignorando as canceladas.',
+      'Receitas e despesas contam apenas lançamentos marcados como PAGO. O que está PENDENTE aparece separado, como valor a receber. A taxa de comparecimento compara consultas concluídas com faltas, ignorando as canceladas.',
     termos: ['financeiro', 'relatorio', 'faturamento', 'numeros', 'pago', 'pendente', 'receita mensal', 'ticket'],
   },
   {

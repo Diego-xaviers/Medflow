@@ -22,7 +22,7 @@ export default function ModalAutorizar({
   hoje?: string
   texto?: string
   aoFechar: () => void
-  aoConfirmar: (inicio: string) => Promise<void>
+  aoConfirmar: (inicio: string, texto: string) => Promise<void>
 }) {
   const [inicio, setInicio] = useState(hoje)
   const [salvando, setSalvando] = useState(false)
@@ -35,12 +35,14 @@ export default function ModalAutorizar({
   const exibido = texto ?? previa.data?.texto
 
   async function confirmar() {
+    if (!exibido) return
     setSalvando(true)
     setErro(null)
     try {
-      await aoConfirmar(inicio)
+      await aoConfirmar(inicio, exibido)
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui autorizar agora.')
+      if (loteId) void previa.mutate()
       setSalvando(false)
     }
   }

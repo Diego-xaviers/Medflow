@@ -14,30 +14,29 @@ Para quem continuar (Cursor / outro Claude). Leia isto inteiro antes de mexer.
 - **Regras que continuam valendo:** a seção "O que não pode acontecer" de
   `docs/superpowers/specs/2026-11-20-assistente-ia-etapa2-design.md`.
 
-## Estado em 21/11/2026
+## Estado da branch após a implementação
 
-| Tarefa | Status |
-|---|---|
-| 1. Banco (schema + `prisma/ajustes/2026-11-21-assistente-ia-agentes.sql`) | **Feita e revisada** (commit `0a7c094`). SQL **ainda não aplicado** em nenhum banco. |
-| 2. Regras puras (`src/lib/agentesIA.ts`, horário/cadência/gatilhos em `whatsappRegras.ts`) | A fazer |
-| 3. Servidor dos agentes e da base (`agentesServidor.ts`, prompt em `iaConversa.ts`) | A fazer |
-| 4. Cron, lotes e webhook usam a configuração | A fazer |
-| 5. APIs (`/api/ia/agentes`, `/api/ia/conhecimento`, `/api/conversas`) | A fazer |
-| 6. Tela de Agentes no formato do SGM | A fazer |
-| 7. Aba Base de Conhecimento | A fazer |
-| 8. Tela de Conversas + remover Lembretes | A fazer |
-| 9. Demo e prévia | A fazer |
+A branch contém as tarefas 1 a 9. O cartão do WhatsApp mostra o estado de configuração para clínicas Ultra que ainda não têm instância. Em Conversas, a equipe pode assumir, responder pelo WhatsApp, devolver à IA e resolver o atendimento. As rotas antigas de Lembretes redirecionam para a caixa de conversas.
 
-**Ordem sugerida se faltar tempo** (o que o dono mais sente falta):
-1. Primeiro, um conserto rápido e independente: em `src/components/ia/CartaoWhatsapp.tsx`, a linha
-   `if (whatsapp.status === 'SEM_INSTANCIA') return null` esconde o QR code
-   de clínicas Ultra antigas, como a MasterClin. Trocar por mostrar
-   "Estamos configurando o seu Assistente IA" (o mesmo de `EM_CONFIGURACAO`).
-   No Admin, o bloco "WhatsApp (Z-API)" já aparece para Ultra. Conferir se
-   aparece também com `SEM_INSTANCIA`.
-2. Tarefa 8 (Conversas), que é a tela que mais aparece para o dono.
-3. Tarefas 2 a 6, que são a configuração da IA.
-4. Tarefas 7 e 9.
+Sem configuração salva, as aberturas e os lembretes seguem de segunda a sexta, das 8h às 18h no fuso da clínica, com um lembrete após três dias. Alterar o agente permite definir os dias, a janela e até três lembretes. O cron roda a cada hora. Um bloco entre duas rodadas pode ficar sem envio.
+
+Na Recuperação, o lote guarda a janela exibida na autorização em `LoteIA.horarioAutorizado`. O envio exige que o horário esteja dentro dessa janela e da configuração atual. Para autorizações anteriores à 2b, a janela autorizada é a de segunda a sexta, das 8h às 18h.
+
+O SQL da 2b inclui a nova coluna em `lotes_ia`. A migração foi executada duas vezes em PostgreSQL em memória com o schema anterior. Colunas, índices e restrições coincidiram com o schema gerado pelo Prisma. A validação da migração no Neon está registrada abaixo. Ainda faltam a homologação do WhatsApp, o backup pré-2b, a aplicação em produção e o deploy. As verificações locais cobrem as regras e as rotas com dados simulados, além das telas em navegador de desktop e em largura de celular.
+
+## Homologação local de 21/11/2026
+
+Na versão `4ed2598`, o build de produção foi executado em localhost com NextAuth e Prisma ligados a um PostgreSQL em memória (PGlite). Foram usadas três clínicas fictícias, duas Ultra e uma Básico, com login por senha. O banco partiu do schema da Etapa 2 e recebeu a migração da 2b duas vezes.
+
+- **Atividade dos contatos.** Um lote concluído com 51 envios no mesmo instante apareceu em duas páginas de 50 e 1, sem repetir nem perder contatos. O agendamento persistiu após nova consulta. A API rejeitou uma alteração baseada no estado anterior e um pedido da outra clínica. O plano Básico recebeu HTTP 402 ao abrir a atividade.
+- **Agentes e base.** A configuração do agente de recuperação persistiu apenas na clínica que a editou. O teste com a palavra “humano” acionou o repasse. O item de conhecimento foi criado e excluído pela clínica de origem. A tentativa de edição pela outra clínica recebeu HTTP 404.
+- **Conversas.** A sequência assumir, devolver à IA e resolver passou pelas rotas autenticadas. Outra clínica recebeu HTTP 404 ao tentar ler a conversa. A tentativa de responder à conversa resolvida com WhatsApp desconectado recebeu HTTP 400, e o histórico permaneceu vazio.
+
+## Homologação da migração no Neon
+
+Em 21/11/2026, a migração da 2b foi executada em duas transações sucessivas no banco `neondb` da branch `teste-assistente-ia-2` (`br-muddy-rain-acs4gyyo`). Antes da primeira execução, as tabelas de conversas, mensagens e lotes da Etapa 2 existiam e a tabela de agentes ainda não existia. Após a segunda execução, a conferência do catálogo encontrou as 24 colunas previstas (21 nas duas tabelas novas e três nas existentes) e os quatro índices das tabelas novas, incluindo a unicidade por consultório e tipo de agente.
+
+O Neon recusou criar a branch de backup pré-2b porque o projeto atingiu o limite de branches. A branch de teste existente foi reutilizada. O backup pré-2b e a migração de produção continuam pendentes. O envio e o recebimento também dependem de uma instância de WhatsApp de homologação e de um número destinatário de teste.
 
 ## O que já está em produção (não quebrar)
 
@@ -86,3 +85,7 @@ Para quem continuar (Cursor / outro Claude). Leia isto inteiro antes de mexer.
   sair duplicada (marcado `shortcut:`).
 - Termos de uso: o dono precisa confirmar a frase "o Medflow não se
   responsabiliza".
+
+## Prazo de 24 h da instância (23/11/2026)
+
+O Ultra pago grava `consultorios.whatsappConfiguracaoDesde` (coluna nova no SQL da 2b) e a clínica vê "fica pronto em até 24 horas, até dd/mm às hh:mm". No Admin, o topo mostra a fila "WhatsApp para configurar" (prazo restante e atraso em vermelho) e o bloco do consultório traz o passo a passo: criar a instância, colar ID e token e colar a URL do webhook em Ao receber, Ao conectar e Ao desconectar. Clínicas que já estavam em configuração antes da coluna aparecem sem prazo.

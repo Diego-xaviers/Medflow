@@ -55,3 +55,7 @@ assert.ok(!podeAbrir('VENDEDORA', '/ia'), 'vendedora não abre o Assistente IA')
 assert.ok(TELAS_CONFIGURAVEIS.some((t) => t.href === '/ia'), 'dono pode ligar/desligar /ia por pessoa')
 
 console.log('rotas: todos os checks passaram')
+
+assert.ok(podeAbrir('ATENDENTE', '/conversas'))
+assert.ok(!podeAbrir('VENDEDORA', '/conversas'))
+assert.ok(!podeAbrir('ATENDENTE', '/conversas', ['/agenda']))

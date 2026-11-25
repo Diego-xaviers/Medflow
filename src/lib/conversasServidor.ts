@@ -7,18 +7,21 @@
  */
 
 import { Prisma } from '@prisma/client'
+import { carregarAgente, carregarAgentes, textoDaBase } from './agentesServidor'
+import { bateGatilho, type BlocoHorario, type ConfigAgente } from './agentesIA'
+import { ErroDeNegocio } from './api'
 import { prisma } from './prisma'
 import { situacaoDaConta } from './cobranca'
 import { temRecurso, type PlanoNome } from './planos'
 import { primeiroNome } from './ia'
-import { escreverAberturaPosVenda, responderConversa, textoLembrete, NOME_IA, type Turno } from './iaConversa'
-import { enviadasHoje, escreverPendentes, liberarHoje, naoContatarMais } from './lotesServidor'
+import { escreverAberturaPosVenda, responderConversa, textoLembrete, type Turno } from './iaConversa'
+import { comTrava, enviadasHoje, escreverPendentes, liberarHoje, naoContatarMais } from './lotesServidor'
 import { equipeDoConsultorio, notificar } from './notificacoes'
-import { enviarTexto, ErroProvedor, telefoneE164, type EventoWhatsapp, type Instancia } from './whatsappProvedor'
+import { enviarTexto, telefoneE164, type EventoWhatsapp, type Instancia } from './whatsappProvedor'
 import {
   acaoDaResposta,
   cotaDoDia,
-  dentroDaJanela,
+  dentroDoHorario,
   diaNoFuso,
   doTelefone,
   ECO_MS,
@@ -26,10 +29,12 @@ import {
   entraNoPosVenda,
   enviosDaRodada,
   espacar,
-  janelaDeEnvio,
+  horarioDoLote,
+  janelaDoHorario,
   lembreteDaRecuperacao,
+  pediuParar,
   posVendaVencido,
-  proximoPasso,
+  proximoPassoCadencia,
   tituloDaEquipe,
   type ItemFila,
 } from './whatsappRegras'
@@ -41,8 +46,8 @@ const DIA_MS = 86_400_000
 /** Conversa que ainda pode receber mensagem nossa: o paciente não entra em outra. */
 const CONVERSA_ATIVA = ['AGUARDANDO_ENVIO', 'ABERTA', 'COM_EQUIPE'] as const
 
-export function assinaturaDa(tipo: TipoConversa, clinica: string): string {
-  return `${NOME_IA[tipo]}, da ${clinica}`
+function assinaturaDa(agente: ConfigAgente, clinica: string): string {
+  return `${agente.nome}, da ${clinica}`
 }
 
 /** Só com o WhatsApp conectado. O token nunca sai do servidor. */
@@ -65,20 +70,32 @@ export async function enviarNaConversa(
   consultorioId: string,
   conversaId: string,
   texto: string,
-  autor: 'IA'
+  ...autoria: ['IA'] | ['EQUIPE', string]
 ): Promise<void> {
+  const [autor, autorUsuarioId] = autoria
   const [instancia, conversa] = await Promise.all([
     instanciaDo(consultorioId),
     prisma.conversaIA.findFirst({
       where: { id: conversaId, consultorioId },
-      select: { paciente: { select: { telefone: true } } },
+      select: { status: true, paciente: { select: { telefone: true, ativo: true, aceitaContato: true } } },
     }),
   ])
   const telefone = telefoneE164(conversa?.paciente.telefone)
-  if (!instancia || !telefone) throw new ErroProvedor()
+  if (!instancia) throw new ErroDeNegocio('Conecte o WhatsApp da clínica antes de enviar.')
+  if (!conversa || !telefone || !conversa.paciente.ativo || !conversa.paciente.aceitaContato)
+    throw new ErroDeNegocio('Este paciente não pode receber mensagens.')
+  if (autor === 'EQUIPE' ? (!autorUsuarioId || conversa.status !== 'COM_EQUIPE') : conversa.status !== 'ABERTA')
+    throw new ErroDeNegocio('A situação desta conversa mudou. Recarregue a conversa.')
 
+  await gravarEEnviar(consultorioId, conversaId, instancia, telefone, texto, autor, autorUsuarioId)
+}
+
+async function gravarEEnviar(
+  consultorioId: string, conversaId: string, instancia: Instancia, telefone: string,
+  texto: string, autor: 'IA' | 'EQUIPE', autorUsuarioId?: string
+) {
   const { id } = await prisma.mensagemIA.create({
-    data: { conversaId, consultorioId, direcao: 'SAIDA', autor, texto },
+    data: { conversaId, consultorioId, direcao: 'SAIDA', autor, autorUsuarioId, texto },
     select: { id: true },
   })
 
@@ -163,7 +180,7 @@ async function consultasDoPosVenda(consultorioId: string, fuso: string, agora: D
   return consultas.filter((c) => escolhidas.includes(c.id))
 }
 
-type Item = ItemFila & { lembrete: boolean }
+type Item = ItemFila & { agente: ConfigAgente; horario: BlocoHorario[] }
 
 /**
  * Uma rodada do cron para um consultório. Cada passo isolado: falha num não
@@ -204,9 +221,12 @@ export async function rodadaDoConsultorio(
   if (!consultorio) return { enviadas, erros }
   const { nome: clinica, fusoHorario: fuso, iaPosVendaLigada, limiteDiarioEnvios } = consultorio
 
+  const [posVenda, recuperacao] = await carregarAgentes(consultorioId)
+  const agentes = { POS_VENDA: posVenda, RECUPERACAO: recuperacao }
+
   // 2. Libera o dia dos lotes e escreve as mensagens que faltam.
   await passo('liberar lotes', () => liberarHoje(consultorioId, agora))
-  await passo('escrever mensagens', async () => {
+  if (recuperacao.ativo) await passo('escrever mensagens', async () => {
     // Cada chamada escreve até 15; para quando acabou ou a IA não escreveu nada.
     for (let r = await escreverPendentes(consultorioId); r.pendentes > 0 && r.escritas > 0; ) {
       r = await escreverPendentes(consultorioId)
@@ -218,8 +238,9 @@ export async function rodadaDoConsultorio(
     await passo('criar pós-venda', async () => {
       const consultas = await consultasDoPosVenda(consultorioId, fuso, agora)
       if (consultas.length === 0) return
-      const { de, ate } = janelaDeEnvio(agora, fuso)
-      const horarios = espacar(consultas.length, de, ate)
+      const janela = janelaDoHorario(agora, fuso, posVenda.horario)
+      if (!janela) return
+      const horarios = espacar(consultas.length, janela.de, janela.ate)
       await prisma.conversaIA.createMany({
         data: consultas.map((c, i) => ({
           consultorioId,
@@ -234,7 +255,7 @@ export async function rodadaDoConsultorio(
   }
 
   // 4. Recuperação: contato liberado e com mensagem ganha a sua conversa.
-  await passo('criar recuperação', async () => {
+  if (recuperacao.ativo) await passo('criar recuperação', async () => {
     const contatos = await prisma.contatoLote.findMany({
       where: {
         consultorioId,
@@ -310,28 +331,32 @@ export async function rodadaDoConsultorio(
     const abertas = await prisma.conversaIA.findMany({
       where: { consultorioId, status: 'ABERTA' },
       select: {
-        id: true, tipo: true, status: true, aberturaEnviadaEm: true, lembreteEnviadoEm: true, ultimaRespostaEm: true,
-        contatoLote: { select: { lote: { select: { status: true } } } },
+        id: true, tipo: true, status: true, aberturaEnviadaEm: true, lembreteEnviadoEm: true, lembretesEnviados: true, ultimaRespostaEm: true,
+        contatoLote: { select: { lote: { select: { status: true, horarioAutorizado: true } } } },
       },
     })
     for (const c of abertas) {
-      const p = proximoPasso(c, agora)
+      const agente = agentes[c.tipo]
+      const p = proximoPassoCadencia({ ...c, ultimoLembreteEm: c.lembreteEnviadoEm }, agente.cadenciaDias, agora)
       if (p === 'NADA') continue
       // Lote pausado segura também a segunda mensagem; descartado não lembra, encerra.
       const lembrete = c.tipo === 'RECUPERACAO' ? lembreteDaRecuperacao(c.contatoLote?.lote.status ?? null) : iaPosVendaLigada ? 'LEMBRAR' : 'SEGURAR'
-      if (p === 'ENCERRAR' || lembrete === 'ENCERRAR') {
+      if (p === 'FIM' && agente.seNaoResponderEquipe && lembrete !== 'ENCERRAR') {
+        await passarParaEquipe(consultorioId, c.id, 'Não respondeu', 'normal', true)
+      } else if (p === 'FIM' || lembrete === 'ENCERRAR') {
         await prisma.conversaIA.updateMany({
           where: { id: c.id, consultorioId, status: 'ABERTA', ultimaRespostaEm: null },
           data: { status: 'SEM_RESPOSTA' },
         })
-      } else if (lembrete === 'LEMBRAR') {
-        lembretes.push({ id: c.id, tipo: 'LEMBRETE', enviarEm: agora, lembrete: true })
+      } else if (lembrete === 'LEMBRAR' && (c.tipo !== 'RECUPERACAO' || recuperacao.ativo)) {
+        const horario = c.tipo === 'RECUPERACAO' ? horarioDoLote(agente.horario, c.contatoLote?.lote.horarioAutorizado) : agente.horario
+        lembretes.push({ id: c.id, tipo: 'LEMBRETE', enviarEm: agora, agente, horario })
       }
     }
   })
 
   // 7. Envio: só na janela, dentro da cota do dia, e espalhado pelas rodadas que restam.
-  if (!dentroDaJanela(agora, fuso)) return { enviadas, erros }
+  if (![posVenda, recuperacao].some((a) => dentroDoHorario(agora, fuso, a.horario))) return { enviadas, erros }
 
   let fila: Item[] = []
   let jaEnviadosHoje = 0
@@ -346,27 +371,31 @@ export async function rodadaDoConsultorio(
           // Lote pausado e pós-venda desligado seguram o que ainda não saiu.
           OR: [
             ...(iaPosVendaLigada ? [{ tipo: 'POS_VENDA' as const }] : []),
-            {
-              tipo: 'RECUPERACAO',
-              contatoLote: { status: 'LIBERADO', lote: { status: 'APROVADO', autorizadoEm: { not: null } } },
-            },
+            ...(recuperacao.ativo ? [{
+              tipo: 'RECUPERACAO' as const,
+              contatoLote: { status: 'LIBERADO' as const, lote: { status: 'APROVADO' as const, autorizadoEm: { not: null } } },
+            }] : []),
           ],
         },
-        select: { id: true, tipo: true, enviarEm: true },
+        select: { id: true, tipo: true, enviarEm: true, contatoLote: { select: { lote: { select: { horarioAutorizado: true } } } } },
       }),
     ])
     jaEnviadosHoje = enviadasAntes
-    fila = [...aguardando.map((c) => ({ id: c.id, tipo: c.tipo, enviarEm: c.enviarEm ?? agora, lembrete: false })), ...lembretes]
+    const aberturas = aguardando.map((c) => {
+      const agente = agentes[c.tipo]
+      const horario = c.tipo === 'RECUPERACAO' ? horarioDoLote(agente.horario, c.contatoLote?.lote.horarioAutorizado) : agente.horario
+      return { id: c.id, tipo: c.tipo, enviarEm: c.enviarEm ?? agora, agente, horario }
+    })
+    fila = [...aberturas, ...lembretes].filter((i) => dentroDoHorario(agora, fuso, i.horario))
   })
 
   const porId = new Map(fila.map((i) => [i.id, i]))
-  const daRodada = enviosDaRodada(limiteDiarioEnvios - jaEnviadosHoje, agora, fuso)
-  for (const id of cotaDoDia(fila, jaEnviadosHoje, limiteDiarioEnvios, agora).slice(0, daRodada)) {
-    // A IA pode demorar: a rodada que começou 17h59 não pode seguir enviando às 18h.
-    if (!dentroDaJanela(new Date(), fuso)) break
+  const vagas = limiteDiarioEnvios - jaEnviadosHoje
+  for (const id of cotaDoDia(fila, jaEnviadosHoje, limiteDiarioEnvios, agora)) {
     const item = porId.get(id)!
+    if (enviadas >= enviosDaRodada(vagas, agora, fuso, item.horario) || !dentroDoHorario(new Date(), fuso, item.horario)) continue
     await passo(`enviar ${id}`, async () => {
-      if (await enviarUma(consultorioId, clinica, id, item.lembrete, agora)) enviadas++
+      if (await enviarUma(consultorioId, clinica, item, agora, fuso)) enviadas++
     })
   }
 
@@ -381,16 +410,19 @@ export async function rodadaDoConsultorio(
 async function enviarUma(
   consultorioId: string,
   clinica: string,
-  conversaId: string,
-  lembrete: boolean,
-  agora: Date
+  item: Item,
+  agora: Date,
+  fuso: string
 ): Promise<boolean> {
+  const { id: conversaId, agente } = item
+  const lembrete = item.tipo === 'LEMBRETE'
   const c = await prisma.conversaIA.findFirst({
     where: { id: conversaId, consultorioId },
     select: {
-      tipo: true,
+      tipo: true, status: true, aberturaEnviadaEm: true, ultimaRespostaEm: true,
+      lembreteEnviadoEm: true, lembretesEnviados: true,
       contatoLoteId: true,
-      contatoLote: { select: { mensagem: true } },
+      contatoLote: { select: { mensagem: true, lote: { select: { horarioAutorizado: true } } } },
       paciente: { select: { nome: true, telefone: true, ativo: true, aceitaContato: true } },
     },
   })
@@ -411,22 +443,38 @@ async function enviarUma(
     return false
   }
 
-  const marca = lembrete
-    ? await prisma.conversaIA.updateMany({
-        where: { id: conversaId, consultorioId, status: 'ABERTA', lembreteEnviadoEm: null, ultimaRespostaEm: null },
-        data: { lembreteEnviadoEm: agora },
-      })
-    : await prisma.conversaIA.updateMany({
-        where: { id: conversaId, consultorioId, status: 'AGUARDANDO_ENVIO' },
-        data: { status: 'ABERTA', aberturaEnviadaEm: agora },
-      })
-  if (marca.count === 0) return false // outra rodada levou
+  const anterior = c.lembreteEnviadoEm
+  const contagem = Math.max(c.lembretesEnviados, anterior ? 1 : 0)
+  if (lembrete && proximoPassoCadencia({ ...c, ultimoLembreteEm: anterior }, agente.cadenciaDias, agora) !== 'LEMBRETE') return false
+
+  const origem: Prisma.ConversaIAWhereInput = c.tipo === 'POS_VENDA'
+    ? { consultorio: { iaPosVendaLigada: true } }
+    : { contatoLote: {
+        ...(!lembrete && { status: 'LIBERADO' }),
+        lote: { status: { in: lembrete ? ['APROVADO', 'CONCLUIDO'] : ['APROVADO'] }, autorizadoEm: { not: null }, iniciaEm: { lte: agora } },
+      } }
+
+  // A marca reserva também a vaga diária entre rodadas simultâneas.
+  const reservada = await comTrava(consultorioId, async (tx) => {
+    const clinica = await tx.consultorio.findUniqueOrThrow({ where: { id: consultorioId }, select: { limiteDiarioEnvios: true } })
+    if (await enviadasHoje(consultorioId, fuso, agora, tx) >= clinica.limiteDiarioEnvios) return false
+    const marca = await tx.conversaIA.updateMany({
+      where: {
+        id: conversaId, consultorioId, status: lembrete ? 'ABERTA' : 'AGUARDANDO_ENVIO',
+        ...(lembrete && { lembreteEnviadoEm: anterior, lembretesEnviados: c.lembretesEnviados, ultimaRespostaEm: null }),
+        ...origem,
+      },
+      data: lembrete ? { lembreteEnviadoEm: agora, lembretesEnviados: contagem + 1 } : { status: 'ABERTA', aberturaEnviadaEm: agora },
+    })
+    return marca.count > 0
+  })
+  if (!reservada) return false
 
   const desfazer = () =>
     lembrete
       ? prisma.conversaIA.updateMany({
           where: { id: conversaId, consultorioId, lembreteEnviadoEm: agora },
-          data: { lembreteEnviadoEm: null },
+          data: { lembreteEnviadoEm: anterior, lembretesEnviados: c.lembretesEnviados },
         })
       : prisma.conversaIA.updateMany({
           where: { id: conversaId, consultorioId, status: 'ABERTA', aberturaEnviadaEm: agora },
@@ -435,13 +483,28 @@ async function enviarUma(
 
   try {
     const nome = primeiroNome(c.paciente.nome)
-    const assinatura = assinaturaDa(c.tipo, clinica)
+    const assinatura = assinaturaDa(agente, clinica)
     const texto = lembrete
       ? textoLembrete({ primeiroNome: nome, assinatura, tipo: c.tipo })
       : c.tipo === 'POS_VENDA'
-        ? await escreverAberturaPosVenda({ clinica, assinatura, primeiroNome: nome })
+        ? await escreverAberturaPosVenda({ clinica, assinatura, primeiroNome: nome, nome: agente.nome, tom: agente.tom, conhecimento: await textoDaBase(consultorioId) })
         : c.contatoLote?.mensagem
     if (!texto) throw new Error('contato sem mensagem')
+    const [atual, permitida] = await Promise.all([
+      carregarAgente(consultorioId, c.tipo),
+      prisma.conversaIA.findFirst({
+        where: { id: conversaId, consultorioId, status: 'ABERTA', ultimaRespostaEm: null, ...origem },
+        select: { id: true },
+      }),
+    ])
+    const horario = c.tipo === 'RECUPERACAO' ? horarioDoLote(atual.horario, c.contatoLote?.lote.horarioAutorizado) : atual.horario
+    const aindaDevido = !lembrete || proximoPassoCadencia({ ...c, ultimoLembreteEm: anterior }, atual.cadenciaDias, agora) === 'LEMBRETE'
+    const instante = new Date()
+    if (!permitida || (c.tipo === 'RECUPERACAO' && !atual.ativo) || !aindaDevido ||
+        diaNoFuso(instante, fuso) !== diaNoFuso(agora, fuso) || !dentroDoHorario(instante, fuso, horario)) {
+      await desfazer()
+      return false
+    }
     // shortcut: provedor aceitou mas deu timeout/sem id → desfaz e reenvia na próxima rodada (duplicada); upgrade: consultar status da mensagem no provedor antes de reenviar
     await enviarNaConversa(consultorioId, conversaId, texto, 'IA')
   } catch (erro) {
@@ -451,7 +514,7 @@ async function enviarUma(
 
   if (!lembrete && c.contatoLoteId) {
     await prisma.contatoLote.updateMany({
-      where: { id: c.contatoLoteId, consultorioId },
+      where: { id: c.contatoLoteId, consultorioId, status: 'LIBERADO' },
       data: { status: 'ENVIADO', enviadoEm: agora },
     })
   }
@@ -464,14 +527,16 @@ async function enviarUma(
 
 const SEM_TEXTO = '[áudio ou imagem]'
 
-async function avisarEquipe(consultorioId: string, titulo: string, prioridade: 'alta' | 'normal') {
+async function avisarEquipe(consultorioId: string, titulo: string, prioridade: 'alta' | 'normal', agente: ConfigAgente, conversaId: string) {
+  const equipe = await equipeDoConsultorio(consultorioId)
+  const escolhido = agente.notificarUsuarioId
   await notificar({
-    usuarioIds: await equipeDoConsultorio(consultorioId),
+    usuarioIds: escolhido && equipe.includes(escolhido) ? [escolhido] : equipe,
     consultorioId,
     tipo: 'ASSISTENTE_IA',
     titulo,
-    descricao: prioridade === 'alta' ? 'Prioridade alta. Responda pelo WhatsApp da clínica.' : 'Responda pelo WhatsApp da clínica.',
-    link: '/ia',
+    descricao: prioridade === 'alta' ? 'Prioridade alta. Responda na conversa.' : 'Responda na conversa.',
+    link: `/conversas?id=${encodeURIComponent(conversaId)}`,
   })
 }
 
@@ -483,18 +548,22 @@ export async function passarParaEquipe(
   consultorioId: string,
   conversaId: string,
   motivo: string,
-  prioridade: 'alta' | 'normal'
+  prioridade: 'alta' | 'normal',
+  semResposta = false
 ): Promise<void> {
   const c = await prisma.conversaIA.findFirst({
     where: { id: conversaId, consultorioId },
-    select: { paciente: { select: { nome: true } } },
+    select: { tipo: true, paciente: { select: { nome: true } } },
   })
   if (!c) return
   const { count } = await prisma.conversaIA.updateMany({
-    where: { id: conversaId, consultorioId, status: 'ABERTA' },
+    where: { id: conversaId, consultorioId, status: 'ABERTA', ...(semResposta && { ultimaRespostaEm: null }) },
     data: { status: 'COM_EQUIPE', motivoEquipe: motivo, prioridade },
   })
-  if (count > 0) await avisarEquipe(consultorioId, tituloDaEquipe(primeiroNome(c.paciente.nome), motivo), prioridade)
+  if (count > 0) {
+    const agente = await carregarAgente(consultorioId, c.tipo)
+    await avisarEquipe(consultorioId, tituloDaEquipe(primeiroNome(c.paciente.nome), motivo), prioridade, agente, conversaId)
+  }
 }
 
 /**
@@ -541,12 +610,15 @@ export async function receberEvento(consultorioId: string, ev: EventoWhatsapp): 
       tipo: true,
       pacienteId: true,
       contatoLoteId: true,
-      paciente: { select: { nome: true, telefone: true } },
+      paciente: { select: { nome: true, telefone: true, aceitaContato: true, ativo: true } },
     },
   })
   const doNumero = doTelefone(emAndamento, (c) => c.paciente.telefone, ev.telefone)
   const conversa = doNumero[0] // a mais recente guarda a mensagem
-  if (!conversa) return
+  if (!conversa) {
+    if (!ev.deMim && pediuParar(ev.texto)) await pararPeloNumero(consultorioId, ev.telefone)
+    return
+  }
   const agora = new Date()
 
   if (ev.deMim) {
@@ -555,7 +627,7 @@ export async function receberEvento(consultorioId: string, ev: EventoWhatsapp): 
         conversaId: { in: doNumero.map((c) => c.id) },
         consultorioId,
         direcao: 'SAIDA',
-        autor: 'IA',
+        OR: [{ autor: 'IA' }, { autor: 'EQUIPE', autorUsuarioId: { not: null } }],
         criadoEm: { gte: new Date(agora.getTime() - ECO_MS) },
       },
       select: { texto: true, criadoEm: true },
@@ -589,9 +661,20 @@ export async function receberEvento(consultorioId: string, ev: EventoWhatsapp): 
   }
 }
 
+/** Um mesmo celular pode estar no cadastro de mais de um paciente. */
+async function pararPeloNumero(consultorioId: string, telefone: string, exceto?: string) {
+  const pacientes = await prisma.paciente.findMany({
+    where: { consultorioId, telefone: { not: null } },
+    select: { id: true, telefone: true },
+  })
+  for (const p of doTelefone(pacientes, (c) => c.telefone, telefone)) {
+    await naoContatarMais(consultorioId, p.id, exceto)
+  }
+}
+
 async function depoisDeGravar(
   consultorioId: string,
-  conversa: { id: string; status: string; tipo: TipoConversa; pacienteId: string; contatoLoteId: string | null; paciente: { nome: string } },
+  conversa: { id: string; status: string; tipo: TipoConversa; pacienteId: string; contatoLoteId: string | null; paciente: { nome: string; aceitaContato: boolean; ativo: boolean } },
   doNumero: string[],
   ev: Extract<EventoWhatsapp, { tipo: 'RECEBIDA' }>,
   gravada: { id: string; criadoEm: Date },
@@ -607,13 +690,28 @@ async function depoisDeGravar(
   // A equipe respondeu pelo celular da clínica: ela assume, sem aviso.
   if (ev.deMim) {
     await equipeAssumeCalada()
+    await prisma.conversaIA.updateMany({ where: { id, consultorioId }, data: { atualizadoEm: agora } })
     return
   }
-  if (conversa.status === 'COM_EQUIPE' && doNumero.length === 1) return
 
   await prisma.conversaIA.updateMany({ where: { id, consultorioId }, data: { ultimaRespostaEm: agora } })
+  const parar = async () => {
+    await pararPeloNumero(consultorioId, ev.telefone, id)
+    const { count } = await prisma.conversaIA.updateMany({
+      where: { id, consultorioId, status: { in: ['ABERTA', 'COM_EQUIPE'] } }, data: { status: 'ENCERRADA' },
+    })
+    // Uma confirmação fixa do pedido, apenas se era uma conversa individual com a IA.
+    if (!count || conversa.status !== 'ABERTA' || doNumero.length !== 1 || !conversa.paciente.aceitaContato || !conversa.paciente.ativo) return
+    const c = await prisma.consultorio.findUniqueOrThrow({ where: { id: consultorioId }, select: { plano: true } })
+    if (!temRecurso(c.plano as PlanoNome, 'iaPosVenda') || (await situacaoDaConta(consultorioId)).bloqueado) return
+    const instancia = await instanciaDo(consultorioId)
+    const telefone = telefoneE164(ev.telefone)
+    if (instancia && telefone) await gravarEEnviar(consultorioId, id, instancia, telefone, 'Entendido. Você não receberá mais mensagens da clínica por aqui.', 'IA')
+  }
+  if (pediuParar(ev.texto)) return parar()
+  if (!conversa.paciente.aceitaContato || !conversa.paciente.ativo) return
+  if (conversa.status === 'COM_EQUIPE' && doNumero.length === 1) return
 
-  // Sem o plano ou com a conta bloqueada a IA não responde: a equipe assume, sem aviso.
   const consultorio = await prisma.consultorio.findUniqueOrThrow({
     where: { id: consultorioId },
     select: { nome: true, plano: true },
@@ -622,6 +720,7 @@ async function depoisDeGravar(
     await equipeAssumeCalada()
     return
   }
+  const agente = await carregarAgente(consultorioId, conversa.tipo)
 
   // Número de mais de um paciente: a IA não sabe com quem fala.
   if (doNumero.length > 1) {
@@ -629,11 +728,14 @@ async function depoisDeGravar(
       where: { id: { in: doNumero }, consultorioId, status: 'ABERTA' },
       data: { status: 'COM_EQUIPE', motivoEquipe: 'Número compartilhado', prioridade: 'normal' },
     })
-    if (count > 0) await avisarEquipe(consultorioId, 'Mensagem de um número compartilhado por mais de um paciente', 'normal')
+    if (count > 0) await avisarEquipe(consultorioId, 'Mensagem de um número compartilhado por mais de um paciente', 'normal', agente, id)
     return
   }
 
   if (ev.texto === null) return passarParaEquipe(consultorioId, id, 'Mandou áudio ou imagem', 'normal')
+
+  const gatilho = bateGatilho(ev.texto, agente.gatilhos)
+  if (gatilho) return passarParaEquipe(consultorioId, id, `Pediu atendimento: ${gatilho}`, 'normal')
 
   const mensagens = await prisma.mensagemIA.findMany({
     where: { conversaId: id, consultorioId },
@@ -645,7 +747,8 @@ async function depoisDeGravar(
   try {
     r = await responderConversa({
       clinica: consultorio.nome,
-      assinatura: assinaturaDa(conversa.tipo, consultorio.nome),
+      assinatura: assinaturaDa(agente, consultorio.nome),
+      nome: agente.nome, tom: agente.tom, conhecimento: await textoDaBase(consultorioId),
       tipo: conversa.tipo,
       primeiroNome: primeiroNome(conversa.paciente.nome),
       turnos: mensagens satisfies Turno[],
@@ -654,6 +757,9 @@ async function depoisDeGravar(
     console.error('[webhook-zapi] IA falhou:', id, erro)
     return passarParaEquipe(consultorioId, id, 'Precisa da equipe', 'normal')
   }
+
+  const acao = acaoDaResposta(r.classificacao)
+  if (acao.fim === 'PARAR') return parar()
 
   // "Oi" e "tudo bem sim" em seguida: cada um roda a IA. Só a chamada da mensagem
   // mais nova responde (ela já leu as duas); esta fica quieta e não mexe no estado.
@@ -679,26 +785,13 @@ async function depoisDeGravar(
       return false
     }
   }
-  const acao = acaoDaResposta(r.classificacao)
-
-  // O "não contatar" primeiro: se a resposta falhar ou o tempo acabar, o pedido já ficou.
-  if (acao.fim === 'PARAR') {
-    const pacientes = await prisma.paciente.findMany({
-      where: { consultorioId, telefone: { not: null } },
-      select: { id: true, telefone: true },
-    })
-    // Todo paciente desse número, não só o da conversa (família no mesmo celular).
-    const ids = new Set([conversa.pacienteId, ...doTelefone(pacientes, (p) => p.telefone, ev.telefone).map((p) => p.id)])
-    // Esta conversa fica de fora: o encerramento dela abaixo diz se a equipe assumiu antes.
-    for (const pacienteId of ids) await naoContatarMais(consultorioId, pacienteId, id)
-    const { count } = await prisma.conversaIA.updateMany({ where: { id, consultorioId, status: 'ABERTA' }, data: { status: 'ENCERRADA' } })
-    if (count > 0) await responder()
-    return
-  }
-
   // A equipe pode ter assumido enquanto a IA pensava: aí a IA fica quieta.
   const aindaAberta = await prisma.conversaIA.findFirst({ where: { id, consultorioId, status: 'ABERTA' }, select: { id: true } })
   if (!aindaAberta) return
+  if (acao.fim === 'RESOLVIDA' && acao.recusou && agente.desinteresseNaoContatar) {
+    await naoContatarMais(consultorioId, conversa.pacienteId)
+    return
+  }
   const saiu = await responder()
 
   if (acao.fim === 'EQUIPE') return passarParaEquipe(consultorioId, id, acao.motivo, acao.prioridade)

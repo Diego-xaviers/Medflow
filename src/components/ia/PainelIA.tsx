@@ -1,17 +1,16 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
+import { useSWRConfig } from 'swr'
 import { motion } from 'framer-motion'
 import {
-  Sparkles, RefreshCw, AlertCircle, Pause, Play, Send, CalendarCheck, X, BellOff, Wand2, Loader2, Users, ShieldCheck,
+  Sparkles, RefreshCw, AlertCircle, Pause, Play, Send, BellOff, Wand2, Loader2, Users, ShieldCheck,
 } from 'lucide-react'
-import { enviar, fetcher } from '@/lib/fetcher'
+import { enviar } from '@/lib/fetcher'
 import { linkWhatsApp } from '@/lib/whatsapp'
 import type { ContatoDeHoje, LoteResumo, Painel } from '@/lib/lotesServidor'
 import ModalLote from './ModalLote'
 import ModalAutorizar from './ModalAutorizar'
-import CartaoWhatsapp from './CartaoWhatsapp'
-import AguardandoEquipe from './AguardandoEquipe'
 import { haQuanto } from './haQuanto'
 import { Contador } from './CarregandoIA'
 
@@ -41,14 +40,6 @@ export default function PainelIA({
   const [loteAutorizar, setLoteAutorizar] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const conectado = painel.whatsapp.status === 'CONECTADO'
-  const recarregar = useCallback(async () => {
-    try {
-      aoMudar(await fetcher('/api/ia/painel'))
-    } catch {
-      // Tenta de novo na próxima leitura do QR.
-    }
-  }, [aoMudar])
-
   async function acao(fn: () => Promise<Painel | void>) {
     setErro(null)
     try {
@@ -72,14 +63,7 @@ export default function PainelIA({
         </div>
       )}
 
-      <CartaoWhatsapp whatsapp={painel.whatsapp} aoMudar={aoMudar} aoConectar={recarregar} />
-
-      <AguardandoEquipe
-        itens={painel.aguardandoEquipe}
-        aoResolver={(id) => acao(() => enviar(`/api/ia/conversas/${id}`, 'PATCH', { acao: 'resolvido' }))}
-      />
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div>
         {/* Análise */}
         <section className="cartao p-5 relative overflow-hidden">
           <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-brand-400/10 blur-2xl pointer-events-none" />
@@ -177,8 +161,8 @@ export default function PainelIA({
           loteId={loteAutorizar}
           hoje={painel.hoje}
           aoFechar={() => setLoteAutorizar(null)}
-          aoConfirmar={async (inicio) => {
-            aoMudar(await enviar(`/api/ia/lotes/${loteAutorizar}`, 'PATCH', { acao: 'autorizar', iniciaEm: inicio }))
+          aoConfirmar={async (inicio, textoConfirmado) => {
+            aoMudar(await enviar(`/api/ia/lotes/${loteAutorizar}`, 'PATCH', { acao: 'autorizar', iniciaEm: inicio, textoConfirmado }))
             setLoteAutorizar(null)
           }}
         />
@@ -220,7 +204,7 @@ function LoteEmAndamento({ lote, acao, conectado, aoAutorizar }: {
       </div>
       {lote.hoje.length === 0 ? (
         <p className="px-5 py-6 text-[13px] text-neutro-400">
-          {pausado ? 'Retome o lote para liberar os próximos contatos.' : 'Os contatos de hoje já foram feitos. Amanhã a IA libera os próximos.'}
+          {pausado ? 'Retome o lote para liberar os próximos contatos.' : 'Nenhum contato liberado para envio neste lote agora.'}
         </p>
       ) : (
         <ul className="divide-y divide-neutro-100 dark:divide-neutro-800">
@@ -233,14 +217,14 @@ function LoteEmAndamento({ lote, acao, conectado, aoAutorizar }: {
 
 function Contato({ contato, acao, conectado }: { contato: ContatoDeHoje; acao: (fn: () => Promise<Painel | void>) => Promise<void>; conectado: boolean }) {
   const [mensagem, setMensagem] = useState(contato.mensagem ?? '')
-  const [status, setStatus] = useState(contato.status)
+  const { mutate } = useSWRConfig()
   const [gerando, setGerando] = useState(false)
   const link = mensagem ? linkWhatsApp(contato.telefone, mensagem) : null
 
-  async function marcar(novo: 'ENVIADO' | 'AGENDOU' | 'RECUSOU' | 'NAO_CONTATAR') {
+  async function marcar(novo: 'ENVIADO' | 'NAO_CONTATAR') {
     await acao(async () => {
-      const r = await enviar(`/api/ia/contatos/${contato.id}`, 'PATCH', { status: novo })
-      setStatus(r.status)
+      await enviar(`/api/ia/contatos/${contato.id}`, 'PATCH', { status: novo })
+      await Promise.all([mutate('/api/ia/painel'), mutate('/api/ia/atividade')])
     })
   }
 
@@ -253,7 +237,6 @@ function Contato({ contato, acao, conectado }: { contato: ContatoDeHoje; acao: (
     setGerando(false)
   }
 
-  if (['AGENDOU', 'RECUSOU', 'NAO_CONTATAR'].includes(status)) return null
 
   return (
     <li className="px-5 py-4 grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)_auto] lg:items-start">
@@ -279,21 +262,15 @@ function Contato({ contato, acao, conectado }: { contato: ContatoDeHoje; acao: (
 
       <div className="flex flex-wrap gap-2 lg:flex-col lg:items-stretch">
         {/* Lote autorizado sai sozinho; liberado antes da conexão segue com o wa.me da Etapa 1. */}
-        {conectado && contato.loteAutorizado && status === 'LIBERADO' ? (
+        {conectado && contato.loteAutorizado ? (
           <p className="text-[12px] text-neutro-400">Sai sozinho pelo WhatsApp</p>
-        ) : status === 'LIBERADO' ? (
+        ) : (
           <a href={link ?? undefined} target="_blank" rel="noreferrer"
             onClick={(e) => { if (!link) { e.preventDefault(); return } marcar('ENVIADO') }}
             aria-disabled={!link}
             className={`btn-marca text-[12.5px] py-2 ${link ? '' : 'opacity-50 pointer-events-none'}`}>
             <Send size={14} /> Enviar
           </a>
-        ) : (
-          <>
-            {conectado && contato.enviadaAs && <p className="text-[12px] text-neutro-500">Enviada às {contato.enviadaAs}</p>}
-            <button onClick={() => marcar('AGENDOU')} className="btn-primario text-[12px] py-1.5"><CalendarCheck size={13} /> Agendou</button>
-            <button onClick={() => marcar('RECUSOU')} className="btn-suave text-[12px] py-1.5"><X size={13} /> Recusou</button>
-          </>
         )}
         <button onClick={() => marcar('NAO_CONTATAR')} className="btn-suave text-[12px] py-1.5 text-neutro-500" title="Nunca mais contatar este paciente">
           <BellOff size={13} /> Não quer receber

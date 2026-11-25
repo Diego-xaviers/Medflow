@@ -8,7 +8,7 @@ import { statusAposSalvar } from './whatsappRegras'
 export async function aoVirarUltraPago(consultorioId: string): Promise<void> {
   const { count } = await prisma.consultorio.updateMany({
     where: { id: consultorioId, whatsappStatus: 'SEM_INSTANCIA' },
-    data: { whatsappStatus: 'EM_CONFIGURACAO' },
+    data: { whatsappStatus: 'EM_CONFIGURACAO', whatsappConfiguracaoDesde: new Date() },
   })
   if (count === 0) return
   const c = await prisma.consultorio.findUnique({ where: { id: consultorioId }, select: { nome: true } })
@@ -16,7 +16,7 @@ export async function aoVirarUltraPago(consultorioId: string): Promise<void> {
     usuarioIds: await superAdmins(),
     consultorioId: null,
     tipo: 'ASSISTENTE_IA',
-    titulo: `Configurar WhatsApp da ${c?.nome ?? 'clínica'}`,
+    titulo: `Configurar WhatsApp da ${c?.nome ?? 'clínica'} (prazo de 24 h)`,
     link: `/admin?consultorio=${consultorioId}`,
   })
 }
@@ -52,7 +52,7 @@ export async function aoSairDoUltra(consultorioId: string): Promise<void> {
   })
   const c = await prisma.consultorio.update({
     where: { id: consultorioId },
-    data: { iaPosVendaLigada: false, whatsappStatus: 'SEM_INSTANCIA' },
+    data: { iaPosVendaLigada: false, whatsappStatus: 'SEM_INSTANCIA', whatsappConfiguracaoDesde: null },
     select: { nome: true },
   })
   await notificar({

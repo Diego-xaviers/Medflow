@@ -31,7 +31,7 @@ assert.ok(!planoAtende('BASICO', 'PRO'), 'BASICO nao atende PRO')
 assert.ok(!planoAtende('PRO', 'ULTRA'), 'PRO nao atende ULTRA')
 
 // --- telas pagas: a razao de existir do arquivo ---
-for (const tela of ['/financeiro', '/relatorios', '/lembretes', '/encaminhamentos']) {
+for (const tela of ['/financeiro', '/relatorios', '/encaminhamentos']) {
   assert.ok(!planoLibera('BASICO', tela), `BASICO nao abre ${tela}`)
   assert.ok(planoLibera('PRO', tela), `PRO abre ${tela}`)
   assert.ok(planoLibera('ULTRA', tela), `ULTRA abre ${tela}`)
@@ -84,3 +84,5 @@ assert.ok(
 )
 
 console.log('planos: todos os checks passaram')
+
+for (const plano of TODOS) assert.ok(planoLibera(plano, '/conversas'))

@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { rota, ErroDeNegocio } from '@/lib/api'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { ritmoValido, TITULO_LOTE } from '@/lib/lotesIA'
-import { aprovarLote, autorizarLote, comTrava, iniciaEmDoDia, liberarHoje, montarPainel, textoDoLote } from '@/lib/lotesServidor'
+import { aprovarLote, autorizarLote, comTrava, iniciaEmDoDia, liberarHoje, montarPainel, previaDoLote } from '@/lib/lotesServidor'
 import { exigirAssistente } from '../../acesso'
 
 type Params = { params: { id: string } }
@@ -16,7 +16,8 @@ export async function GET(req: NextRequest, { params }: Params) {
     // O que a tela mostra para autorizar é exatamente o que será gravado.
     if (req.nextUrl.searchParams.get('previa') === 'autorizacao') {
       const iniciaEm = await iniciaEmDoDia(consultorioId, req.nextUrl.searchParams.get('inicio') ?? '')
-      return { texto: await textoDoLote(prisma, consultorioId, params.id, iniciaEm) }
+      const { texto } = await previaDoLote(prisma, consultorioId, params.id, iniciaEm)
+      return { texto }
     }
     const lote = await prisma.loteIA.findFirst({
       where: { id: params.id, consultorioId },
@@ -45,6 +46,7 @@ const corpo = z.object({
   acao: z.enum(['aprovar', 'pausar', 'retomar', 'descartar', 'autorizar']),
   /** Só em `autorizar`: "AAAA-MM-DD", hoje ou depois (dia da clínica). */
   iniciaEm: z.string().optional(),
+  textoConfirmado: z.string().max(2000).optional(),
   ritmoDiario: z.unknown().optional(),
   /** Ids de PACIENTE: o lote proposto é refeito a cada abertura e os ids de contato mudam. */
   remover: z.array(z.string()).max(1000).optional(),
@@ -60,10 +62,10 @@ const DE_PARA: Record<Exclude<z.infer<typeof corpo>['acao'], 'autorizar'>, { de:
 export async function PATCH(req: NextRequest, { params }: Params) {
   return rota(async () => {
     const { consultorioId, usuarioId } = await exigirAssistente()
-    const { acao, ritmoDiario, remover, iniciaEm } = corpo.parse(await req.json())
+    const { acao, ritmoDiario, remover, iniciaEm, textoConfirmado } = corpo.parse(await req.json())
 
     if (acao === 'autorizar') {
-      const texto = await autorizarLote(consultorioId, params.id, usuarioId, await iniciaEmDoDia(consultorioId, iniciaEm ?? ''))
+      const texto = await autorizarLote(consultorioId, params.id, usuarioId, await iniciaEmDoDia(consultorioId, iniciaEm ?? ''), textoConfirmado ?? '')
       registrarAuditoria({
         acao: 'AUTORIZAR_ENVIO_LOTE',
         entidade: 'LoteIA',

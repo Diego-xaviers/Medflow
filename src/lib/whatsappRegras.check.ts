@@ -5,9 +5,14 @@
 
 import assert from 'node:assert/strict'
 import {
+  prazoDaConfiguracao,
+  textoDoPrazo,
+  textoDoRestante,
   acaoDaResposta,
   cotaDoDia,
   dentroDaJanela,
+  horarioDoLote,
+  pediuParar,
   doTelefone,
   ehEcoNosso,
   statusAposSalvar,
@@ -25,6 +30,14 @@ import {
   type ItemFila,
   aindaNaFila,
 } from './whatsappRegras'
+
+const fimDeSemana = [{ dias: [6], de: '09:00', ate: '14:00' }]
+assert.deepEqual(horarioDoLote(fimDeSemana, null), [])
+assert.deepEqual(horarioDoLote(fimDeSemana, [{ dias: [5, 6], de: '10:00', ate: '19:00' }]),
+  [{ dias: [6], de: '10:00', ate: '14:00' }])
+assert.deepEqual(horarioDoLote(fimDeSemana, { invalido: true }), [])
+assert.ok(pediuParar('Humano, pare de me mandar mensagens!'))
+assert.ok(!pediuParar('Quero falar com um humano.'))
 
 const fuso = 'America/Sao_Paulo'
 const agora = new Date('2026-11-19T15:00:00Z')
@@ -201,5 +214,22 @@ assert.equal(aindaNaFila('LIBERADO', null), true)
 assert.equal(aindaNaFila('LIBERADO', 'AGUARDANDO_ENVIO'), true)
 assert.equal(aindaNaFila('LIBERADO', 'ENCERRADA'), false)
 assert.equal(aindaNaFila('AGUARDANDO', null), false)
+
+// prazo de 24 h da instância
+{
+  const desde = new Date('2026-11-23T12:00:00Z')
+  const p = prazoDaConfiguracao(desde, new Date('2026-11-23T18:40:00Z'))!
+  assert.equal(p.prazo.toISOString(), '2026-11-24T12:00:00.000Z')
+  assert.equal(p.atrasado, false)
+  assert.equal(textoDoRestante(p.restanteMs), 'faltam 17h 20min')
+  const atrasado = prazoDaConfiguracao(desde.toISOString(), new Date('2026-11-24T13:05:00Z'))!
+  assert.equal(atrasado.atrasado, true)
+  assert.equal(textoDoRestante(atrasado.restanteMs), 'atrasado 1h 05min')
+  assert.equal(textoDoRestante(30 * 60_000), 'faltam 30min')
+  assert.equal(prazoDaConfiguracao(null), null)
+  assert.equal(prazoDaConfiguracao('lixo'), null)
+  assert.equal(textoDoPrazo(p.prazo, 'America/Sao_Paulo'), '24/11 às 09:00')
+  assert.equal(textoDoPrazo(p.prazo, 'America/Cuiaba'), '24/11 às 08:00')
+}
 
 console.log('whatsapp: todos os checks passaram')

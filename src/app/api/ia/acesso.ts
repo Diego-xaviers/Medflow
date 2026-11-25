@@ -8,8 +8,8 @@ export const MENSAGEM_ULTRA = 'O Assistente IA faz parte do plano Ultra. Veja em
  * recurso do plano Ultra. A tela abre para todos (para mostrar que existe),
  * mas nada calcula nem chama a IA sem o recurso.
  */
-export async function exigirAssistente(): Promise<Contexto> {
-  const ctx = await exigirTela('/ia')
+export async function exigirAssistente(tela: '/ia' | '/conversas' = '/ia'): Promise<Contexto> {
+  const ctx = await exigirTela(tela)
   if (!temRecurso(ctx.plano, 'iaPosVenda')) throw new ErroPlanoInsuficiente(MENSAGEM_ULTRA)
   return ctx
 }

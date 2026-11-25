@@ -39,17 +39,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       await naoContatarMais(consultorioId, contato.pacienteId)
       registrarAuditoria({ acao: 'NAO_CONTATAR', entidade: 'Paciente', entidadeId: contato.pacienteId, usuarioId, consultorioId })
     } else {
-      await prisma.contatoLote.update({
-        where: { id: contato.id },
+      const { count } = await prisma.contatoLote.updateMany({
+        where: { id: contato.id, consultorioId,
+          status: status === 'ENVIADO' || mensagem ? 'LIBERADO' : 'ENVIADO',
+          paciente: { aceitaContato: true },
+        },
         data: {
           ...(status ? { status } : {}),
           ...(status === 'ENVIADO' ? { enviadoEm: new Date() } : {}),
           ...(mensagem ? { mensagem } : {}),
         },
       })
+      if (!count) throw new ErroDeNegocio('A situação deste contato mudou. Atualize a lista antes de continuar.')
     }
     return prisma.contatoLote.findUniqueOrThrow({
-      where: { id: contato.id },
+      where: { id: contato.id, consultorioId },
       select: { id: true, status: true, mensagem: true },
     })
   })
@@ -62,7 +66,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
     const contato = await contatoDoConsultorio(params.id, consultorioId)
     await escreverMensagens(consultorioId, [contato.id])
     const atual = await prisma.contatoLote.findUniqueOrThrow({
-      where: { id: contato.id },
+      where: { id: contato.id, consultorioId },
       select: { id: true, status: true, mensagem: true },
     })
     if (!atual.mensagem) throw new ErroDeNegocio('Não consegui escrever a mensagem agora. Tente de novo em instantes.')

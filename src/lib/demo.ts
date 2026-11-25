@@ -16,7 +16,8 @@
  * acontecer.
  */
 
-import { PAINEL_IA_EXEMPLO } from './ia-exemplo'
+import { listaExemplo, type Aba } from './caixaConversas'
+import { ATIVIDADE_EXEMPLO, AGENTES_EXEMPLO, CONHECIMENTO_EXEMPLO, PAINEL_IA_EXEMPLO } from './ia-exemplo'
 
 /* ───────────────────────── Datas vivas ───────────────────────── */
 
@@ -447,8 +448,10 @@ const RESPOSTAS: Record<string, () => unknown> = {
   '/api/financeiro/resumo': () => RESUMO,
   '/api/campanhas': () => CAMPANHAS,
   '/api/relatorios': () => RELATORIOS,
-  '/api/lembretes': () => [],
+  '/api/ia/atividade': () => ATIVIDADE_EXEMPLO,
   '/api/ia/painel': () => PAINEL_IA_EXEMPLO,
+  '/api/ia/agentes': () => AGENTES_EXEMPLO,
+  '/api/ia/conhecimento': () => CONHECIMENTO_EXEMPLO,
   '/api/notificacoes': () => [],
   '/api/usuarios': () => EQUIPE.map((u) => ({ ...u, email: `${u.id}@visaoclara.demo`, papel: u.id === 'prof-1' ? 'DONO' : 'ATENDENTE', ativo: true, atendePacientes: u.id !== 'user-3', telas: null })),
   '/api/perfil': () => ({ ...SESSAO_DEMO.user, fotoUrl: null, telefone: CONSULTORIO_DEMO.telefone }),
@@ -477,6 +480,10 @@ export const MENSAGEM_SO_LEITURA =
  */
 export function respostaDemo(url: string): unknown {
   const caminho = url.split('?')[0].replace(/\/$/, '')
+  if (caminho === '/api/conversas') {
+    const params = new URLSearchParams(url.split('?')[1])
+    return listaExemplo((params.get('aba') ?? 'todas') as Aba, params.get('q') ?? '')
+  }
   const monta = RESPOSTAS[caminho]
   if (monta) return monta()
 
