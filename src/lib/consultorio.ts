@@ -56,9 +56,9 @@ export async function criarConsultorioComDono(dados: NovoConsultorio) {
       slug,
       telefone: dados.telefone || null,
       endereco: dados.endereco || null,
-      // Omitido cai no default do schema (BASICO): plano novo nunca nasce
-      // pago por omissão.
-      ...(dados.plano ? { plano: dados.plano } : {}),
+      // Omitido (admin) nasce no PRO, o menor plano à venda. O default
+      // BASICO do schema é legado; quem cobra é `valorMensalidade`.
+      plano: dados.plano ?? 'PRO',
       ...(dados.valorMensalidade ? { valorMensalidade: dados.valorMensalidade } : {}),
       ...(dados.exigePagamentoInicial ? { exigePagamentoInicial: true } : {}),
       // Sem expediente, o link público nasce sem horário para oferecer.

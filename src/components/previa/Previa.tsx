@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Lock } from 'lucide-react'
 import {
-  ORDEM_PLANOS,
+  PLANOS_A_VENDA,
   RECURSOS,
   ROTULO,
   planoLibera,
@@ -46,7 +46,7 @@ export default function Previa({ plano, aoTrocarPlano }: {
           aria-label="Escolha o plano para ver o que ele inclui"
           className="inline-flex gap-1 p-1 rounded-xl bg-neutro-100 dark:bg-neutro-900 border border-neutro-200/70 dark:border-neutro-800"
         >
-          {ORDEM_PLANOS.map((p) => (
+          {PLANOS_A_VENDA.map((p) => (
             <button
               key={p}
               role="tab"

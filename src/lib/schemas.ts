@@ -124,7 +124,7 @@ export const novoConsultorioSchema = z.object({
  * consentimento dado.
  */
 export const cadastroSchema = novoConsultorioSchema.extend({
-  plano: z.enum(['BASICO', 'PRO', 'ULTRA']),
+  plano: z.enum(['PRO', 'ULTRA']),
   aceiteTermos: z.literal(true, {
     errorMap: () => ({ message: 'É preciso aceitar os termos de uso' }),
   }),

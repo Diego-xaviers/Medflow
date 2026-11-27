@@ -32,6 +32,12 @@ export type PlanoNome = 'BASICO' | 'PRO' | 'ULTRA'
 export const ORDEM_PLANOS: PlanoNome[] = ['BASICO', 'PRO', 'ULTRA']
 
 /**
+ * Os planos que se vendem: vitrine, cadastro, admin e "subir de plano".
+ * BASICO saiu da venda em 26/11/2026 e só existe para ranking e cliente legado.
+ */
+export const PLANOS_A_VENDA: PlanoNome[] = ['PRO', 'ULTRA']
+
+/**
  * Telas que EXIGEM plano, e qual o mínimo.
  *
  * Lista de exceções, não de permissões: tela que não está aqui não depende de
@@ -93,8 +99,8 @@ export const TETO_USUARIOS: Record<PlanoNome, number | null> = {
  * nenhuma regra de desconto no código.
  */
 export const PRECO_TABELA: Record<PlanoNome, number> = {
-  BASICO: 197,
-  PRO: 397,
+  BASICO: 0, // legado, fora da venda
+  PRO: 149,
   ULTRA: 897,
 }
 
@@ -108,7 +114,7 @@ export const ROTULO: Record<PlanoNome, string> = {
 export const INCLUI: Record<PlanoNome, string[]> = {
   BASICO: ['Agenda', 'Pacientes', 'Prontuários', 'Receitas', '1 usuário'],
   PRO: [
-    'Tudo do Básico',
+    'Agenda, pacientes, prontuários e receitas',
     'Até 5 usuários',
     'Agendamento público (link e QR)',
     'Financeiro',

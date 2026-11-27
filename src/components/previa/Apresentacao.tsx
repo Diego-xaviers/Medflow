@@ -24,7 +24,7 @@ import {
 } from 'lucide-react'
 import {
   INCLUI,
-  ORDEM_PLANOS,
+  PLANOS_A_VENDA,
   PRECO_TABELA,
   ROTULO,
   TETO_USUARIOS,
@@ -691,8 +691,8 @@ function Planos({
         texto="Mensal, sem fidelidade. Troca de plano a qualquer momento, para cima ou para baixo."
       />
 
-      <div className="grid sm:grid-cols-3 gap-5 mt-12">
-        {ORDEM_PLANOS.map((p, i) => {
+      <div className="grid sm:grid-cols-2 gap-5 mt-12 max-w-3xl mx-auto">
+        {PLANOS_A_VENDA.map((p, i) => {
           const destaque = p === plano
           const teto = TETO_USUARIOS[p]
 

@@ -6,7 +6,7 @@ import { rota } from '@/lib/api'
 import { situacaoDaConta } from '@/lib/cobranca'
 import { gerarBrCode, pixConfigurado } from '@/lib/pix'
 import { asaasConfigurado, pixDoPagamento, sincronizarPagamentos } from '@/lib/asaas'
-import { INCLUI, ORDEM_PLANOS, PRECO_TABELA, ROTULO, TETO_USUARIOS, type PlanoNome } from '@/lib/planos'
+import { INCLUI, PLANOS_A_VENDA, PRECO_TABELA, ROTULO, TETO_USUARIOS, type PlanoNome } from '@/lib/planos'
 
 /**
  * A aba de Cobrança do consultório.
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
         inclui: INCLUI[plano],
         precoTabela: PRECO_TABELA[plano],
         tetoUsuarios: TETO_USUARIOS[plano],
-        superiores: ORDEM_PLANOS
+        superiores: PLANOS_A_VENDA
           .filter((outro) => PRECO_TABELA[outro] > PRECO_TABELA[plano])
           .map((outro) => ({
             nome: outro,

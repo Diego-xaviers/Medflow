@@ -529,10 +529,9 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
                     {/* Cobrança automática pelo Asaas */}
                     <div className="mb-4 p-3 rounded-lg bg-neutro-50 dark:bg-neutro-950/40 border border-neutro-200/70 dark:border-neutro-800">
                       <label className="rotulo">Plano contratado</label>
-                      <select className="campo" value={c.plano ?? 'BASICO'} disabled={ocupado}
+                      <select className="campo" value={c.plano ?? 'PRO'} disabled={ocupado}
                         onChange={(e) => trocarPlano(e.target.value)}>
-                        <option value="BASICO">Básico — R$ 197 de tabela · 1 usuário</option>
-                        <option value="PRO">Pro — R$ 397 de tabela · 5 usuários</option>
+                        <option value="PRO">Pro — R$ 149 de tabela · 5 usuários</option>
                         <option value="ULTRA">Ultra — R$ 897 de tabela · usuários ilimitados</option>
                       </select>
                       <p className="text-[11px] text-neutro-500 mt-2">

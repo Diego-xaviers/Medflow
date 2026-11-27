@@ -8,7 +8,7 @@ import { Check, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { enviar } from '@/lib/fetcher'
 import {
   INCLUI,
-  ORDEM_PLANOS,
+  PLANOS_A_VENDA,
   PRECO_TABELA,
   ROTULO,
   TETO_USUARIOS,
@@ -34,7 +34,7 @@ export default function Cadastro() {
   // inventado cai no PRO em vez de quebrar a tela com `undefined`.
   const daUrl = parametros.get('plano') as PlanoNome | null
   const [plano, setPlano] = useState<PlanoNome>(
-    daUrl && ORDEM_PLANOS.includes(daUrl) ? daUrl : 'PRO'
+    daUrl && PLANOS_A_VENDA.includes(daUrl) ? daUrl : 'PRO'
   )
 
   const [nomeConsultorio, setNomeConsultorio] = useState('')
@@ -228,7 +228,7 @@ export default function Cadastro() {
             value={plano}
             onChange={(e) => setPlano(e.target.value as PlanoNome)}
           >
-            {ORDEM_PLANOS.map((p) => (
+            {PLANOS_A_VENDA.map((p) => (
               <option key={p} value={p}>
                 {ROTULO[p]} — R$ {PRECO_TABELA[p].toLocaleString('pt-BR')}/mês
               </option>

@@ -12,7 +12,7 @@
 
 import assert from 'node:assert/strict'
 import { cadastroSchema } from './schemas'
-import { PRECO_TABELA, ORDEM_PLANOS } from './planos'
+import { PRECO_TABELA, PLANOS_A_VENDA } from './planos'
 
 const valido = {
   nomeConsultorio: 'Ótica Visão Clara',
@@ -38,9 +38,10 @@ assert.ok(
 // --- plano vem de fora, então não se confia nele ---
 assert.ok(!cadastroSchema.safeParse({ ...valido, plano: 'ULTRA_GRATIS' }).success, 'plano inventado é recusado')
 assert.ok(!cadastroSchema.safeParse({ ...valido, plano: 'pro' }).success, 'plano em minúscula é recusado')
-for (const plano of ORDEM_PLANOS) {
+for (const plano of PLANOS_A_VENDA) {
   assert.ok(cadastroSchema.safeParse({ ...valido, plano }).success, `${plano} é aceito`)
 }
+assert.ok(!cadastroSchema.safeParse({ ...valido, plano: 'BASICO' }).success, 'BASICO saiu da venda')
 
 // --- herdado do novoConsultorioSchema: continua valendo ---
 assert.ok(!cadastroSchema.safeParse({ ...valido, senhaDono: 'curta' }).success, 'senha curta é recusada')
@@ -50,7 +51,7 @@ assert.ok(!cadastroSchema.safeParse({ ...valido, emailDono: 'maria' }).success, 
 // A rota grava `PRECO_TABELA[plano]` como mensalidade, e é esse valor que
 // destrava a assinatura em Cobrança. Plano sem preço nasceria com `undefined`
 // e a pessoa ficaria sem como pagar.
-for (const plano of ORDEM_PLANOS) {
+for (const plano of PLANOS_A_VENDA) {
   assert.ok(PRECO_TABELA[plano] > 0, `${plano} tem preço de tabela`)
 }
 
