@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { jsonSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/json-schema'
+import { betaJSONSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/beta/json-schema'
 import { ErroDeNegocio } from './api'
 import { contemConteudoRestrito, dadosDaClinica, iaConfigurada, REGRAS_DA_BASE, type OpcoesAgenteIA } from './ia'
 import { bateGatilho, DESCRICAO_TOM, type ConfigAgente } from './agentesIA'
@@ -110,12 +110,16 @@ const TEXTO_AUTOR = { IA: 'Assistente', PACIENTE: 'Paciente', EQUIPE: 'Equipe' }
 async function chamar<T>(system: string, user: string, esquema: object): Promise<T> {
   if (!iaConfigurada()) throw new ErroDeNegocio('Assistente com IA ainda não configurado')
   const cliente = new Anthropic()
-  const r = await cliente.messages.parse({
-    model: 'claude-opus-5-5',
+  // Sonnet com esforço baixo: resposta curta e classificada não precisa do Opus (custo ~metade).
+  // `fallbacks: 'default'` refaz no modelo reserva se o Sonnet recusar a mensagem.
+  const r = await cliente.beta.messages.parse({
+    model: 'claude-sonnet-5-5',
     max_tokens: 1000,
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
     system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: user }],
-    output_config: { format: jsonSchemaOutputFormat(esquema as never) },
+    output_config: { effort: 'low', format: betaJSONSchemaOutputFormat(esquema as never) },
   })
   // `parsed_output` é nulo quando a resposta não bateu com o schema.
   if (!r.parsed_output) throw new ErroDeNegocio('A IA respondeu fora do formato esperado. Tente de novo.')
