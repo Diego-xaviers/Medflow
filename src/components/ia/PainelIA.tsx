@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useSWRConfig } from 'swr'
 import { motion } from 'framer-motion'
 import {
-  Sparkles, RefreshCw, AlertCircle, Pause, Play, Send, BellOff, Wand2, Loader2, Users, ShieldCheck,
+  Sparkles, RefreshCw, ChevronRight, AlertCircle, Pause, Play, Send, BellOff, Wand2, Loader2, Users, ShieldCheck,
 } from 'lucide-react'
 import { enviar } from '@/lib/fetcher'
 import { linkWhatsApp } from '@/lib/whatsapp'
@@ -63,9 +63,9 @@ export default function PainelIA({
         </div>
       )}
 
-      <div>
+      <div className={`grid gap-5 ${propostos.length ? 'xl:grid-cols-[minmax(0,1fr)_380px]' : ''} items-start`}>
         {/* Análise */}
-        <section className="cartao p-5 relative overflow-hidden">
+        <section className="cartao p-6 relative overflow-hidden">
           <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-brand-400/10 blur-2xl pointer-events-none" />
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -85,15 +85,19 @@ export default function PainelIA({
           </div>
           {painel.analise ? (
             <>
-              <p className="text-[14px] leading-relaxed text-neutro-700 dark:text-neutro-300">{painel.analise.resumo}</p>
+              <p className="text-[15px] leading-relaxed text-neutro-700 dark:text-neutro-300">{painel.analise.resumo}</p>
               {painel.analise.atencao.length > 0 && (
-                <ul className="mt-4 space-y-2">
-                  {painel.analise.atencao.map((a) => (
-                    <li key={a} className="flex gap-2 text-[13px] text-neutro-600 dark:text-neutro-400">
-                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" /> {a}
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <p className="mt-5 mb-2 text-[11px] font-semibold uppercase tracking-wider text-neutro-400">Pontos de atenção</p>
+                  <ul className="grid gap-2">
+                    {painel.analise.atencao.map((a, i) => (
+                      <motion.li key={a} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 + i * 0.06 }}
+                        className="flex gap-2.5 rounded-lg bg-amber-50/70 dark:bg-amber-950/20 px-3 py-2 text-[13px] text-neutro-700 dark:text-neutro-300">
+                        <AlertCircle size={14} className="mt-0.5 shrink-0 text-amber-500" /> {a}
+                      </motion.li>
+                    ))}
+                  </ul>
+                </>
               )}
             </>
           ) : (
@@ -101,35 +105,34 @@ export default function PainelIA({
           )}
         </section>
 
+        {propostos.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-baseline justify-between">
+              <h2 className="titulo-secao">Lotes sugeridos</h2>
+              <span className="text-[11.5px] text-neutro-400">na ordem que a IA recomenda</span>
+            </div>
+            {propostos.map((l, i) => (
+              <motion.button key={l.id} onClick={() => setLoteAberto(l.id)}
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                className="cartao-interativo group w-full p-4 text-left flex items-center gap-4">
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-50 dark:bg-brand-950/60">
+                  <span className="text-[18px] font-semibold numerico text-brand-700 dark:text-brand-300"><Contador alvo={l.total} /></span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-1.5 text-[13.5px] font-semibold">
+                    {ordemIA.has(l.tipo) && <span className="text-[10px] font-semibold text-brand-700 dark:text-brand-300">{ordemIA.get(l.tipo)!.i + 1}º</span>}
+                    <span className="truncate">{l.titulo}</span>
+                  </p>
+                  <p className="text-[11.5px] text-neutro-400 line-clamp-2">{ordemIA.get(l.tipo)?.porque ?? 'pacientes'}</p>
+                </div>
+                <ChevronRight size={16} className="shrink-0 text-neutro-300 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-600" />
+              </motion.button>
+            ))}
+          </section>
+        )}
       </div>
 
-      {/* Lotes sugeridos */}
-      {propostos.length > 0 && (
-        <section>
-          <h2 className="titulo-secao mb-3">Lotes sugeridos</h2>
-          <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
-            {propostos.map((l, i) => (
-              <motion.div key={l.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                className="cartao-interativo p-4 flex flex-col">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-[13px] font-semibold min-w-0">{l.titulo}</p>
-                  {ordemIA.has(l.tipo) && (
-                    <span className="text-[10px] font-semibold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/60 px-1.5 py-0.5 rounded shrink-0">
-                      {(ordemIA.get(l.tipo)!.i) + 1}º
-                    </span>
-                  )}
-                </div>
-                <p className="text-[26px] font-semibold leading-none mt-2 mb-1 numerico"><Contador alvo={l.total} /></p>
-                <p className="text-[11px] text-neutro-400 mb-3 flex-1">
-                  {ordemIA.get(l.tipo)?.porque ?? 'pacientes'}
-                </p>
-                <button onClick={() => setLoteAberto(l.id)} className="btn-primario text-[12.5px] py-2">Ver e aprovar</button>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-      )}
-
+      {painel.andamento.length > 0 && <h2 className="titulo-secao pt-2">Em andamento</h2>}
       {/* Em andamento */}
       {painel.andamento.map((l) => (
         <LoteEmAndamento key={l.id} lote={l} acao={acao} conectado={conectado} aoAutorizar={() => setLoteAutorizar(l.id)} />

@@ -1,8 +1,5 @@
 import { useCallback, useState } from 'react'
 import useSWR from 'swr'
-import { ArrowRight, MessagesSquare } from 'lucide-react'
-import Link from 'next/link'
-import { appUrl } from '@/lib/rotas'
 import { completude, type ConfigAgente } from '@/lib/agentesIA'
 import { fetcher, enviar } from '@/lib/fetcher'
 import type { Painel } from '@/lib/lotesServidor'
@@ -46,20 +43,18 @@ export default function Agentes({ painel, aoMudar, aoConectar }: {
     } finally { setOcupado(false) }
   }
 
-  return <div className="space-y-4 mb-5">
+  // Desconectado, o QR vem primeiro; conectado, o cartão fica no fim como referência.
+  const zap = <CartaoWhatsapp whatsapp={whatsapp} aoMudar={aoMudar} aoConectar={aoConectar} />
+  return <div className="space-y-4">
+    {!conectado && zap}
     {data?.agentes && <FaixaFluxo ativos={data.agentes.filter(a => ativo(a.config)).length} />}
-    <CartaoWhatsapp whatsapp={whatsapp} aoMudar={aoMudar} aoConectar={aoConectar} />
     {(error || erro) && <p role="alert" className="text-sm text-amber-700 dark:text-amber-400">{erro || error.message}</p>}
     {!data && !error && <div className="esqueleto h-40" />}
     <div className="grid gap-4 md:grid-cols-2">
       {data?.agentes?.map(a => <CartaoAgente key={a.config.tipo} agente={a} ativo={ativo(a.config)} conectado={conectado} ocupado={ocupado}
         aoAlternar={() => alternar(a.config)} aoConfigurar={() => setEditando(a.config)} />)}
     </div>
-    <Link prefetch={false} href={appUrl('/conversas')} className="cartao flex items-center gap-3 p-4 text-sm hover:border-brand-500">
-      <MessagesSquare size={17} className="text-brand-600" />
-      <span className="flex-1">{painel.aguardandoEquipe} {painel.aguardandoEquipe === 1 ? 'conversa aguardando' : 'conversas aguardando'} a equipe</span>
-      <span className="font-semibold">Conversas</span><ArrowRight size={15} />
-    </Link>
+    {conectado && zap}
     {editando && data && <ModalConfigurarAgente inicial={editando} equipe={data.equipe} fuso={data.fusoHorario} aoSalvar={aplicar} aoFechar={() => setEditando(null)} />}
     {autorizando && <ModalAutorizar texto={TEXTO_POS_VENDA} aoFechar={() => setAutorizando(false)} aoConfirmar={async () => {
       aoMudar(await enviar('/api/ia/whatsapp', 'PATCH', { acao: 'posVenda', ligar: true }))
