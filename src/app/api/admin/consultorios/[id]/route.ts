@@ -7,6 +7,7 @@ import { rota, ErroDeNegocio } from '@/lib/api'
 import { atualizarValorAssinatura, cancelarAssinatura } from '@/lib/asaas'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { situacaoDaConta } from '@/lib/cobranca'
+import { PRECO_TABELA } from '@/lib/planos'
 import { aoSairDoUltra, aoVirarUltraPago, salvarInstancia, urlDoWebhook } from '@/lib/whatsappCiclo'
 
 type Params = { params: { id: string } }
@@ -22,9 +23,8 @@ const ajusteSchema = z.object({
     })
     .optional(),
   /// Plano contratado. Governa features; não mexe no valor cobrado.
-  plano: z.enum(['BASICO', 'PRO', 'ULTRA']).optional(),
+  plano: z.enum(['PRO', 'ULTRA']).optional(),
   /// Mensalidade da assinatura no Asaas; null tira o valor.
-  valorMensalidade: z.coerce.number().positive('Valor deve ser maior que zero').nullable().optional(),
   cancelarAssinatura: z.literal(true).optional(),
   whatsapp: z.object({ instanciaId: z.string().max(200), instanciaToken: z.string().max(200) }).optional(),
   limiteDiarioEnvios: z.coerce.number().int().min(1).max(100).optional(),
@@ -114,25 +114,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return { ok: true }
     }
 
-    if (dados.valorMensalidade !== undefined) {
+    const atualizacao: Record<string, any> = {}
+    if (dados.plano !== undefined) {
+      // O valor cobrado é sempre o preço do plano: ninguém digita mensalidade.
+      const valor = PRECO_TABELA[dados.plano]
       const atual = await prisma.consultorio.findUniqueOrThrow({
         where: { id: consultorio.id },
         select: { asaasAssinaturaId: true },
       })
-      if (atual.asaasAssinaturaId) {
-        if (dados.valorMensalidade === null) throw new ErroDeNegocio('Cancele a assinatura antes de tirar o valor')
-        // Reajuste vale também para a cobrança ainda não paga.
-        await atualizarValorAssinatura(atual.asaasAssinaturaId, dados.valorMensalidade)
-      }
-      await prisma.consultorio.update({
-        where: { id: consultorio.id },
-        data: { valorMensalidade: dados.valorMensalidade },
-      })
-      return { ok: true }
+      // Asaas antes do banco: se o reajuste falhar, o plano não troca sozinho.
+      if (atual.asaasAssinaturaId) await atualizarValorAssinatura(atual.asaasAssinaturaId, valor)
+      atualizacao.plano = dados.plano
+      atualizacao.valorMensalidade = valor
     }
-
-    const atualizacao: Record<string, any> = {}
-    if (dados.plano !== undefined) atualizacao.plano = dados.plano
     if (dados.ativo !== undefined) atualizacao.ativo = dados.ativo
     if (dados.acessoLiberado !== undefined) atualizacao.acessoLiberado = dados.acessoLiberado
     if (dados.diaVencimento !== undefined) atualizacao.diaVencimento = dados.diaVencimento

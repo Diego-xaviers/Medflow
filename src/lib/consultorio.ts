@@ -1,3 +1,4 @@
+import { PRECO_TABELA } from './planos'
 import bcrypt from 'bcryptjs'
 import { prisma } from './prisma'
 import { ErroDeNegocio } from './api'
@@ -59,7 +60,7 @@ export async function criarConsultorioComDono(dados: NovoConsultorio) {
       // Omitido (admin) nasce no PRO, o menor plano à venda. O default
       // BASICO do schema é legado; quem cobra é `valorMensalidade`.
       plano: dados.plano ?? 'PRO',
-      ...(dados.valorMensalidade ? { valorMensalidade: dados.valorMensalidade } : {}),
+      valorMensalidade: dados.valorMensalidade ?? PRECO_TABELA[dados.plano ?? 'PRO'],
       ...(dados.exigePagamentoInicial ? { exigePagamentoInicial: true } : {}),
       // Sem expediente, o link público nasce sem horário para oferecer.
       blocosExpediente: { create: BLOCOS_PADRAO },

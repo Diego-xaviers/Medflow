@@ -279,41 +279,11 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
   const [confirmacao, setConfirmacao] = useState('')
   const [diaVencimento, setDiaVencimento] = useState<string>('')
   const [salvandoDia, setSalvandoDia] = useState(false)
-  const [novaFatura, setNovaFatura] = useState({
-    competencia: new Date().toISOString().slice(0, 7),
-    valor: '', vencimento: '', descricao: '',
-  })
 
   // Quando o painel carrega, sincroniza o diaVencimento com o do consultório
   useEffect(() => {
     if (c?.diaVencimento) setDiaVencimento(String(c.diaVencimento))
   }, [c?.diaVencimento])
-
-  // Auto-preenche o vencimento com base no dia configurado + competência
-  useEffect(() => {
-    const dia = parseInt(diaVencimento)
-    if (!dia || !novaFatura.competencia) return
-    const [ano, mes] = novaFatura.competencia.split('-').map(Number)
-    // Garante que o dia não passa do último dia do mês
-    const ultimo = new Date(ano, mes, 0).getDate()
-    const diaReal = Math.min(dia, ultimo)
-    const venc = `${novaFatura.competencia}-${String(diaReal).padStart(2, '0')}`
-    setNovaFatura((f) => ({ ...f, vencimento: venc }))
-  }, [diaVencimento, novaFatura.competencia])
-
-  // Avança a competência para o mês seguinte ao último lançado
-  useEffect(() => {
-    if (!c?.faturas?.length) return
-    const ultima = c.faturas[0]?.competencia
-    if (!ultima) return
-    const [ano, mes] = ultima.split('-').map(Number)
-    const proxMes = mes === 12 ? 1 : mes + 1
-    const proxAno = mes === 12 ? ano + 1 : ano
-    setNovaFatura((f) => ({
-      ...f,
-      competencia: `${proxAno}-${String(proxMes).padStart(2, '0')}`,
-    }))
-  }, [c?.faturas])
 
   async function salvarDiaVencimento() {
     setSalvandoDia(true); setErro(null)
@@ -344,12 +314,8 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
     } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
   }
 
-  const [mensalidade, setMensalidade] = useState('')
-  useEffect(() => { setMensalidade(c?.valorMensalidade ? String(c.valorMensalidade) : '') }, [c?.valorMensalidade])
 
-  // Plano salva no onChange, sem botão: é um enum de três opções, não tem o
-  // que revisar antes de confirmar. O valor cobrado continua no campo abaixo,
-  // com botão próprio — porque ali um dígito errado vira cobrança errada.
+  // Plano salva no onChange: o servidor ajusta mensalidade e assinatura no Asaas junto.
   async function trocarPlano(novo: string) {
     setOcupado(true); setErro(null)
     try {
@@ -388,14 +354,6 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
     } catch { /* sem permissão de área de transferência: o campo é selecionável */ }
   }
 
-  async function salvarMensalidade() {
-    setOcupado(true); setErro(null)
-    try {
-      await enviar(`/api/admin/consultorios/${id}`, 'PATCH', { valorMensalidade: mensalidade ? Number(mensalidade) : null })
-      await mutate()
-    } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
-  }
-
   async function encerrarAssinatura() {
     if (!confirm('Cancelar a cobrança automática deste consultório no Asaas?\n\nCobranças já pagas continuam registradas.')) return
     setOcupado(true); setErro(null)
@@ -409,22 +367,6 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
     setOcupado(true); setErro(null)
     try {
       await enviar(`/api/admin/consultorios/${id}`, 'PATCH', { ativo: !c.ativo })
-      await mutate(); aoMudar()
-    } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
-  }
-
-  async function criarFatura(e: React.FormEvent) {
-    e.preventDefault()
-    setOcupado(true); setErro(null)
-    try {
-      await enviar('/api/admin/faturas', 'POST', {
-        consultorioId: id,
-        competencia: novaFatura.competencia,
-        valor: Number(novaFatura.valor),
-        vencimento: novaFatura.vencimento,
-        descricao: novaFatura.descricao || undefined,
-      })
-      setNovaFatura({ ...novaFatura, valor: '', descricao: '' })
       await mutate(); aoMudar()
     } catch (e: any) { setErro(e.message) } finally { setOcupado(false) }
   }
@@ -535,9 +477,8 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
                         <option value="ULTRA">Ultra — R$ 897 de tabela · usuários ilimitados</option>
                       </select>
                       <p className="text-[11px] text-neutro-500 mt-2">
-                        O plano define o que o consultório enxerga. O valor cobrado é o campo
-                        abaixo, e pode ser diferente do preço de tabela — é assim que preço
-                        negociado, desconto de rede e cliente fundador funcionam.
+                        O plano define o que o consultório enxerga e quanto paga. Trocar o plano
+                        reajusta a mensalidade e a assinatura no Asaas automaticamente.
                       </p>
                     </div>
 
@@ -617,23 +558,11 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
 
                     <div className="mb-4 p-3 rounded-lg border border-brand-200 dark:border-brand-900 bg-brand-50/40 dark:bg-brand-900/10">
                       <p className="text-[12.5px] font-medium mb-2">Cobrança automática (Asaas)</p>
-                      <div className="flex items-end gap-2">
-                        <div className="flex-1">
-                          <label className="rotulo">Mensalidade (R$)</label>
-                          <input type="number" step="0.01" min="0" className="campo" placeholder="Ex: 149,90"
-                            value={mensalidade} onChange={(e) => setMensalidade(e.target.value)} />
-                        </div>
-                        <button type="button" onClick={salvarMensalidade} disabled={ocupado}
-                          className="btn-suave !py-2 !px-3 shrink-0 mb-1">
-                          <Check size={13} /> Salvar
-                        </button>
-                      </div>
+                      <p className="text-[13px]">Mensalidade: <strong>{c.valorMensalidade ? moeda(c.valorMensalidade) : '—'}</strong></p>
                       <p className="text-[11px] text-neutro-500 mt-2">
                         {c.asaasAssinaturaId
-                          ? `Assinatura ativa · ${c.formaCobranca === 'CREDIT_CARD' ? 'cartão (débito automático)' : 'PIX'}. Mudar o valor reajusta também a cobrança em aberto.`
-                          : c.valorMensalidade
-                          ? 'Valor definido. O dono ativa o pagamento em Cobrança, escolhendo PIX ou cartão.'
-                          : 'Defina o valor para liberar o pagamento online para este consultório.'}
+                          ? `Assinatura ativa · ${c.formaCobranca === 'CREDIT_CARD' ? 'cartão (débito automático)' : 'PIX'}. Trocar o plano reajusta também a cobrança em aberto.`
+                          : 'O dono ativa o pagamento em Cobrança, escolhendo PIX ou cartão.'}
                       </p>
                       {c.asaasAssinaturaId && (
                         <button type="button" onClick={encerrarAssinatura} disabled={ocupado}
@@ -651,7 +580,7 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
                           value={diaVencimento}
                           onChange={(e) => setDiaVencimento(e.target.value)} />
                         <p className="text-[11px] text-neutro-400 mt-1">
-                          Auto-preenche o vencimento ao criar novas faturas.
+                          Dia em que a assinatura vence todo mês.
                         </p>
                       </div>
                       <button type="button" onClick={salvarDiaVencimento} disabled={salvandoDia}
@@ -683,36 +612,9 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
                       </div>
                     </button>
 
-                    <form onSubmit={criarFatura} className="grid grid-cols-2 gap-2.5 mb-4">
-                      <div>
-                        <label className="rotulo">Competência</label>
-                        <input type="month" className="campo" required value={novaFatura.competencia}
-                          onChange={(e) => setNovaFatura({ ...novaFatura, competencia: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="rotulo">Vencimento</label>
-                        <input type="date" className="campo" required value={novaFatura.vencimento}
-                          onChange={(e) => setNovaFatura({ ...novaFatura, vencimento: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="rotulo">Valor</label>
-                        <input type="number" step="0.01" className="campo" required placeholder="100,00"
-                          value={novaFatura.valor}
-                          onChange={(e) => setNovaFatura({ ...novaFatura, valor: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="rotulo">Descrição</label>
-                        <input className="campo" placeholder="Mensalidade" value={novaFatura.descricao}
-                          onChange={(e) => setNovaFatura({ ...novaFatura, descricao: e.target.value })} />
-                      </div>
-                      <button type="submit" disabled={ocupado} className="btn-suave col-span-2 !py-2 !text-[12px]">
-                        <Plus size={14} strokeWidth={2.2} /> Lançar fatura
-                      </button>
-                    </form>
-
                     <div className="space-y-2">
                       {c.faturas.length === 0 && (
-                        <p className="text-[12px] text-neutro-400">Nenhuma fatura lançada.</p>
+                        <p className="text-[12px] text-neutro-400">Nenhuma fatura ainda. Elas aparecem sozinhas quando o Asaas gera a cobrança.</p>
                       )}
                       {c.faturas.map((f: any) => (
                         <div key={f.id} className="flex items-center gap-2.5 rounded-lg border border-neutro-200/70 dark:border-neutro-800 px-3.5 py-2.5">
