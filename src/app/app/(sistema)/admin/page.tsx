@@ -474,7 +474,7 @@ function PainelDoConsultorio({ id, aoFechar, aoMudar }: {
                       <select className="campo" value={c.plano ?? 'PRO'} disabled={ocupado}
                         onChange={(e) => trocarPlano(e.target.value)}>
                         <option value="PRO">Pro — R$ 149 de tabela · 5 usuários</option>
-                        <option value="ULTRA">Ultra — R$ 897 de tabela · usuários ilimitados</option>
+                        <option value="ULTRA">Ultra — R$ 697 de tabela · usuários ilimitados</option>
                       </select>
                       <p className="text-[11px] text-neutro-500 mt-2">
                         O plano define o que o consultório enxerga e quanto paga. Trocar o plano

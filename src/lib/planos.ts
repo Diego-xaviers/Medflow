@@ -101,7 +101,7 @@ export const TETO_USUARIOS: Record<PlanoNome, number | null> = {
 export const PRECO_TABELA: Record<PlanoNome, number> = {
   BASICO: 0, // legado, fora da venda
   PRO: 149,
-  ULTRA: 897,
+  ULTRA: 697,
 }
 
 export const ROTULO: Record<PlanoNome, string> = {
